@@ -3,7 +3,7 @@ import type { MediaSource } from "@reel-studio/shared-types";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { readMediaMetadata } from "../media/importFile.js";
-import { saveMediaBlob } from "../persistence/db.js";
+import { deleteMediaBlob, saveMediaBlob } from "../persistence/db.js";
 
 export function MediaLibrary() {
   const state = useEditorState();
@@ -28,6 +28,16 @@ export function MediaLibrary() {
     const trackId = source.kind === "video" ? VIDEO_TRACK_ID : AUDIO_TRACK_ID;
     const clipsOnTrack = state.project.clips.filter((c) => c.trackId === trackId);
     dispatch({ type: "ADD_CLIP", trackId, sourceId: source.id, atIndex: clipsOnTrack.length });
+  }
+
+  async function handleRemove(source: MediaSource) {
+    dispatch({ type: "REMOVE_SOURCE", sourceId: source.id });
+    if (source.previewUrl) URL.revokeObjectURL(source.previewUrl);
+    try {
+      await deleteMediaBlob(source.id);
+    } catch (err) {
+      console.error("Failed to delete stored media", err);
+    }
   }
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
@@ -67,6 +77,9 @@ export function MediaLibrary() {
             <span className="media-name">{source.name}</span>
             <button type="button" onClick={() => handleAppend(source)} title="Add to timeline">
               +
+            </button>
+            <button type="button" className="media-remove" onClick={() => handleRemove(source)} title="Delete from library">
+              ×
             </button>
           </li>
         ))}

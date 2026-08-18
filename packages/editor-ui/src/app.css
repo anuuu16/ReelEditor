@@ -222,6 +222,11 @@ body {
   width: 20px;
   height: 20px;
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+.media-remove {
+  color: #ff9d9d;
 }
 
 .preview {
@@ -449,14 +454,21 @@ body {
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
 }
 
-.clip-muted-badge {
+.clip-mute-toggle {
   font-size: 9px;
   font-weight: 700;
-  color: #ff9d9d;
-  border: 1px solid #ff9d9d;
+  color: #b7b8c2;
+  background: transparent;
+  border: 1px solid #4a4b55;
   border-radius: 3px;
   padding: 0 3px;
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+.clip-mute-toggle.muted {
+  color: #ff9d9d;
+  border-color: #ff9d9d;
 }
 
 .clip-name {

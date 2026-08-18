@@ -31,6 +31,11 @@ export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
     dispatch({ type: "SELECT_CLIP", clipId: clip.id });
   }
 
+  function handleToggleMute(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { muted: !clip.muted } });
+  }
+
   return (
     <div
       className={`clip-block${isSelected ? " selected" : ""}`}
@@ -46,9 +51,17 @@ export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
         <ClipWaveform source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
       )}
       <div className="clip-overlay">
-        {clip.muted && <span className="clip-muted-badge">Muted</span>}
+        <button
+          type="button"
+          className={`clip-mute-toggle${clip.muted ? " muted" : ""}`}
+          draggable={false}
+          onClick={handleToggleMute}
+          title={clip.muted ? "Unmute" : "Mute"}
+        >
+          {clip.muted ? "Muted" : "Mute"}
+        </button>
         <span className="clip-name">{clip.label || source?.name || "clip"}</span>
-        <button type="button" className="clip-remove" onClick={handleRemove} title="Remove clip">
+        <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove clip">
           ×
         </button>
       </div>

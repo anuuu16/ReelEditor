@@ -10,6 +10,7 @@ export interface EditorState {
 
 export type Action =
   | { type: "ADD_SOURCE"; source: MediaSource }
+  | { type: "REMOVE_SOURCE"; sourceId: string }
   | { type: "ADD_CLIP"; trackId: string; sourceId: string; atIndex: number }
   | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number }
   | { type: "REMOVE_CLIP"; clipId: string }
@@ -46,6 +47,20 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
     case "ADD_SOURCE":
       return { ...state, project: { ...state.project, sources: [...state.project.sources, action.source] } };
+
+    case "REMOVE_SOURCE": {
+      const remainingClips = state.project.clips.filter((c) => c.sourceId !== action.sourceId);
+      const selectedStillExists = remainingClips.some((c) => c.id === state.selectedClipId);
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          sources: state.project.sources.filter((s) => s.id !== action.sourceId),
+          clips: remainingClips,
+        },
+        selectedClipId: selectedStillExists ? state.selectedClipId : null,
+      };
+    }
 
     case "ADD_CLIP": {
       const source = state.project.sources.find((s) => s.id === action.sourceId);

@@ -58,3 +58,7 @@ export async function loadMediaBlob(id: string): Promise<Blob | null> {
   const result = await runTransaction<Blob | undefined>(MEDIA_STORE, "readonly", (store) => store.get(id));
   return result ?? null;
 }
+
+export async function deleteMediaBlob(id: string): Promise<void> {
+  await runTransaction(MEDIA_STORE, "readwrite", (store) => store.delete(id));
+}
