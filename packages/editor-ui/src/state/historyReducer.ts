@@ -21,7 +21,7 @@ export function historyReducer(history: HistoryState, action: HistoryAction): Hi
     const previousProject = history.past[history.past.length - 1];
     const past = history.past.slice(0, -1);
     const future = [history.state.project, ...history.future];
-    return { state: { ...history.state, project: previousProject, selectedClipId: null }, past, future };
+    return { state: { ...history.state, project: previousProject, selectedClipId: null, selectedOverlayId: null }, past, future };
   }
 
   if (action.type === "REDO") {
@@ -29,7 +29,7 @@ export function historyReducer(history: HistoryState, action: HistoryAction): Hi
     const nextProject = history.future[0];
     const future = history.future.slice(1);
     const past = [...history.past, history.state.project];
-    return { state: { ...history.state, project: nextProject, selectedClipId: null }, past, future };
+    return { state: { ...history.state, project: nextProject, selectedClipId: null, selectedOverlayId: null }, past, future };
   }
 
   const nextState = editorReducer(history.state, action);

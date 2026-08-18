@@ -1,6 +1,7 @@
+import { AddTitleButton } from "./components/AddTitleButton.js";
 import { AspectSelector } from "./components/AspectSelector.js";
-import { ClipInspector } from "./components/ClipInspector.js";
 import { ExportPanel } from "./components/ExportPanel.js";
+import { Inspector } from "./components/Inspector.js";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts.js";
 import { MediaLibrary } from "./components/MediaLibrary.js";
 import { PreviewCanvas } from "./components/PreviewCanvas.js";
@@ -20,6 +21,7 @@ export function App() {
           <ProjectTitle />
           <SceneStrip />
           <div className="app-header-right">
+            <AddTitleButton />
             <AspectSelector />
             <SaveStatus />
             <ExportPanel />
@@ -28,7 +30,7 @@ export function App() {
         <div className="app-body">
           <MediaLibrary />
           <PreviewCanvas />
-          <ClipInspector />
+          <Inspector />
         </div>
         <Transport />
         <Timeline />

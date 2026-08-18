@@ -1,13 +1,15 @@
-import type { AspectRatioPreset, Clip, MediaSource, ProjectModel } from "@reel-studio/shared-types";
+import type { AspectRatioPreset, Clip, MediaSource, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { layoutSequentialClips } from "@reel-studio/timeline-core";
 
 export const MIN_CLIP_DURATION_SECONDS = 0.1;
+export const MIN_OVERLAY_DURATION_SECONDS = 0.2;
 
 export interface EditorState {
   project: ProjectModel;
   playhead: number;
   isPlaying: boolean;
   selectedClipId: string | null;
+  selectedOverlayId: string | null;
   masterMuted: boolean;
 }
 
@@ -20,6 +22,10 @@ export type Action =
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
   | { type: "SELECT_CLIP"; clipId: string | null }
+  | { type: "ADD_OVERLAY"; trackId: string; start: number; end: number }
+  | { type: "UPDATE_OVERLAY"; overlayId: string; patch: Partial<Overlay> }
+  | { type: "REMOVE_OVERLAY"; overlayId: string }
+  | { type: "SELECT_OVERLAY"; overlayId: string | null }
   | { type: "SET_PLAYHEAD"; time: number }
   | { type: "PLAY" }
   | { type: "PAUSE" }
@@ -140,7 +146,45 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     }
 
     case "SELECT_CLIP":
-      return { ...state, selectedClipId: action.clipId };
+      return { ...state, selectedClipId: action.clipId, selectedOverlayId: action.clipId ? null : state.selectedOverlayId };
+
+    case "ADD_OVERLAY": {
+      const newOverlay: Overlay = {
+        id: crypto.randomUUID(),
+        trackId: action.trackId,
+        content: "New title",
+        start: action.start,
+        end: action.end,
+        position: { x: 0.5, y: 0.85 },
+        style: { font: "system-ui, sans-serif", size: 48, color: "#ffffff", align: "center", background: null, outline: "#000000" },
+        animation: "none",
+      };
+      return {
+        ...state,
+        project: { ...state.project, overlays: [...state.project.overlays, newOverlay] },
+        selectedOverlayId: newOverlay.id,
+        selectedClipId: null,
+      };
+    }
+
+    case "UPDATE_OVERLAY":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          overlays: state.project.overlays.map((o) => (o.id === action.overlayId ? { ...o, ...action.patch } : o)),
+        },
+      };
+
+    case "REMOVE_OVERLAY":
+      return {
+        ...state,
+        project: { ...state.project, overlays: state.project.overlays.filter((o) => o.id !== action.overlayId) },
+        selectedOverlayId: state.selectedOverlayId === action.overlayId ? null : state.selectedOverlayId,
+      };
+
+    case "SELECT_OVERLAY":
+      return { ...state, selectedOverlayId: action.overlayId, selectedClipId: action.overlayId ? null : state.selectedClipId };
 
     case "SET_PLAYHEAD":
       return { ...state, playhead: Math.max(0, action.time) };
@@ -167,7 +211,14 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return { ...state, masterMuted: !state.masterMuted };
 
     case "LOAD_PROJECT":
-      return { project: action.project, playhead: 0, isPlaying: false, selectedClipId: null, masterMuted: false };
+      return {
+        project: action.project,
+        playhead: 0,
+        isPlaying: false,
+        selectedClipId: null,
+        selectedOverlayId: null,
+        masterMuted: false,
+      };
 
     default:
       return state;

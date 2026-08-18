@@ -4,6 +4,7 @@ import { useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { PIXELS_PER_SECOND_DEFAULT, PIXELS_PER_SECOND_MAX, PIXELS_PER_SECOND_MIN } from "../constants.js";
 import { MagnifierIcon } from "./MagnifierIcon.js";
+import { OverlayTrackRow } from "./OverlayTrackRow.js";
 import { Playhead } from "./Playhead.js";
 import { TimeRuler } from "./TimeRuler.js";
 import { TrackRow } from "./TrackRow.js";
@@ -14,7 +15,8 @@ export function Timeline() {
 
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
   const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
-  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips));
+  const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
+  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips), overlaysEnd);
 
   function zoomIn() {
     setPixelsPerSecond((p) => Math.min(PIXELS_PER_SECOND_MAX, Math.round(p * 1.25)));
@@ -31,6 +33,7 @@ export function Timeline() {
           <TimeRuler pixelsPerSecond={pixelsPerSecond} durationSeconds={totalDuration} />
           <TrackRow trackId={VIDEO_TRACK_ID} label="Video" accept="video" pixelsPerSecond={pixelsPerSecond} />
           <TrackRow trackId={AUDIO_TRACK_ID} label="Audio" accept="audio" pixelsPerSecond={pixelsPerSecond} />
+          <OverlayTrackRow pixelsPerSecond={pixelsPerSecond} />
           <Playhead pixelsPerSecond={pixelsPerSecond} totalDuration={totalDuration} />
         </div>
       </div>

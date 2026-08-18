@@ -19,7 +19,8 @@ export function Transport() {
   const { canUndo, canRedo } = useEditorHistory();
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
   const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
-  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips));
+  const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
+  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips), overlaysEnd);
   const frameRate = state.project.canvas.frameRate;
   const frameDuration = 1 / frameRate;
 

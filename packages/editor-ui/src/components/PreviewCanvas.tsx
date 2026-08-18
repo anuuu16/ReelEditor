@@ -2,8 +2,10 @@ import { useEffect, useRef } from "react";
 import {
   computeEffectiveVolume,
   computeFitRect,
+  computeOverlayAlpha,
   findActiveClip,
   getSequenceDuration,
+  isOverlayActive,
   layoutSequentialClips,
   type LaidOutClip,
 } from "@reel-studio/timeline-core";
@@ -14,6 +16,54 @@ import { previewCanvasRef } from "../state/previewCanvasRef.js";
 const SEEK_THRESHOLD = 0.12;
 const PREBUFFER_WINDOW = 0.4;
 const MAX_PREVIEW_DIMENSION = 640;
+
+function drawOverlays(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, s: EditorState) {
+  const scale = canvas.width / s.project.canvas.width;
+
+  for (const overlay of s.project.overlays) {
+    if (!isOverlayActive(overlay, s.playhead)) continue;
+    const alpha = computeOverlayAlpha(overlay, s.playhead);
+    if (alpha <= 0) continue;
+
+    const x = overlay.position.x * canvas.width;
+    const y = overlay.position.y * canvas.height;
+    const fontSize = overlay.style.size * scale;
+    const lines = overlay.content.split("\n");
+    const lineHeight = fontSize * 1.2;
+    const blockHeight = lineHeight * lines.length;
+    const startY = y - blockHeight / 2 + lineHeight / 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `${fontSize}px ${overlay.style.font}`;
+    ctx.textAlign = overlay.style.align;
+    ctx.textBaseline = "middle";
+
+    if (overlay.style.background) {
+      const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
+      const paddingX = fontSize * 0.4;
+      const paddingY = fontSize * 0.2;
+      let boxX = x;
+      if (overlay.style.align === "center") boxX = x - maxWidth / 2;
+      else if (overlay.style.align === "right") boxX = x - maxWidth;
+      ctx.fillStyle = overlay.style.background;
+      ctx.fillRect(boxX - paddingX, startY - lineHeight / 2 - paddingY, maxWidth + paddingX * 2, blockHeight + paddingY * 2);
+    }
+
+    lines.forEach((line, i) => {
+      const lineY = startY + i * lineHeight;
+      if (overlay.style.outline) {
+        ctx.strokeStyle = overlay.style.outline;
+        ctx.lineWidth = Math.max(1, fontSize * 0.06);
+        ctx.strokeText(line, x, lineY);
+      }
+      ctx.fillStyle = overlay.style.color;
+      ctx.fillText(line, x, lineY);
+    });
+
+    ctx.restore();
+  }
+}
 
 export function PreviewCanvas() {
   const state = useEditorState();
@@ -104,13 +154,16 @@ export function PreviewCanvas() {
           el.pause();
         }
       });
+
+      drawOverlays(ctx, canvas, s);
     }
 
     function tick(ts: number) {
       const current = stateRef.current;
       const laidOutVideo = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
       const laidOutAudio = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
-      const totalDuration = Math.max(getSequenceDuration(laidOutVideo), getSequenceDuration(laidOutAudio));
+      const overlaysEnd = current.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
+      const totalDuration = Math.max(getSequenceDuration(laidOutVideo), getSequenceDuration(laidOutAudio), overlaysEnd);
 
       if (current.isPlaying && lastTs !== null) {
         const dt = (ts - lastTs) / 1000;

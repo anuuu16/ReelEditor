@@ -1,15 +1,22 @@
-import type { Clip, FitMode, ProjectModel } from "@reel-studio/shared-types";
+import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
+import { FADE_DURATION_SECONDS } from "./overlay-animation.js";
 
 export interface RenderPlanInput {
   project: ProjectModel;
   sourcePaths: Record<string, string>;
 }
 
+export interface OverlayTextFile {
+  fileName: string;
+  content: string;
+}
+
 export interface RenderPlan {
   args: string[];
   outputFileName: string;
   totalDurationSeconds: number;
+  overlayTextFiles: OverlayTextFile[];
 }
 
 function buildFitFilter(fitMode: FitMode, width: number, height: number): string {
@@ -48,6 +55,40 @@ function buildAtempoChain(speed: number): string {
   }
   factors.push(remaining);
   return "," + factors.map((f) => `atempo=${f.toFixed(4)}`).join(",");
+}
+
+// No `font=`/`fontfile=` option: there's no font-family control in the UI yet, so this
+// intentionally falls back to ffmpeg's compiled-in default rather than guessing a system font.
+function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
+  const duration = overlay.end - overlay.start;
+  const fadeDuration = Math.min(FADE_DURATION_SECONDS, duration / 2);
+
+  const xExpr =
+    overlay.style.align === "center"
+      ? `${overlay.position.x}*w-text_w/2`
+      : overlay.style.align === "right"
+        ? `${overlay.position.x}*w-text_w`
+        : `${overlay.position.x}*w`;
+  const yExpr = `${overlay.position.y}*h-text_h/2`;
+
+  const alphaExpr =
+    overlay.animation === "fade" && fadeDuration > 0
+      ? `if(lt(t,${overlay.start}+${fadeDuration}),(t-${overlay.start})/${fadeDuration},if(gt(t,${overlay.end}-${fadeDuration}),(${overlay.end}-t)/${fadeDuration},1))`
+      : "1";
+
+  const parts = [
+    `textfile=${fileName}`,
+    `fontsize=${overlay.style.size}`,
+    `fontcolor=${overlay.style.color}`,
+    `x=${xExpr}`,
+    `y=${yExpr}`,
+    `enable='between(t,${overlay.start},${overlay.end})'`,
+    `alpha='${alphaExpr}'`,
+  ];
+  if (overlay.style.background) parts.push(`box=1:boxcolor=${overlay.style.background}:boxborderw=${overlay.style.size * 0.2}`);
+  if (overlay.style.outline) parts.push(`bordercolor=${overlay.style.outline}:borderw=${Math.max(1, overlay.style.size * 0.06)}`);
+
+  return `drawtext=${parts.join(":")}`;
 }
 
 export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
@@ -112,7 +153,18 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     musicLabels.push(`[${label}]`);
   });
 
-  filterChains.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vout]`);
+  filterChains.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vconcat]`);
+
+  const overlayTextFiles: OverlayTextFile[] = [];
+  let finalVideoLabel = "[vconcat]";
+  project.overlays.forEach((overlay, i) => {
+    const fileName = `overlay_${overlay.id}.txt`;
+    overlayTextFiles.push({ fileName, content: overlay.content });
+    const nextLabel = `vtext${i}`;
+    filterChains.push(`${finalVideoLabel}${buildDrawtextFilter(overlay, fileName)}[${nextLabel}]`);
+    finalVideoLabel = `[${nextLabel}]`;
+  });
+
   filterChains.push(`${clipAudioLabels.join("")}concat=n=${clipAudioLabels.length}:v=0:a=1[aclips]`);
 
   let finalAudioLabel = "[aclips]";
@@ -133,7 +185,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     "-filter_complex",
     filterChains.join(";"),
     "-map",
-    "[vout]",
+    finalVideoLabel,
     "-map",
     finalAudioLabel,
     "-c:v",
@@ -159,6 +211,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   return {
     args,
     outputFileName,
+    overlayTextFiles,
     totalDurationSeconds: getSequenceDuration(videoClips),
   };
 }

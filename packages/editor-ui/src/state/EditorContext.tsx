@@ -23,6 +23,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       playhead: 0,
       isPlaying: false,
       selectedClipId: null,
+      selectedOverlayId: null,
       masterMuted: false,
     })
   );

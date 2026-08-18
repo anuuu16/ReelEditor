@@ -2,6 +2,7 @@ import type { ProjectModel } from "@reel-studio/shared-types";
 
 export const VIDEO_TRACK_ID = "video-track";
 export const AUDIO_TRACK_ID = "audio-track";
+export const OVERLAY_TRACK_ID = "overlay-track";
 
 export function createInitialProject(): ProjectModel {
   return {
@@ -10,6 +11,7 @@ export function createInitialProject(): ProjectModel {
     tracks: [
       { id: VIDEO_TRACK_ID, kind: "video", order: 0, volume: 1, fadeIn: 0, fadeOut: 0 },
       { id: AUDIO_TRACK_ID, kind: "audio", order: 1, volume: 1, fadeIn: 0, fadeOut: 0 },
+      { id: OVERLAY_TRACK_ID, kind: "overlay", order: 2, volume: 1, fadeIn: 0, fadeOut: 0 },
     ],
     clips: [],
     overlays: [],
