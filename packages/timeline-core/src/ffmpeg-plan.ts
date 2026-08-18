@@ -91,6 +91,20 @@ function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
   return `drawtext=${parts.join(":")}`;
 }
 
+function buildImageScaleChain(overlay: Overlay, canvasWidth: number): string {
+  const duration = overlay.end - overlay.start;
+  const fadeDuration = Math.min(FADE_DURATION_SECONDS, duration / 2);
+  const logoWidthPx = Math.max(1, Math.round(overlay.sizeRatio * canvasWidth));
+
+  let chain = `scale=${logoWidthPx}:-1`;
+  if (overlay.animation === "fade" && fadeDuration > 0) {
+    chain +=
+      `,fade=t=in:st=${overlay.start}:d=${fadeDuration.toFixed(3)}:alpha=1` +
+      `,fade=t=out:st=${(overlay.end - fadeDuration).toFixed(3)}:d=${fadeDuration.toFixed(3)}:alpha=1`;
+  }
+  return chain;
+}
+
 export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const { project, sourcePaths } = input;
   const trackKindById = new Map(project.tracks.map((t) => [t.id, t.kind] as const));
@@ -101,15 +115,21 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     throw new Error("Add at least one video clip before exporting.");
   }
 
-  const inputPaths: string[] = [];
+  const totalDurationSeconds = getSequenceDuration(videoClips);
+
+  interface InputSpec {
+    path: string;
+    extraArgs: string[];
+  }
+  const inputs: InputSpec[] = [];
   const inputIndexBySourceId = new Map<string, number>();
-  function inputIndexFor(sourceId: string): number {
+  function inputIndexFor(sourceId: string, extraArgs: string[] = []): number {
     const existing = inputIndexBySourceId.get(sourceId);
     if (existing !== undefined) return existing;
     const path = sourcePaths[sourceId];
     if (!path) throw new Error(`Missing local file for source ${sourceId}`);
-    const index = inputPaths.length;
-    inputPaths.push(path);
+    const index = inputs.length;
+    inputs.push({ path, extraArgs });
     inputIndexBySourceId.set(sourceId, index);
     return index;
   }
@@ -158,6 +178,22 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const overlayTextFiles: OverlayTextFile[] = [];
   let finalVideoLabel = "[vconcat]";
   project.overlays.forEach((overlay, i) => {
+    if (overlay.kind === "image") {
+      if (!overlay.imageSourceId) return;
+      const inputIdx = inputIndexFor(overlay.imageSourceId, ["-loop", "1", "-t", totalDurationSeconds.toFixed(3)]);
+      const scaledLabel = `logo${i}`;
+      filterChains.push(`[${inputIdx}:v]${buildImageScaleChain(overlay, width)}[${scaledLabel}]`);
+
+      const xExpr = `${overlay.position.x}*main_w-overlay_w/2`;
+      const yExpr = `${overlay.position.y}*main_h-overlay_h/2`;
+      const nextLabel = `vimg${i}`;
+      filterChains.push(
+        `${finalVideoLabel}[${scaledLabel}]overlay=x=${xExpr}:y=${yExpr}:enable='between(t,${overlay.start},${overlay.end})'[${nextLabel}]`
+      );
+      finalVideoLabel = `[${nextLabel}]`;
+      return;
+    }
+
     const fileName = `overlay_${overlay.id}.txt`;
     overlayTextFiles.push({ fileName, content: overlay.content });
     const nextLabel = `vtext${i}`;
@@ -178,8 +214,8 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
 
   const outputFileName = "output.mp4";
   const args: string[] = ["-y"];
-  for (const path of inputPaths) {
-    args.push("-i", path);
+  for (const input of inputs) {
+    args.push(...input.extraArgs, "-i", input.path);
   }
   args.push(
     "-filter_complex",
@@ -212,6 +248,6 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     args,
     outputFileName,
     overlayTextFiles,
-    totalDurationSeconds: getSequenceDuration(videoClips),
+    totalDurationSeconds,
   };
 }

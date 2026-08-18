@@ -43,11 +43,15 @@ export interface Clip {
 }
 
 export type OverlayAnimation = "none" | "fade" | "slide-in" | "pop" | "typewriter";
+export type OverlayKind = "text" | "image";
 
 export interface Overlay {
   id: string;
   trackId: string;
+  kind: OverlayKind;
   content: string;
+  imageSourceId: string | null;
+  sizeRatio: number;
   start: number;
   end: number;
   position: { x: number; y: number };

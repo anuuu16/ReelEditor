@@ -765,9 +765,26 @@ body {
   flex: 1;
 }
 
+.overlay-block-thumb {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: #17181c;
+  border-radius: 2px;
+}
+
 .inline-fields {
   display: flex;
   gap: 6px;
+}
+
+.inline-fields-wrap {
+  flex-wrap: wrap;
+}
+
+.inline-fields-wrap button {
+  flex: 1 1 calc(33.33% - 4px);
 }
 
 .inline-fields input[type="number"] {

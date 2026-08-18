@@ -2,15 +2,21 @@ import type { Overlay, OverlayAnimation } from "@reel-studio/shared-types";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 
 const POSITION_PRESETS: Array<{ label: string; x: number; y: number }> = [
+  { label: "Top left", x: 0.15, y: 0.15 },
   { label: "Top", x: 0.5, y: 0.15 },
+  { label: "Top right", x: 0.85, y: 0.15 },
   { label: "Center", x: 0.5, y: 0.5 },
+  { label: "Bottom left", x: 0.15, y: 0.88 },
   { label: "Bottom", x: 0.5, y: 0.85 },
+  { label: "Bottom right", x: 0.85, y: 0.88 },
 ];
 
 export function OverlayInspector() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const overlay = state.project.overlays.find((o) => o.id === state.selectedOverlayId) ?? null;
+  const imageSource =
+    overlay?.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
 
   if (!overlay) return null;
 
@@ -24,12 +30,18 @@ export function OverlayInspector() {
 
   return (
     <div className="clip-inspector">
-      <h2>Title</h2>
+      <h2>{overlay.kind === "image" ? "Logo / image" : "Title"}</h2>
 
-      <label className="field">
-        <span>Text</span>
-        <textarea value={overlay.content} rows={2} onChange={(e) => update({ content: e.target.value })} />
-      </label>
+      {overlay.kind === "image" && (
+        <div className="clip-preview-thumb">{imageSource && <img src={imageSource.previewUrl} alt="" />}</div>
+      )}
+
+      {overlay.kind === "text" && (
+        <label className="field">
+          <span>Text</span>
+          <textarea value={overlay.content} rows={2} onChange={(e) => update({ content: e.target.value })} />
+        </label>
+      )}
 
       <label className="field">
         <span>
@@ -54,8 +66,8 @@ export function OverlayInspector() {
       </label>
 
       <div className="field">
-        <span>Position</span>
-        <div className="inline-fields">
+        <span>Position — or drag it directly in the preview</span>
+        <div className="inline-fields inline-fields-wrap">
           {POSITION_PRESETS.map((preset) => (
             <button
               key={preset.label}
@@ -69,62 +81,80 @@ export function OverlayInspector() {
         </div>
       </div>
 
-      <label className="field">
-        <span>Font size — {overlay.style.size}px</span>
-        <input
-          type="range"
-          min={16}
-          max={120}
-          step={1}
-          value={overlay.style.size}
-          onChange={(e) => updateStyle({ size: Number(e.target.value) })}
-        />
-      </label>
+      {overlay.kind === "image" && (
+        <label className="field">
+          <span>Size — {Math.round(overlay.sizeRatio * 100)}% of frame width</span>
+          <input
+            type="range"
+            min={0.05}
+            max={1}
+            step={0.01}
+            value={overlay.sizeRatio}
+            onChange={(e) => update({ sizeRatio: Number(e.target.value) })}
+          />
+        </label>
+      )}
 
-      <div className="field">
-        <span>Alignment</span>
-        <div className="inline-fields">
-          {(["left", "center", "right"] as const).map((align) => (
-            <button
-              key={align}
-              type="button"
-              className={overlay.style.align === align ? "active" : ""}
-              onClick={() => updateStyle({ align })}
-            >
-              {align}
-            </button>
-          ))}
-        </div>
-      </div>
+      {overlay.kind === "text" && (
+        <>
+          <label className="field">
+            <span>Font size — {overlay.style.size}px</span>
+            <input
+              type="range"
+              min={16}
+              max={120}
+              step={1}
+              value={overlay.style.size}
+              onChange={(e) => updateStyle({ size: Number(e.target.value) })}
+            />
+          </label>
 
-      <label className="field">
-        <span>Text color</span>
-        <input type="color" value={overlay.style.color} onChange={(e) => updateStyle({ color: e.target.value })} />
-      </label>
+          <div className="field">
+            <span>Alignment</span>
+            <div className="inline-fields">
+              {(["left", "center", "right"] as const).map((align) => (
+                <button
+                  key={align}
+                  type="button"
+                  className={overlay.style.align === align ? "active" : ""}
+                  onClick={() => updateStyle({ align })}
+                >
+                  {align}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <label className="field checkbox-field">
-        <input
-          type="checkbox"
-          checked={overlay.style.background !== null}
-          onChange={(e) => updateStyle({ background: e.target.checked ? "#000000" : null })}
-        />
-        <span>Background</span>
-        {overlay.style.background !== null && (
-          <input type="color" value={overlay.style.background} onChange={(e) => updateStyle({ background: e.target.value })} />
-        )}
-      </label>
+          <label className="field">
+            <span>Text color</span>
+            <input type="color" value={overlay.style.color} onChange={(e) => updateStyle({ color: e.target.value })} />
+          </label>
 
-      <label className="field checkbox-field">
-        <input
-          type="checkbox"
-          checked={overlay.style.outline !== null}
-          onChange={(e) => updateStyle({ outline: e.target.checked ? "#000000" : null })}
-        />
-        <span>Outline</span>
-        {overlay.style.outline !== null && (
-          <input type="color" value={overlay.style.outline} onChange={(e) => updateStyle({ outline: e.target.value })} />
-        )}
-      </label>
+          <label className="field checkbox-field">
+            <input
+              type="checkbox"
+              checked={overlay.style.background !== null}
+              onChange={(e) => updateStyle({ background: e.target.checked ? "#000000" : null })}
+            />
+            <span>Background</span>
+            {overlay.style.background !== null && (
+              <input type="color" value={overlay.style.background} onChange={(e) => updateStyle({ background: e.target.value })} />
+            )}
+          </label>
+
+          <label className="field checkbox-field">
+            <input
+              type="checkbox"
+              checked={overlay.style.outline !== null}
+              onChange={(e) => updateStyle({ outline: e.target.checked ? "#000000" : null })}
+            />
+            <span>Outline</span>
+            {overlay.style.outline !== null && (
+              <input type="color" value={overlay.style.outline} onChange={(e) => updateStyle({ outline: e.target.value })} />
+            )}
+          </label>
+        </>
+      )}
 
       <label className="field">
         <span>Animation</span>
@@ -135,7 +165,7 @@ export function OverlayInspector() {
       </label>
 
       <button type="button" onClick={() => dispatch({ type: "REMOVE_OVERLAY", overlayId: overlay.id })}>
-        Remove title
+        Remove {overlay.kind === "image" ? "logo" : "title"}
       </button>
     </div>
   );

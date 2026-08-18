@@ -38,7 +38,12 @@ export function ExportPanel() {
     setPhase("uploading");
     setErrorMessage(null);
 
-    const usedSourceIds = [...new Set(state.project.clips.map((c) => c.sourceId))];
+    const usedSourceIds = [
+      ...new Set([
+        ...state.project.clips.map((c) => c.sourceId),
+        ...state.project.overlays.map((o) => o.imageSourceId).filter((id): id is string => id != null),
+      ]),
+    ];
     const formData = new FormData();
     formData.append("project", JSON.stringify(state.project));
 

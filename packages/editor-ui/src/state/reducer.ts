@@ -25,7 +25,8 @@ export type Action =
   | { type: "BULK_SET_VOLUME"; trackId: string; volume: number }
   | { type: "BULK_SET_FADE"; trackId: string; fadeInSeconds: number; fadeOutSeconds: number }
   | { type: "SELECT_CLIP"; clipId: string | null }
-  | { type: "ADD_OVERLAY"; trackId: string; start: number; end: number }
+  | { type: "ADD_TEXT_OVERLAY"; trackId: string; start: number; end: number }
+  | { type: "ADD_IMAGE_OVERLAY"; trackId: string; sourceId: string; start: number; end: number }
   | { type: "UPDATE_OVERLAY"; overlayId: string; patch: Partial<Overlay> }
   | { type: "REMOVE_OVERLAY"; overlayId: string }
   | { type: "SELECT_OVERLAY"; overlayId: string | null }
@@ -63,15 +64,19 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 
     case "REMOVE_SOURCE": {
       const remainingClips = state.project.clips.filter((c) => c.sourceId !== action.sourceId);
-      const selectedStillExists = remainingClips.some((c) => c.id === state.selectedClipId);
+      const remainingOverlays = state.project.overlays.filter((o) => o.imageSourceId !== action.sourceId);
+      const selectedClipStillExists = remainingClips.some((c) => c.id === state.selectedClipId);
+      const selectedOverlayStillExists = remainingOverlays.some((o) => o.id === state.selectedOverlayId);
       return {
         ...state,
         project: {
           ...state.project,
           sources: state.project.sources.filter((s) => s.id !== action.sourceId),
           clips: remainingClips,
+          overlays: remainingOverlays,
         },
-        selectedClipId: selectedStillExists ? state.selectedClipId : null,
+        selectedClipId: selectedClipStillExists ? state.selectedClipId : null,
+        selectedOverlayId: selectedOverlayStillExists ? state.selectedOverlayId : null,
       };
     }
 
@@ -187,15 +192,40 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "SELECT_CLIP":
       return { ...state, selectedClipId: action.clipId, selectedOverlayId: action.clipId ? null : state.selectedOverlayId };
 
-    case "ADD_OVERLAY": {
+    case "ADD_TEXT_OVERLAY": {
       const newOverlay: Overlay = {
         id: crypto.randomUUID(),
         trackId: action.trackId,
+        kind: "text",
         content: "New title",
+        imageSourceId: null,
+        sizeRatio: 1,
         start: action.start,
         end: action.end,
         position: { x: 0.5, y: 0.85 },
         style: { font: "system-ui, sans-serif", size: 48, color: "#ffffff", align: "center", background: null, outline: "#000000" },
+        animation: "none",
+      };
+      return {
+        ...state,
+        project: { ...state.project, overlays: [...state.project.overlays, newOverlay] },
+        selectedOverlayId: newOverlay.id,
+        selectedClipId: null,
+      };
+    }
+
+    case "ADD_IMAGE_OVERLAY": {
+      const newOverlay: Overlay = {
+        id: crypto.randomUUID(),
+        trackId: action.trackId,
+        kind: "image",
+        content: "",
+        imageSourceId: action.sourceId,
+        sizeRatio: 0.22,
+        start: action.start,
+        end: action.end,
+        position: { x: 0.85, y: 0.88 },
+        style: { font: "system-ui, sans-serif", size: 48, color: "#ffffff", align: "center", background: null, outline: null },
         animation: "none",
       };
       return {

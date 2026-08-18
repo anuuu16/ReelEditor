@@ -9,7 +9,7 @@ export function AddTitleButton() {
 
   function handleAdd() {
     dispatch({
-      type: "ADD_OVERLAY",
+      type: "ADD_TEXT_OVERLAY",
       trackId: OVERLAY_TRACK_ID,
       start: state.playhead,
       end: state.playhead + DEFAULT_TITLE_DURATION_SECONDS,

@@ -22,6 +22,8 @@ export function OverlayBlock({ overlay, pixelsPerSecond }: OverlayBlockProps) {
   const dispatch = useEditorDispatch();
   const isSelected = state.selectedOverlayId === overlay.id;
   const dragRef = useRef<DragState | null>(null);
+  const imageSource =
+    overlay.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
 
   function handleSelect(e: MouseEvent) {
     e.stopPropagation();
@@ -73,8 +75,15 @@ export function OverlayBlock({ overlay, pixelsPerSecond }: OverlayBlockProps) {
       onPointerUp={handlePointerUp}
       style={{ left: overlay.start * pixelsPerSecond, width: Math.max((overlay.end - overlay.start) * pixelsPerSecond, 4) }}
     >
-      <span className="overlay-block-text">{overlay.content || "Title"}</span>
-      <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove title">
+      {overlay.kind === "image" ? (
+        <>
+          {imageSource && <img className="overlay-block-thumb" src={imageSource.previewUrl} alt="" draggable={false} />}
+          <span className="overlay-block-text">{imageSource?.name ?? "Logo"}</span>
+        </>
+      ) : (
+        <span className="overlay-block-text">{overlay.content || "Title"}</span>
+      )}
+      <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove overlay">
         ×
       </button>
       <div
