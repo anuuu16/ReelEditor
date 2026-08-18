@@ -18,6 +18,8 @@ import { previewCanvasRef } from "../state/previewCanvasRef.js";
 const SEEK_THRESHOLD = 0.12;
 const PREBUFFER_WINDOW = 0.4;
 const MAX_PREVIEW_DIMENSION = 640;
+const MIN_OVERLAY_SIZE_RATIO = 0.02;
+const RESIZE_HANDLE_SIZE = 10;
 
 interface ImageOverlayRect {
   x: number;
@@ -26,9 +28,9 @@ interface ImageOverlayRect {
   height: number;
 }
 
-function computeImageOverlayRect(overlay: Overlay, canvas: HTMLCanvasElement, naturalWidth: number, naturalHeight: number): ImageOverlayRect {
-  const width = overlay.sizeRatio * canvas.width;
-  const height = width * (naturalWidth > 0 ? naturalHeight / naturalWidth : 1);
+function computeImageOverlayRect(overlay: Overlay, canvas: HTMLCanvasElement): ImageOverlayRect {
+  const width = overlay.widthRatio * canvas.width;
+  const height = overlay.heightRatio * canvas.height;
   return {
     x: overlay.position.x * canvas.width - width / 2,
     y: overlay.position.y * canvas.height - height / 2,
@@ -52,13 +54,27 @@ function drawOverlays(
 
     if (overlay.kind === "image") {
       const el = overlay.imageSourceId ? imageEls.get(overlay.imageSourceId) : undefined;
-      const source = s.project.sources.find((src) => src.id === overlay.imageSourceId);
-      if (!el || !source || !el.complete) continue;
-      const rect = computeImageOverlayRect(overlay, canvas, source.width, source.height);
+      if (!el || !el.complete) continue;
+      const rect = computeImageOverlayRect(overlay, canvas);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.drawImage(el, rect.x, rect.y, rect.width, rect.height);
       ctx.restore();
+
+      if (s.selectedOverlayId === overlay.id) {
+        ctx.save();
+        ctx.strokeStyle = "#5b7cff";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        ctx.fillStyle = "#5b7cff";
+        ctx.fillRect(
+          rect.x + rect.width - RESIZE_HANDLE_SIZE / 2,
+          rect.y + rect.height - RESIZE_HANDLE_SIZE / 2,
+          RESIZE_HANDLE_SIZE,
+          RESIZE_HANDLE_SIZE
+        );
+        ctx.restore();
+      }
       continue;
     }
 
@@ -102,12 +118,17 @@ function drawOverlays(
   }
 }
 
+type OverlayDragMode = "move" | "resize";
+
 interface OverlayDragState {
   overlayId: string;
+  mode: OverlayDragMode;
   startClientX: number;
   startClientY: number;
   startPosX: number;
   startPosY: number;
+  startWidthRatio: number;
+  startHeightRatio: number;
 }
 
 export function PreviewCanvas() {
@@ -237,6 +258,21 @@ export function PreviewCanvas() {
     return () => cancelAnimationFrame(raf);
   }, [dispatch]);
 
+  function findResizeHandleAt(canvasX: number, canvasY: number): Overlay | null {
+    const canvas = canvasRef.current;
+    const s = stateRef.current;
+    if (!canvas || !s.selectedOverlayId) return null;
+    const overlay = s.project.overlays.find((o) => o.id === s.selectedOverlayId);
+    if (!overlay || overlay.kind !== "image" || !isOverlayActive(overlay, s.playhead)) return null;
+    const rect = computeImageOverlayRect(overlay, canvas);
+    const hx = rect.x + rect.width;
+    const hy = rect.y + rect.height;
+    if (Math.abs(canvasX - hx) <= RESIZE_HANDLE_SIZE && Math.abs(canvasY - hy) <= RESIZE_HANDLE_SIZE) {
+      return overlay;
+    }
+    return null;
+  }
+
   function findImageOverlayAt(canvasX: number, canvasY: number): Overlay | null {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -244,9 +280,7 @@ export function PreviewCanvas() {
     for (let i = s.project.overlays.length - 1; i >= 0; i--) {
       const overlay = s.project.overlays[i];
       if (overlay.kind !== "image" || !isOverlayActive(overlay, s.playhead)) continue;
-      const source = s.project.sources.find((src) => src.id === overlay.imageSourceId);
-      if (!source) continue;
-      const rect = computeImageOverlayRect(overlay, canvas, source.width, source.height);
+      const rect = computeImageOverlayRect(overlay, canvas);
       if (canvasX >= rect.x && canvasX <= rect.x + rect.width && canvasY >= rect.y && canvasY <= rect.y + rect.height) {
         return overlay;
       }
@@ -260,16 +294,21 @@ export function PreviewCanvas() {
     const rect = canvas.getBoundingClientRect();
     const canvasX = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const canvasY = ((e.clientY - rect.top) / rect.height) * canvas.height;
-    const overlay = findImageOverlayAt(canvasX, canvasY);
+
+    const resizeOverlay = findResizeHandleAt(canvasX, canvasY);
+    const overlay = resizeOverlay ?? findImageOverlayAt(canvasX, canvasY);
     if (!overlay) return;
 
     e.currentTarget.setPointerCapture(e.pointerId);
     overlayDragRef.current = {
       overlayId: overlay.id,
+      mode: resizeOverlay ? "resize" : "move",
       startClientX: e.clientX,
       startClientY: e.clientY,
       startPosX: overlay.position.x,
       startPosY: overlay.position.y,
+      startWidthRatio: overlay.widthRatio,
+      startHeightRatio: overlay.heightRatio,
     };
     dispatch({ type: "SELECT_OVERLAY", overlayId: overlay.id });
   }
@@ -281,14 +320,32 @@ export function PreviewCanvas() {
     const rect = canvas.getBoundingClientRect();
     const deltaX = (e.clientX - drag.startClientX) / rect.width;
     const deltaY = (e.clientY - drag.startClientY) / rect.height;
+
+    if (drag.mode === "move") {
+      dispatch({
+        type: "UPDATE_OVERLAY",
+        overlayId: drag.overlayId,
+        patch: {
+          position: {
+            x: Math.max(0, Math.min(1, drag.startPosX + deltaX)),
+            y: Math.max(0, Math.min(1, drag.startPosY + deltaY)),
+          },
+        },
+      });
+      return;
+    }
+
+    const topLeftX = drag.startPosX - drag.startWidthRatio / 2;
+    const topLeftY = drag.startPosY - drag.startHeightRatio / 2;
+    const widthRatio = Math.max(MIN_OVERLAY_SIZE_RATIO, Math.min(1, drag.startWidthRatio + deltaX));
+    const heightRatio = Math.max(MIN_OVERLAY_SIZE_RATIO, Math.min(1, drag.startHeightRatio + deltaY));
     dispatch({
       type: "UPDATE_OVERLAY",
       overlayId: drag.overlayId,
       patch: {
-        position: {
-          x: Math.max(0, Math.min(1, drag.startPosX + deltaX)),
-          y: Math.max(0, Math.min(1, drag.startPosY + deltaY)),
-        },
+        widthRatio,
+        heightRatio,
+        position: { x: topLeftX + widthRatio / 2, y: topLeftY + heightRatio / 2 },
       },
     });
   }

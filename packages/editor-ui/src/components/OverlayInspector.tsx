@@ -82,17 +82,31 @@ export function OverlayInspector() {
       </div>
 
       {overlay.kind === "image" && (
-        <label className="field">
-          <span>Size — {Math.round(overlay.sizeRatio * 100)}% of frame width</span>
-          <input
-            type="range"
-            min={0.05}
-            max={1}
-            step={0.01}
-            value={overlay.sizeRatio}
-            onChange={(e) => update({ sizeRatio: Number(e.target.value) })}
-          />
-        </label>
+        <>
+          <p className="hint">Drag the logo to move it, or drag its bottom-right handle to resize — or set exact ratios below.</p>
+          <label className="field">
+            <span>Width — {Math.round(overlay.widthRatio * 100)}% of frame width</span>
+            <input
+              type="range"
+              min={0.02}
+              max={1}
+              step={0.01}
+              value={overlay.widthRatio}
+              onChange={(e) => update({ widthRatio: Number(e.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>Height — {Math.round(overlay.heightRatio * 100)}% of frame height</span>
+            <input
+              type="range"
+              min={0.02}
+              max={1}
+              step={0.01}
+              value={overlay.heightRatio}
+              onChange={(e) => update({ heightRatio: Number(e.target.value) })}
+            />
+          </label>
+        </>
       )}
 
       {overlay.kind === "text" && (

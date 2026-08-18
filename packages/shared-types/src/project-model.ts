@@ -51,7 +51,8 @@ export interface Overlay {
   kind: OverlayKind;
   content: string;
   imageSourceId: string | null;
-  sizeRatio: number;
+  widthRatio: number;
+  heightRatio: number;
   start: number;
   end: number;
   position: { x: number; y: number };

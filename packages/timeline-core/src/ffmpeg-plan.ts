@@ -91,12 +91,13 @@ function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
   return `drawtext=${parts.join(":")}`;
 }
 
-function buildImageScaleChain(overlay: Overlay, canvasWidth: number): string {
+function buildImageScaleChain(overlay: Overlay, canvasWidth: number, canvasHeight: number): string {
   const duration = overlay.end - overlay.start;
   const fadeDuration = Math.min(FADE_DURATION_SECONDS, duration / 2);
-  const logoWidthPx = Math.max(1, Math.round(overlay.sizeRatio * canvasWidth));
+  const logoWidthPx = Math.max(1, Math.round(overlay.widthRatio * canvasWidth));
+  const logoHeightPx = Math.max(1, Math.round(overlay.heightRatio * canvasHeight));
 
-  let chain = `scale=${logoWidthPx}:-1`;
+  let chain = `scale=${logoWidthPx}:${logoHeightPx}`;
   if (overlay.animation === "fade" && fadeDuration > 0) {
     chain +=
       `,fade=t=in:st=${overlay.start}:d=${fadeDuration.toFixed(3)}:alpha=1` +
@@ -182,7 +183,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
       if (!overlay.imageSourceId) return;
       const inputIdx = inputIndexFor(overlay.imageSourceId, ["-loop", "1", "-t", totalDurationSeconds.toFixed(3)]);
       const scaledLabel = `logo${i}`;
-      filterChains.push(`[${inputIdx}:v]${buildImageScaleChain(overlay, width)}[${scaledLabel}]`);
+      filterChains.push(`[${inputIdx}:v]${buildImageScaleChain(overlay, width, height)}[${scaledLabel}]`);
 
       const xExpr = `${overlay.position.x}*main_w-overlay_w/2`;
       const yExpr = `${overlay.position.y}*main_h-overlay_h/2`;

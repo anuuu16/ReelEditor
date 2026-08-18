@@ -199,7 +199,8 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         kind: "text",
         content: "New title",
         imageSourceId: null,
-        sizeRatio: 1,
+        widthRatio: 1,
+        heightRatio: 1,
         start: action.start,
         end: action.end,
         position: { x: 0.5, y: 0.85 },
@@ -215,13 +216,20 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     }
 
     case "ADD_IMAGE_OVERLAY": {
+      const source = state.project.sources.find((s) => s.id === action.sourceId);
+      const widthRatio = 0.22;
+      const imageAspect = source && source.width > 0 ? source.height / source.width : 1;
+      const canvasAspect = state.project.canvas.width / state.project.canvas.height;
+      const heightRatio = Math.min(1, widthRatio * imageAspect * canvasAspect);
+
       const newOverlay: Overlay = {
         id: crypto.randomUUID(),
         trackId: action.trackId,
         kind: "image",
         content: "",
         imageSourceId: action.sourceId,
-        sizeRatio: 0.22,
+        widthRatio,
+        heightRatio,
         start: action.start,
         end: action.end,
         position: { x: 0.85, y: 0.88 },
