@@ -26,14 +26,7 @@ export function ClipInspector() {
     };
   }, [clip?.id, clip?.inPoint, clip?.outPoint, source?.id, source?.previewUrl]);
 
-  if (!clip) {
-    return (
-      <div className="clip-inspector">
-        <h2>Clip</h2>
-        <p className="hint">Select a clip on the timeline to edit it.</p>
-      </div>
-    );
-  }
+  if (!clip) return null;
 
   const duration = (clip.outPoint - clip.inPoint) / clip.speed;
   const maxFade = Math.max(duration / 2, 0.1);

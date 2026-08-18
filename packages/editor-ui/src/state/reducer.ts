@@ -21,6 +21,9 @@ export type Action =
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
+  | { type: "BULK_MUTE"; trackId: string; muted: boolean }
+  | { type: "BULK_SET_VOLUME"; trackId: string; volume: number }
+  | { type: "BULK_SET_FADE"; trackId: string; fadeInSeconds: number; fadeOutSeconds: number }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "ADD_OVERLAY"; trackId: string; start: number; end: number }
   | { type: "UPDATE_OVERLAY"; overlayId: string; patch: Partial<Overlay> }
@@ -118,6 +121,42 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         project: {
           ...state.project,
           clips: state.project.clips.map((c) => (c.id === action.clipId ? { ...c, ...action.patch } : c)),
+        },
+      };
+
+    case "BULK_MUTE":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => (c.trackId === action.trackId ? { ...c, muted: action.muted } : c)),
+        },
+      };
+
+    case "BULK_SET_VOLUME":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => (c.trackId === action.trackId ? { ...c, volume: action.volume } : c)),
+        },
+      };
+
+    case "BULK_SET_FADE":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => {
+            if (c.trackId !== action.trackId) return c;
+            const duration = (c.outPoint - c.inPoint) / c.speed;
+            const maxFade = duration / 2;
+            return {
+              ...c,
+              fadeInSeconds: Math.min(Math.max(action.fadeInSeconds, 0), maxFade),
+              fadeOutSeconds: Math.min(Math.max(action.fadeOutSeconds, 0), maxFade),
+            };
+          }),
         },
       };
 
