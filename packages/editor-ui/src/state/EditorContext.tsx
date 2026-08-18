@@ -14,6 +14,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     playhead: 0,
     isPlaying: false,
     selectedClipId: null,
+    masterMuted: false,
   }));
 
   useEffect(() => {

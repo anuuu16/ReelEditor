@@ -9,6 +9,7 @@ import {
 } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState, type EditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { previewCanvasRef } from "../state/previewCanvasRef.js";
 
 const SEEK_THRESHOLD = 0.12;
 const PREBUFFER_WINDOW = 0.4;
@@ -25,6 +26,13 @@ export function PreviewCanvas() {
 
   const videoClips = state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID);
   const audioClips = state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID);
+
+  useEffect(() => {
+    previewCanvasRef.current = canvasRef.current;
+    return () => {
+      previewCanvasRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     let raf: number;
@@ -56,7 +64,7 @@ export function PreviewCanvas() {
           if (Math.abs(el.currentTime - activeVideo.localTime) > SEEK_THRESHOLD) {
             el.currentTime = activeVideo.localTime;
           }
-          el.volume = computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
+          el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else {
@@ -89,7 +97,7 @@ export function PreviewCanvas() {
           if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
             el.currentTime = activeAudio.localTime;
           }
-          el.volume = computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
+          el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else if (!el.paused) {

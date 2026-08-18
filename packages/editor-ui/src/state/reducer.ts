@@ -5,6 +5,7 @@ export interface EditorState {
   playhead: number;
   isPlaying: boolean;
   selectedClipId: string | null;
+  masterMuted: boolean;
 }
 
 export type Action =
@@ -18,6 +19,8 @@ export type Action =
   | { type: "PLAY" }
   | { type: "PAUSE" }
   | { type: "SET_ASPECT"; aspectRatio: AspectRatioPreset; width: number; height: number }
+  | { type: "SET_PROJECT_NAME"; name: string }
+  | { type: "TOGGLE_MASTER_MUTE" }
   | { type: "LOAD_PROJECT"; project: ProjectModel };
 
 function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: Clip): Clip[] {
@@ -114,8 +117,14 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         },
       };
 
+    case "SET_PROJECT_NAME":
+      return { ...state, project: { ...state.project, metadata: { ...state.project.metadata, name: action.name } } };
+
+    case "TOGGLE_MASTER_MUTE":
+      return { ...state, masterMuted: !state.masterMuted };
+
     case "LOAD_PROJECT":
-      return { project: action.project, playhead: 0, isPlaying: false, selectedClipId: null };
+      return { project: action.project, playhead: 0, isPlaying: false, selectedClipId: null, masterMuted: false };
 
     default:
       return state;

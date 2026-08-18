@@ -1,13 +1,20 @@
 import type { DragEvent, MouseEvent } from "react";
 import type { LaidOutClip } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
-import { PIXELS_PER_SECOND } from "../constants.js";
+import { ClipThumbnailStrip } from "./ClipThumbnailStrip.js";
+import { ClipWaveform } from "./ClipWaveform.js";
 
-export function ClipBlock({ clip }: { clip: LaidOutClip }) {
+interface ClipBlockProps {
+  clip: LaidOutClip;
+  pixelsPerSecond: number;
+}
+
+export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const source = state.project.sources.find((s) => s.id === clip.sourceId);
   const isSelected = state.selectedClipId === clip.id;
+  const widthPx = Math.max(clip.duration * pixelsPerSecond, 4);
 
   function handleDragStart(e: DragEvent<HTMLDivElement>) {
     e.dataTransfer.setData("application/x-clip-id", clip.id);
@@ -30,13 +37,21 @@ export function ClipBlock({ clip }: { clip: LaidOutClip }) {
       draggable
       onDragStart={handleDragStart}
       onClick={handleSelect}
-      style={{ left: clip.timelineStart * PIXELS_PER_SECOND, width: Math.max(clip.duration * PIXELS_PER_SECOND, 4) }}
+      style={{ left: clip.timelineStart * pixelsPerSecond, width: widthPx }}
     >
-      {clip.muted && <span className="clip-muted-badge">Muted</span>}
-      <span className="clip-name">{clip.label || source?.name || "clip"}</span>
-      <button type="button" className="clip-remove" onClick={handleRemove} title="Remove clip">
-        ×
-      </button>
+      {source?.kind === "video" && (
+        <ClipThumbnailStrip source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
+      )}
+      {source?.kind === "audio" && (
+        <ClipWaveform source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
+      )}
+      <div className="clip-overlay">
+        {clip.muted && <span className="clip-muted-badge">Muted</span>}
+        <span className="clip-name">{clip.label || source?.name || "clip"}</span>
+        <button type="button" className="clip-remove" onClick={handleRemove} title="Remove clip">
+          ×
+        </button>
+      </div>
     </div>
   );
 }

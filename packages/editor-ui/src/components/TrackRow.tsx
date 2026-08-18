@@ -1,16 +1,16 @@
 import { useState, type DragEvent } from "react";
 import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
-import { PIXELS_PER_SECOND } from "../constants.js";
 import { ClipBlock } from "./ClipBlock.js";
 
 interface TrackRowProps {
   trackId: string;
   label: string;
   accept: "video" | "audio";
+  pixelsPerSecond: number;
 }
 
-export function TrackRow({ trackId, label, accept }: TrackRowProps) {
+export function TrackRow({ trackId, label, accept, pixelsPerSecond }: TrackRowProps) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -20,8 +20,8 @@ export function TrackRow({ trackId, label, accept }: TrackRowProps) {
     const rect = laneEl.getBoundingClientRect();
     const relativeX = clientX - rect.left;
     for (let i = 0; i < clips.length; i++) {
-      const clipLeft = clips[i].timelineStart * PIXELS_PER_SECOND;
-      const clipMid = clipLeft + (clips[i].duration * PIXELS_PER_SECOND) / 2;
+      const clipLeft = clips[i].timelineStart * pixelsPerSecond;
+      const clipMid = clipLeft + (clips[i].duration * pixelsPerSecond) / 2;
       if (relativeX < clipMid) return i;
     }
     return clips.length;
@@ -52,7 +52,8 @@ export function TrackRow({ trackId, label, accept }: TrackRowProps) {
     <div className="track-row">
       <div className="track-label">{label}</div>
       <div
-        className={`track-lane${isDragOver ? " drag-over" : ""}`}
+        className={`track-lane track-lane-${accept}${isDragOver ? " drag-over" : ""}`}
+        style={{ width: Math.max(clips.reduce((end, c) => Math.max(end, c.timelineStart + c.duration), 0) * pixelsPerSecond, 600) }}
         onDragOver={(e) => {
           e.preventDefault();
           setIsDragOver(true);
@@ -62,7 +63,7 @@ export function TrackRow({ trackId, label, accept }: TrackRowProps) {
         onClick={() => dispatch({ type: "SELECT_CLIP", clipId: null })}
       >
         {clips.map((clip) => (
-          <ClipBlock key={clip.id} clip={clip} />
+          <ClipBlock key={clip.id} clip={clip} pixelsPerSecond={pixelsPerSecond} />
         ))}
       </div>
     </div>

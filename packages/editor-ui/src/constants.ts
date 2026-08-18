@@ -1,1 +1,3 @@
-export const PIXELS_PER_SECOND = 80;
+export const PIXELS_PER_SECOND_DEFAULT = 80;
+export const PIXELS_PER_SECOND_MIN = 20;
+export const PIXELS_PER_SECOND_MAX = 300;
