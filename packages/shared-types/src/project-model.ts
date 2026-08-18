@@ -27,12 +27,16 @@ export interface Clip {
   id: string;
   sourceId: string;
   trackId: string;
+  label: string;
   inPoint: number;
   outPoint: number;
   timelineStart: number;
   fitMode: FitMode;
   transform: Transform;
   volume: number;
+  muted: boolean;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
   speed: number;
   opacity: number;
   filter: ClipFilter;

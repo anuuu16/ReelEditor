@@ -4,6 +4,7 @@ export interface EditorState {
   project: ProjectModel;
   playhead: number;
   isPlaying: boolean;
+  selectedClipId: string | null;
 }
 
 export type Action =
@@ -11,10 +12,13 @@ export type Action =
   | { type: "ADD_CLIP"; trackId: string; sourceId: string; atIndex: number }
   | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number }
   | { type: "REMOVE_CLIP"; clipId: string }
+  | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
+  | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "SET_PLAYHEAD"; time: number }
   | { type: "PLAY" }
   | { type: "PAUSE" }
-  | { type: "SET_ASPECT"; aspectRatio: AspectRatioPreset; width: number; height: number };
+  | { type: "SET_ASPECT"; aspectRatio: AspectRatioPreset; width: number; height: number }
+  | { type: "LOAD_PROJECT"; project: ProjectModel };
 
 function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: Clip): Clip[] {
   const trackClips = clips.filter((c) => c.trackId === trackId);
@@ -47,12 +51,16 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         id: crypto.randomUUID(),
         sourceId: source.id,
         trackId: action.trackId,
+        label: "",
         inPoint: 0,
         outPoint: source.durationSeconds,
         timelineStart: 0,
         fitMode: "fit",
         transform: { scale: 1, x: 0, y: 0, rotation: 0 },
         volume: 1,
+        muted: false,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
         speed: 1,
         opacity: 1,
         filter: { preset: null, brightness: 0, contrast: 0, saturation: 0 },
@@ -70,7 +78,23 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       };
 
     case "REMOVE_CLIP":
-      return { ...state, project: { ...state.project, clips: state.project.clips.filter((c) => c.id !== action.clipId) } };
+      return {
+        ...state,
+        project: { ...state.project, clips: state.project.clips.filter((c) => c.id !== action.clipId) },
+        selectedClipId: state.selectedClipId === action.clipId ? null : state.selectedClipId,
+      };
+
+    case "UPDATE_CLIP":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => (c.id === action.clipId ? { ...c, ...action.patch } : c)),
+        },
+      };
+
+    case "SELECT_CLIP":
+      return { ...state, selectedClipId: action.clipId };
 
     case "SET_PLAYHEAD":
       return { ...state, playhead: Math.max(0, action.time) };
@@ -89,6 +113,9 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
           canvas: { ...state.project.canvas, aspectRatio: action.aspectRatio, width: action.width, height: action.height },
         },
       };
+
+    case "LOAD_PROJECT":
+      return { project: action.project, playhead: 0, isPlaying: false, selectedClipId: null };
 
     default:
       return state;

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
+  computeEffectiveVolume,
   computeFitRect,
   findActiveClip,
   getSequenceDuration,
@@ -55,7 +56,7 @@ export function PreviewCanvas() {
           if (Math.abs(el.currentTime - activeVideo.localTime) > SEEK_THRESHOLD) {
             el.currentTime = activeVideo.localTime;
           }
-          el.volume = clip.volume;
+          el.volume = computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else {
@@ -88,7 +89,7 @@ export function PreviewCanvas() {
           if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
             el.currentTime = activeAudio.localTime;
           }
-          el.volume = clip.volume;
+          el.volume = computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration);
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else if (!el.paused) {

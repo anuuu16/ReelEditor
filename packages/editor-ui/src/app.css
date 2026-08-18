@@ -50,6 +50,39 @@ body {
   border-color: #5b7cff;
 }
 
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.save-label {
+  font-size: 11px;
+  color: #6e707c;
+}
+
+.save-label-pending {
+  color: #f2a65a;
+}
+
+.save-label-saving {
+  color: #b7b8c2;
+}
+
+.save-label-error {
+  color: #ff6b6b;
+}
+
+.save-status button {
+  background: #23242b;
+  color: #b7b8c2;
+  border: 1px solid #34353d;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -248,6 +281,21 @@ body {
   overflow: hidden;
 }
 
+.clip-block.selected {
+  border-color: #9db2ff;
+  box-shadow: 0 0 0 1px #9db2ff;
+}
+
+.clip-muted-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #ff9d9d;
+  border: 1px solid #ff9d9d;
+  border-radius: 3px;
+  padding: 0 3px;
+  flex-shrink: 0;
+}
+
 .clip-name {
   font-size: 11px;
   white-space: nowrap;
@@ -263,4 +311,48 @@ body {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
+}
+
+.clip-inspector {
+  width: 260px;
+  flex-shrink: 0;
+  border-left: 1px solid #2a2b31;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.clip-inspector h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9294a1;
+  margin: 0 0 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #b7b8c2;
+}
+
+.field input[type="text"] {
+  background: #1e1f26;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  color: #e6e6e9;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.field input[type="range"] {
+  width: 100%;
+}
+
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }

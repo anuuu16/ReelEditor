@@ -1,6 +1,7 @@
-import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
 import { createInitialProject } from "./initialProject.js";
 import { editorReducer, type Action, type EditorState } from "./reducer.js";
+import { loadMediaBlob, loadProject } from "../persistence/db.js";
 
 export type { Action, EditorState };
 
@@ -12,7 +13,26 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     project: createInitialProject(),
     playhead: 0,
     isPlaying: false,
+    selectedClipId: null,
   }));
+
+  useEffect(() => {
+    (async () => {
+      const saved = await loadProject();
+      if (!saved) return;
+      const hydratedSources = await Promise.all(
+        saved.sources.map(async (source) => {
+          const blob = await loadMediaBlob(source.id);
+          if (!blob) {
+            console.warn(`Missing stored media for "${source.name}" — re-import it to restore this clip.`);
+            return { ...source, previewUrl: "" };
+          }
+          return { ...source, previewUrl: URL.createObjectURL(blob) };
+        })
+      );
+      dispatch({ type: "LOAD_PROJECT", project: { ...saved, sources: hydratedSources } });
+    })().catch((err) => console.error("Failed to load saved project", err));
+  }, []);
 
   return (
     <EditorStateContext.Provider value={state}>

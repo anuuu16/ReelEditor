@@ -3,6 +3,7 @@ import type { MediaSource } from "@reel-studio/shared-types";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { readMediaMetadata } from "../media/importFile.js";
+import { saveMediaBlob } from "../persistence/db.js";
 
 export function MediaLibrary() {
   const state = useEditorState();
@@ -15,6 +16,7 @@ export function MediaLibrary() {
       if (!file.type.startsWith("video/") && !file.type.startsWith("audio/")) continue;
       try {
         const source = await readMediaMetadata(file);
+        await saveMediaBlob(source.id, file);
         dispatch({ type: "ADD_SOURCE", source });
       } catch (err) {
         console.error(err);

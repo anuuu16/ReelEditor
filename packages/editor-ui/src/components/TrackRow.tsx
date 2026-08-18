@@ -59,6 +59,7 @@ export function TrackRow({ trackId, label, accept }: TrackRowProps) {
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
+        onClick={() => dispatch({ type: "SELECT_CLIP", clipId: null })}
       >
         {clips.map((clip) => (
           <ClipBlock key={clip.id} clip={clip} />
