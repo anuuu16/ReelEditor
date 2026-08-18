@@ -5,6 +5,7 @@ import { Inspector } from "./components/Inspector.js";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts.js";
 import { MediaLibrary } from "./components/MediaLibrary.js";
 import { PreviewCanvas } from "./components/PreviewCanvas.js";
+import { ProjectsPanel } from "./components/ProjectsPanel.js";
 import { ProjectTitle } from "./components/ProjectTitle.js";
 import { SaveStatus } from "./components/SaveStatus.js";
 import { SceneStrip } from "./components/SceneStrip.js";
@@ -24,6 +25,7 @@ export function App() {
             <AddTitleButton />
             <AspectSelector />
             <SaveStatus />
+            <ProjectsPanel />
             <ExportPanel />
           </div>
         </header>

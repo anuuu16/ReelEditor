@@ -841,3 +841,64 @@ body {
   height: 22px;
   margin-left: auto;
 }
+
+.projects-panel {
+  width: 440px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.projects-panel .inline-fields {
+  margin-bottom: 12px;
+}
+
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1f26;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.project-list-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-list-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-list-meta {
+  font-size: 11px;
+  color: #9294a1;
+}
+
+.project-delete-button {
+  background: #3a2225;
+  color: #ff9d9d;
+  border: 1px solid #5a3236;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}

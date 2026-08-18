@@ -6,7 +6,7 @@ export const OVERLAY_TRACK_ID = "overlay-track";
 
 export function createInitialProject(): ProjectModel {
   return {
-    id: "local-project",
+    id: crypto.randomUUID(),
     canvas: { aspectRatio: "9:16", width: 1080, height: 1920, frameRate: 30 },
     tracks: [
       { id: VIDEO_TRACK_ID, kind: "video", order: 0, volume: 1, fadeIn: 0, fadeOut: 0 },

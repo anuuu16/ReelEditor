@@ -1,8 +1,8 @@
 import { useState, type MouseEvent } from "react";
 import { useEditorState } from "../state/EditorContext.js";
 import { loadMediaBlob } from "../persistence/db.js";
-
-const RENDER_SERVICE_URL = "http://localhost:4310";
+import { getUsedSourceIds } from "../media/usedSources.js";
+import { RENDER_SERVICE_URL } from "../constants.js";
 
 type ExportPhase = "idle" | "uploading" | "rendering" | "done" | "error";
 
@@ -38,12 +38,7 @@ export function ExportPanel() {
     setPhase("uploading");
     setErrorMessage(null);
 
-    const usedSourceIds = [
-      ...new Set([
-        ...state.project.clips.map((c) => c.sourceId),
-        ...state.project.overlays.map((o) => o.imageSourceId).filter((id): id is string => id != null),
-      ]),
-    ];
+    const usedSourceIds = getUsedSourceIds(state.project);
     const formData = new FormData();
     formData.append("project", JSON.stringify(state.project));
 
