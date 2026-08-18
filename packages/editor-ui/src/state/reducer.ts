@@ -1,4 +1,7 @@
 import type { AspectRatioPreset, Clip, MediaSource, ProjectModel } from "@reel-studio/shared-types";
+import { layoutSequentialClips } from "@reel-studio/timeline-core";
+
+export const MIN_CLIP_DURATION_SECONDS = 0.1;
 
 export interface EditorState {
   project: ProjectModel;
@@ -15,6 +18,7 @@ export type Action =
   | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number }
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
+  | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "SET_PLAYHEAD"; time: number }
   | { type: "PLAY" }
@@ -110,6 +114,30 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
           clips: state.project.clips.map((c) => (c.id === action.clipId ? { ...c, ...action.patch } : c)),
         },
       };
+
+    case "SPLIT_CLIP": {
+      const clip = state.project.clips.find((c) => c.id === action.clipId);
+      if (!clip) return state;
+      const trackClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === clip.trackId));
+      const laidOut = trackClips.find((c) => c.id === clip.id);
+      if (!laidOut) return state;
+
+      const splitSourceTime = clip.inPoint + (action.atTime - laidOut.timelineStart) * clip.speed;
+      if (
+        splitSourceTime <= clip.inPoint + MIN_CLIP_DURATION_SECONDS ||
+        splitSourceTime >= clip.outPoint - MIN_CLIP_DURATION_SECONDS
+      ) {
+        return state;
+      }
+
+      const firstHalf: Clip = { ...clip, outPoint: splitSourceTime };
+      const secondHalf: Clip = { ...clip, id: crypto.randomUUID(), inPoint: splitSourceTime };
+      const index = state.project.clips.findIndex((c) => c.id === action.clipId);
+      const clips = [...state.project.clips];
+      clips.splice(index, 1, firstHalf, secondHalf);
+
+      return { ...state, project: { ...state.project, clips }, selectedClipId: firstHalf.id };
+    }
 
     case "SELECT_CLIP":
       return { ...state, selectedClipId: action.clipId };

@@ -1,6 +1,6 @@
 import type { ChangeEvent } from "react";
 import { getSequenceDuration, layoutSequentialClips } from "@reel-studio/timeline-core";
-import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
+import { useEditorDispatch, useEditorHistory, useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { previewCanvasRef } from "../state/previewCanvasRef.js";
 
@@ -16,6 +16,7 @@ function formatTimecode(totalSeconds: number, frameRate: number): string {
 export function Transport() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const { canUndo, canRedo } = useEditorHistory();
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
   const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
   const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips));
@@ -36,6 +37,11 @@ export function Transport() {
     dispatch({ type: "SET_PLAYHEAD", time: Math.max(0, Math.min(next, totalDuration)) });
   }
 
+  function handleSplit() {
+    if (!state.selectedClipId) return;
+    dispatch({ type: "SPLIT_CLIP", clipId: state.selectedClipId, atTime: state.playhead });
+  }
+
   function toggleFullscreen() {
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
@@ -48,6 +54,33 @@ export function Transport() {
 
   return (
     <div className="transport">
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => dispatch({ type: "UNDO" })}
+        disabled={!canUndo}
+        title="Undo (Cmd/Ctrl+Z)"
+      >
+        ↶
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => dispatch({ type: "REDO" })}
+        disabled={!canRedo}
+        title="Redo (Cmd/Ctrl+Shift+Z)"
+      >
+        ↷
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={handleSplit}
+        disabled={!state.selectedClipId}
+        title="Split at playhead (S)"
+      >
+        Split
+      </button>
       <button
         type="button"
         className="icon-button"

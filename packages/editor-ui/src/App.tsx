@@ -1,5 +1,6 @@
 import { AspectSelector } from "./components/AspectSelector.js";
 import { ClipInspector } from "./components/ClipInspector.js";
+import { KeyboardShortcuts } from "./components/KeyboardShortcuts.js";
 import { MediaLibrary } from "./components/MediaLibrary.js";
 import { PreviewCanvas } from "./components/PreviewCanvas.js";
 import { ProjectTitle } from "./components/ProjectTitle.js";
@@ -12,6 +13,7 @@ import { EditorProvider } from "./state/EditorContext.js";
 export function App() {
   return (
     <EditorProvider>
+      <KeyboardShortcuts />
       <div className="app">
         <header className="app-header">
           <ProjectTitle />

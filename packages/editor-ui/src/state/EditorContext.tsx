@@ -1,21 +1,31 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
 import { createInitialProject } from "./initialProject.js";
-import { editorReducer, type Action, type EditorState } from "./reducer.js";
+import type { EditorState } from "./reducer.js";
+import { createInitialHistoryState, historyReducer, type HistoryAction } from "./historyReducer.js";
 import { loadMediaBlob, loadProject } from "../persistence/db.js";
 
-export type { Action, EditorState };
+export type { EditorState };
+export type { HistoryAction as Action };
+
+interface HistoryMeta {
+  canUndo: boolean;
+  canRedo: boolean;
+}
 
 const EditorStateContext = createContext<EditorState | null>(null);
-const EditorDispatchContext = createContext<Dispatch<Action> | null>(null);
+const EditorDispatchContext = createContext<Dispatch<HistoryAction> | null>(null);
+const EditorHistoryContext = createContext<HistoryMeta | null>(null);
 
 export function EditorProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(editorReducer, undefined, () => ({
-    project: createInitialProject(),
-    playhead: 0,
-    isPlaying: false,
-    selectedClipId: null,
-    masterMuted: false,
-  }));
+  const [history, dispatch] = useReducer(historyReducer, undefined, () =>
+    createInitialHistoryState({
+      project: createInitialProject(),
+      playhead: 0,
+      isPlaying: false,
+      selectedClipId: null,
+      masterMuted: false,
+    })
+  );
 
   useEffect(() => {
     (async () => {
@@ -35,9 +45,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     })().catch((err) => console.error("Failed to load saved project", err));
   }, []);
 
+  const historyMeta: HistoryMeta = { canUndo: history.past.length > 0, canRedo: history.future.length > 0 };
+
   return (
-    <EditorStateContext.Provider value={state}>
-      <EditorDispatchContext.Provider value={dispatch}>{children}</EditorDispatchContext.Provider>
+    <EditorStateContext.Provider value={history.state}>
+      <EditorDispatchContext.Provider value={dispatch}>
+        <EditorHistoryContext.Provider value={historyMeta}>{children}</EditorHistoryContext.Provider>
+      </EditorDispatchContext.Provider>
     </EditorStateContext.Provider>
   );
 }
@@ -48,8 +62,14 @@ export function useEditorState(): EditorState {
   return ctx;
 }
 
-export function useEditorDispatch(): Dispatch<Action> {
+export function useEditorDispatch(): Dispatch<HistoryAction> {
   const ctx = useContext(EditorDispatchContext);
   if (!ctx) throw new Error("useEditorDispatch must be used within EditorProvider");
+  return ctx;
+}
+
+export function useEditorHistory(): HistoryMeta {
+  const ctx = useContext(EditorHistoryContext);
+  if (!ctx) throw new Error("useEditorHistory must be used within EditorProvider");
   return ctx;
 }

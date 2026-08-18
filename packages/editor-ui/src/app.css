@@ -447,11 +447,34 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 2px 6px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+}
+
+.clip-trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 2;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.clip-trim-handle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.clip-trim-handle-left {
+  left: 0;
+}
+
+.clip-trim-handle-right {
+  right: 0;
 }
 
 .clip-mute-toggle {
