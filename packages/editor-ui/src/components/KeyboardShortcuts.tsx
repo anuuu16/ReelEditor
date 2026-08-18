@@ -21,10 +21,17 @@ export function KeyboardShortcuts() {
         return;
       }
 
-      if ((e.key === "Delete" || e.key === "Backspace") && state.selectedClipId) {
-        e.preventDefault();
-        dispatch({ type: "REMOVE_CLIP", clipId: state.selectedClipId });
-        return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (state.selectedClipId) {
+          e.preventDefault();
+          dispatch({ type: "REMOVE_CLIP", clipId: state.selectedClipId });
+          return;
+        }
+        if (state.selectedOverlayId) {
+          e.preventDefault();
+          dispatch({ type: "REMOVE_OVERLAY", overlayId: state.selectedOverlayId });
+          return;
+        }
       }
 
       const isModifier = e.metaKey || e.ctrlKey;
@@ -42,7 +49,7 @@ export function KeyboardShortcuts() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [dispatch, state.isPlaying, state.selectedClipId, state.playhead]);
+  }, [dispatch, state.isPlaying, state.selectedClipId, state.selectedOverlayId, state.playhead]);
 
   return null;
 }

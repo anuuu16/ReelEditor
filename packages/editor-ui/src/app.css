@@ -508,6 +508,7 @@ body {
 
 .clip-remove {
   margin-left: auto;
+  z-index: 3;
   background: transparent;
   border: none;
   color: #e6e6e9;
