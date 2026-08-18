@@ -1,0 +1,20 @@
+{
+  "name": "@reel-studio/timeline-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "echo \"no tests yet\" && exit 0",
+    "lint": "echo \"no lint config yet\" && exit 0"
+  },
+  "dependencies": {
+    "@reel-studio/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
