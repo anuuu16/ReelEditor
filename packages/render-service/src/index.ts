@@ -103,6 +103,12 @@ app.get("/render/:jobId/events", (req: Request, res: Response) => {
   send({ type: "progress", percent: job.percent });
   if (job.status === "done" && job.outputPath) send({ type: "done", outputPath: job.outputPath });
   if (job.status === "error" && job.errorMessage) send({ type: "error", message: job.errorMessage });
+  if (job.status === "cancelled") send({ type: "cancelled" });
+
+  if (job.status !== "running") {
+    res.end();
+    return;
+  }
 
   function onUpdate(event: JobEvent) {
     send(event);
@@ -130,7 +136,7 @@ app.post("/render/:jobId/cancel", (req: Request, res: Response) => {
     return;
   }
   cancelJob(job);
-  res.json({ status: "cancelled" });
+  res.json({ status: job.status });
 });
 
 setInterval(() => {

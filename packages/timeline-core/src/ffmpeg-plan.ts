@@ -92,8 +92,10 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const inputIdx = inputIndexFor(clip.sourceId);
     const fitFilter = buildFitFilter(clip.fitMode, width, height);
     const vLabel = `v${i}`;
+    // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
+    // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     filterChains.push(
-      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},fps=${frameRate}[${vLabel}]`
+      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},setsar=1,fps=${frameRate}[${vLabel}]`
     );
     videoLabels.push(`[${vLabel}]`);
 
