@@ -71,7 +71,9 @@ export interface Track {
 
 export interface MediaSource {
   id: string;
+  name: string;
   filePath: string;
+  previewUrl: string;
   durationSeconds: number;
   width: number;
   height: number;

@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0",
     "lint": "echo \"no lint config yet\" && exit 0"
   },
