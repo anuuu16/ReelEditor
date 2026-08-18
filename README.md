@@ -17,3 +17,13 @@ pnpm dev        # runs all packages' dev tasks via Turborepo
 pnpm build
 pnpm typecheck
 ```
+
+## Export
+
+Exporting requires [ffmpeg](https://ffmpeg.org) on your `PATH` (`brew install ffmpeg` on macOS) and the render service running:
+
+```bash
+pnpm --filter @reel-studio/render-service dev
+```
+
+Then click "Export" in the editor. The editor uploads the project's media to the local render service (`http://localhost:4310`), which runs ffmpeg and streams progress back; when it finishes you get a download link for the rendered MP4.

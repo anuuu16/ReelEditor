@@ -1,5 +1,6 @@
 import { AspectSelector } from "./components/AspectSelector.js";
 import { ClipInspector } from "./components/ClipInspector.js";
+import { ExportPanel } from "./components/ExportPanel.js";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts.js";
 import { MediaLibrary } from "./components/MediaLibrary.js";
 import { PreviewCanvas } from "./components/PreviewCanvas.js";
@@ -21,6 +22,7 @@ export function App() {
           <div className="app-header-right">
             <AspectSelector />
             <SaveStatus />
+            <ExportPanel />
           </div>
         </header>
         <div className="app-body">

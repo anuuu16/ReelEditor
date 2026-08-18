@@ -618,3 +618,95 @@ body {
   border-radius: 2px;
   pointer-events: none;
 }
+
+.export-button {
+  background: #5b7cff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.export-panel {
+  position: relative;
+  width: 360px;
+  background: #1a1b20;
+  border: 1px solid #2a2b31;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.export-panel h2 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+
+.export-panel .hint {
+  margin: 0 0 14px;
+}
+
+.export-panel button {
+  background: #5b7cff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.export-panel button.export-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  color: #b7b8c2;
+  font-size: 15px;
+  padding: 2px 6px;
+}
+
+.export-progress-track {
+  width: 100%;
+  height: 8px;
+  background: #2a2b31;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.export-progress-fill {
+  height: 100%;
+  background: #5b7cff;
+  transition: width 0.2s ease;
+}
+
+.export-download {
+  display: inline-block;
+  background: #3ac06e;
+  color: white;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.export-error {
+  color: #ff9d9d;
+  font-size: 12px;
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+}
