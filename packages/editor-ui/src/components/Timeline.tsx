@@ -3,6 +3,8 @@ import { getSequenceDuration, layoutSequentialClips } from "@reel-studio/timelin
 import { useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { PIXELS_PER_SECOND_DEFAULT, PIXELS_PER_SECOND_MAX, PIXELS_PER_SECOND_MIN } from "../constants.js";
+import { MagnifierIcon } from "./MagnifierIcon.js";
+import { Playhead } from "./Playhead.js";
 import { TimeRuler } from "./TimeRuler.js";
 import { TrackRow } from "./TrackRow.js";
 
@@ -24,18 +26,21 @@ export function Timeline() {
 
   return (
     <div className="timeline">
+      <div className="timeline-scroll">
+        <div className="timeline-content">
+          <TimeRuler pixelsPerSecond={pixelsPerSecond} durationSeconds={totalDuration} />
+          <TrackRow trackId={VIDEO_TRACK_ID} label="Video" accept="video" pixelsPerSecond={pixelsPerSecond} />
+          <TrackRow trackId={AUDIO_TRACK_ID} label="Audio" accept="audio" pixelsPerSecond={pixelsPerSecond} />
+          <Playhead pixelsPerSecond={pixelsPerSecond} totalDuration={totalDuration} />
+        </div>
+      </div>
       <div className="timeline-toolbar">
         <button type="button" onClick={zoomOut} title="Zoom out">
-          −
+          <MagnifierIcon variant="out" />
         </button>
         <button type="button" onClick={zoomIn} title="Zoom in">
-          +
+          <MagnifierIcon variant="in" />
         </button>
-      </div>
-      <div className="timeline-scroll">
-        <TimeRuler pixelsPerSecond={pixelsPerSecond} durationSeconds={totalDuration} />
-        <TrackRow trackId={VIDEO_TRACK_ID} label="Video" accept="video" pixelsPerSecond={pixelsPerSecond} />
-        <TrackRow trackId={AUDIO_TRACK_ID} label="Audio" accept="audio" pixelsPerSecond={pixelsPerSecond} />
       </div>
     </div>
   );

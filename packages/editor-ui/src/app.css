@@ -299,23 +299,33 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  padding: 0 0 6px 60px;
+  padding-top: 6px;
 }
 
 .timeline-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #23242b;
   color: #b7b8c2;
   border: 1px solid #34353d;
   border-radius: 6px;
   width: 26px;
   height: 26px;
-  font-size: 14px;
-  line-height: 1;
   cursor: pointer;
+}
+
+.timeline-toolbar button:hover {
+  color: #e6e6e9;
+  border-color: #5b7cff;
 }
 
 .timeline-scroll {
   overflow-x: auto;
+}
+
+.timeline-content {
+  position: relative;
 }
 
 .time-ruler {
@@ -323,6 +333,8 @@ body {
   height: 20px;
   margin-left: 60px;
   border-bottom: 1px solid #2a2b31;
+  cursor: ew-resize;
+  touch-action: none;
 }
 
 .time-tick {
@@ -538,4 +550,36 @@ body {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 13px;
+  margin-left: -6px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.playhead-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+.playhead-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 13px;
+  height: 10px;
+  background: #ffffff;
+  border-radius: 2px;
+  pointer-events: none;
 }
