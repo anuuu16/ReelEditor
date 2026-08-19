@@ -63,7 +63,14 @@ function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: 
 // straight into state would leave that field `undefined` at runtime despite the type saying
 // otherwise — fill in safe defaults so older projects behave exactly like new ones.
 function normalizeProject(project: ProjectModel): ProjectModel {
-  return { ...project, clips: project.clips.map((c) => ({ ...c, transitionOutSeconds: c.transitionOutSeconds ?? 0 })) };
+  return {
+    ...project,
+    clips: project.clips.map((c) => ({
+      ...c,
+      transitionOutSeconds: c.transitionOutSeconds ?? 0,
+      transitionOutType: c.transitionOutType ?? "dissolve",
+    })),
+  };
 }
 
 export function findMergeableNeighbor(clips: Clip[], clip: Clip): Clip | null {
@@ -130,6 +137,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         opacity: 1,
         filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
         transitionOutSeconds: 0,
+        transitionOutType: "dissolve",
       };
       return {
         ...state,
@@ -259,7 +267,12 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       if (!next) return state;
 
       // The merged clip now transitions into whatever `next` used to transition into, not into `next` itself.
-      const merged: Clip = { ...clip, outPoint: next.outPoint, transitionOutSeconds: next.transitionOutSeconds };
+      const merged: Clip = {
+        ...clip,
+        outPoint: next.outPoint,
+        transitionOutSeconds: next.transitionOutSeconds,
+        transitionOutType: next.transitionOutType,
+      };
       const clips = state.project.clips.filter((c) => c.id !== next.id).map((c) => (c.id === clip.id ? merged : c));
 
       return { ...state, project: { ...state.project, clips }, selectedClipId: merged.id };

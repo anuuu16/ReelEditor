@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
-import type { Clip, ClipFilter, Transform } from "@reel-studio/shared-types";
+import type { Clip, ClipFilter, Transform, TransitionType } from "@reel-studio/shared-types";
 import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { getOrCreate } from "../thumbnails/cache.js";
 import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
 
 const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
+const TRANSITION_TYPE_NAMES: TransitionType[] = ["dissolve", "slide", "wipe", "zoom"];
+const TRANSITION_TYPE_LABELS: Record<TransitionType, string> = {
+  dissolve: "Dissolve",
+  slide: "Slide",
+  wipe: "Wipe",
+  zoom: "Zoom",
+};
 
 export function ClipInspector() {
   const state = useEditorState();
@@ -280,7 +287,7 @@ export function ClipInspector() {
           {hasNextClip && (
             <div className="field">
               <span>Transition to next clip</span>
-              <div className="inline-fields">
+              <div className="inline-fields inline-fields-wrap">
                 <button
                   type="button"
                   className={clip.transitionOutSeconds === 0 ? "active" : ""}
@@ -288,20 +295,27 @@ export function ClipInspector() {
                 >
                   None (cut)
                 </button>
-                <button
-                  type="button"
-                  className={clip.transitionOutSeconds > 0 ? "active" : ""}
-                  onClick={() => update({ transitionOutSeconds: clip.transitionOutSeconds > 0 ? clip.transitionOutSeconds : 0.5 })}
-                >
-                  Dissolve
-                </button>
+                {TRANSITION_TYPE_NAMES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={clip.transitionOutSeconds > 0 && clip.transitionOutType === type ? "active" : ""}
+                    onClick={() =>
+                      update({ transitionOutSeconds: clip.transitionOutSeconds > 0 ? clip.transitionOutSeconds : 0.5, transitionOutType: type })
+                    }
+                  >
+                    {TRANSITION_TYPE_LABELS[type]}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
           {hasNextClip && clip.transitionOutSeconds > 0 && (
             <label className="field">
-              <span>Dissolve duration — {clip.transitionOutSeconds.toFixed(1)}s</span>
+              <span>
+                {TRANSITION_TYPE_LABELS[clip.transitionOutType]} duration — {clip.transitionOutSeconds.toFixed(1)}s
+              </span>
               <input
                 type="range"
                 min={0.1}

@@ -228,32 +228,74 @@ export function PreviewCanvas() {
         }
       });
 
-      function drawVideoClip(cv: HTMLCanvasElement, context: CanvasRenderingContext2D, activeInfo: ActiveClip, alphaMultiplier: number) {
+      interface DrawOptions {
+        alphaMultiplier?: number;
+        xOffsetPx?: number; // horizontal shift, for the slide transition
+        extraScale?: number; // additional uniform scale around center, for the zoom transition
+        clipRectPx?: { x: number; y: number; width: number; height: number }; // for the wipe transition
+      }
+
+      function drawVideoClip(cv: HTMLCanvasElement, context: CanvasRenderingContext2D, activeInfo: ActiveClip, options: DrawOptions = {}) {
+        const { alphaMultiplier = 1, xOffsetPx = 0, extraScale = 1, clipRectPx } = options;
         const source = s.project.sources.find((src) => src.id === activeInfo.clip.sourceId);
         const el = videoElsRef.current.get(activeInfo.clip.id);
         if (!source || !el || el.readyState < 2) return;
         const fitRect = computeFitRect(cv.width, cv.height, source.width, source.height, activeInfo.clip.fitMode);
-        const rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
+        let rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
+        if (extraScale !== 1) {
+          const width = rect.width * extraScale;
+          const height = rect.height * extraScale;
+          rect = { x: rect.x - (width - rect.width) / 2, y: rect.y - (height - rect.height) / 2, width, height };
+        }
+        rect = { ...rect, x: rect.x + xOffsetPx };
         const fadeMultiplier = computeFadeMultiplier(
           activeInfo.clip.fadeInSeconds,
           activeInfo.clip.fadeOutSeconds,
           s.playhead - activeInfo.clip.timelineStart,
           activeInfo.clip.duration
         );
+        context.save();
+        if (clipRectPx) {
+          context.beginPath();
+          context.rect(clipRectPx.x, clipRectPx.y, clipRectPx.width, clipRectPx.height);
+          context.clip();
+        }
         context.globalAlpha = activeInfo.clip.opacity * fadeMultiplier * alphaMultiplier;
         context.filter = buildCanvasFilterString(activeInfo.clip.filter);
         context.drawImage(el, rect.x, rect.y, rect.width, rect.height);
-        context.filter = "none";
-        context.globalAlpha = 1;
+        context.restore();
       }
 
       if (transition) {
-        // Outgoing drawn first as the base layer, incoming blended over it at `progress` opacity —
-        // equivalent to a linear crossfade and matches ffmpeg xfade's "fade" transition exactly.
-        drawVideoClip(canvas, ctx, transition.outgoing, 1 - transition.progress);
-        drawVideoClip(canvas, ctx, transition.incoming, transition.progress);
+        const p = transition.progress;
+        switch (transition.outgoing.clip.transitionOutType) {
+          case "slide":
+            // Both clips move together — outgoing pushed fully off-screen left as incoming slides in from the right.
+            drawVideoClip(canvas, ctx, transition.outgoing, { xOffsetPx: -p * canvas.width });
+            drawVideoClip(canvas, ctx, transition.incoming, { xOffsetPx: (1 - p) * canvas.width });
+            break;
+          case "wipe":
+            // A hard edge reveals the incoming clip left-to-right; no alpha blending, unlike dissolve/zoom.
+            drawVideoClip(canvas, ctx, transition.outgoing, {});
+            drawVideoClip(canvas, ctx, transition.incoming, {
+              clipRectPx: { x: 0, y: 0, width: p * canvas.width, height: canvas.height },
+            });
+            break;
+          case "zoom":
+            // Crossfade plus the incoming clip growing in from half size, for a "punch in" reveal.
+            drawVideoClip(canvas, ctx, transition.outgoing, { alphaMultiplier: 1 - p });
+            drawVideoClip(canvas, ctx, transition.incoming, { alphaMultiplier: p, extraScale: 0.5 + 0.5 * p });
+            break;
+          case "dissolve":
+          default:
+            // Outgoing drawn first as the base layer, incoming blended over it at `progress` opacity —
+            // equivalent to a linear crossfade and matches ffmpeg xfade's "fade" transition exactly.
+            drawVideoClip(canvas, ctx, transition.outgoing, { alphaMultiplier: 1 - p });
+            drawVideoClip(canvas, ctx, transition.incoming, { alphaMultiplier: p });
+            break;
+        }
       } else if (activeVideo) {
-        drawVideoClip(canvas, ctx, activeVideo, 1);
+        drawVideoClip(canvas, ctx, activeVideo, {});
       }
 
       // Each audio track plays independently (and simultaneously with the others) — a track's

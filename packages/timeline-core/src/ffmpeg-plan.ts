@@ -1,4 +1,4 @@
-import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-types";
+import type { Clip, FitMode, Overlay, ProjectModel, TransitionType } from "@reel-studio/shared-types";
 import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type LaidOutClip } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
@@ -172,10 +172,18 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const videoLabels: string[] = [];
   const clipAudioLabels: string[] = [];
 
+  // ffmpeg's own named xfade transitions, matched to what the preview compositor draws for each type.
+  const XFADE_TRANSITION_NAMES: Record<TransitionType, string> = {
+    dissolve: "fade",
+    slide: "slideleft",
+    wipe: "wiperight",
+    zoom: "zoomin",
+  };
+
   // Chains consecutive per-clip streams into one, using an ffmpeg cross-dissolve (xfade for video,
   // acrossfade for audio) wherever two clips overlap, and a plain concat wherever they don't — so a
   // reel can freely mix hard cuts and dissolves. `clips` supplies each label's laid-out duration and
-  // the overlap between consecutive entries (via getOverlapSeconds), and must be 1:1 with `labels`.
+  // the overlap/transition type between consecutive entries, and must be 1:1 with `labels`.
   function chainSequential(labels: string[], clips: LaidOutClip[], kind: "video" | "audio", labelPrefix: string): string {
     let prevLabel = labels[0];
     let cumulative = clips[0].duration;
@@ -186,7 +194,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
         const offset = cumulative - overlap;
         const transitionFilter =
           kind === "video"
-            ? `xfade=transition=fade:duration=${overlap.toFixed(3)}:offset=${offset.toFixed(3)}`
+            ? `xfade=transition=${XFADE_TRANSITION_NAMES[clips[i - 1].transitionOutType]}:duration=${overlap.toFixed(3)}:offset=${offset.toFixed(3)}`
             : `acrossfade=d=${overlap.toFixed(3)}`;
         filterChains.push(`${prevLabel}${labels[i]}${transitionFilter}[${outLabel}]`);
         cumulative += clips[i].duration - overlap;
