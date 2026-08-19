@@ -514,6 +514,79 @@ body {
   border-color: #5b7cff;
 }
 
+.track-add-clip {
+  position: absolute;
+  z-index: 4;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #4a4b55;
+  background: #23242b;
+  color: #b7b8c2;
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.track-add-clip:hover {
+  color: #e6e6e9;
+  border-color: #5b7cff;
+}
+
+.track-add-clip-start {
+  top: 2px;
+  left: 2px;
+}
+
+.track-add-clip-end {
+  top: 50%;
+  margin-left: 4px;
+  transform: translateY(-50%);
+}
+
+.track-add-menu {
+  position: absolute;
+  top: 100%;
+  z-index: 5;
+  margin-top: 4px;
+  background: #1e1f26;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.track-add-menu button {
+  background: transparent;
+  border: none;
+  color: #e6e6e9;
+  text-align: left;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-add-menu button:hover {
+  background: #2a2b31;
+}
+
+.track-add-menu .hint {
+  padding: 4px 6px;
+}
+
 .clip-block {
   position: absolute;
   top: 2px;

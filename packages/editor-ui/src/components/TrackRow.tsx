@@ -17,7 +17,15 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [isDragOver, setIsDragOver] = useState(false);
+  const [addMenuSide, setAddMenuSide] = useState<"start" | "end" | null>(null);
   const clips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === trackId));
+  const candidateSources = state.project.sources.filter((s) => s.kind === accept);
+  const endX = clips.reduce((end, c) => Math.max(end, c.timelineStart + c.duration), 0) * pixelsPerSecond;
+
+  function handleAddClip(sourceId: string, atIndex: number) {
+    dispatch({ type: "ADD_CLIP", trackId, sourceId, atIndex });
+    setAddMenuSide(null);
+  }
 
   function indexFromDropX(clientX: number, laneEl: HTMLDivElement): number {
     const rect = laneEl.getBoundingClientRect();
@@ -85,11 +93,59 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
         onClick={() => {
           dispatch({ type: "SELECT_CLIP", clipId: null });
           onSelect?.();
+          setAddMenuSide(null);
         }}
       >
+        <button
+          type="button"
+          className="track-add-clip track-add-clip-start"
+          title={`Add a ${accept} clip at the start`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setAddMenuSide(addMenuSide === "start" ? null : "start");
+          }}
+        >
+          +
+        </button>
+        {addMenuSide === "start" && (
+          <div className="track-add-menu" style={{ left: 0 }} onClick={(e) => e.stopPropagation()}>
+            {candidateSources.length === 0 && <span className="hint">Import {accept} first</span>}
+            {candidateSources.map((s) => (
+              <button key={s.id} type="button" onClick={() => handleAddClip(s.id, 0)}>
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {clips.map((clip) => (
           <ClipBlock key={clip.id} clip={clip} pixelsPerSecond={pixelsPerSecond} />
         ))}
+
+        {clips.length > 0 && (
+          <button
+            type="button"
+            className="track-add-clip track-add-clip-end"
+            style={{ left: endX }}
+            title={`Add a ${accept} clip at the end`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAddMenuSide(addMenuSide === "end" ? null : "end");
+            }}
+          >
+            +
+          </button>
+        )}
+        {addMenuSide === "end" && (
+          <div className="track-add-menu" style={{ left: endX }} onClick={(e) => e.stopPropagation()}>
+            {candidateSources.length === 0 && <span className="hint">Import {accept} first</span>}
+            {candidateSources.map((s) => (
+              <button key={s.id} type="button" onClick={() => handleAddClip(s.id, clips.length)}>
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
