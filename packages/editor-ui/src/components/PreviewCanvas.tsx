@@ -4,6 +4,7 @@ import type { Overlay } from "@reel-studio/shared-types";
 import {
   buildCanvasFilterString,
   computeEffectiveVolume,
+  computeFadeMultiplier,
   computeFitRect,
   computeOverlayAlpha,
   computeOverlayPopScale,
@@ -211,7 +212,13 @@ export function PreviewCanvas() {
         const el = videoElsRef.current.get(activeVideo.clip.id);
         if (source && el && el.readyState >= 2) {
           const rect = computeFitRect(canvas.width, canvas.height, source.width, source.height, activeVideo.clip.fitMode);
-          ctx.globalAlpha = activeVideo.clip.opacity;
+          const fadeMultiplier = computeFadeMultiplier(
+            activeVideo.clip.fadeInSeconds,
+            activeVideo.clip.fadeOutSeconds,
+            s.playhead - activeVideo.clip.timelineStart,
+            activeVideo.clip.duration
+          );
+          ctx.globalAlpha = activeVideo.clip.opacity * fadeMultiplier;
           ctx.filter = buildCanvasFilterString(activeVideo.clip.filter);
           ctx.drawImage(el, rect.x, rect.y, rect.width, rect.height);
           ctx.filter = "none";

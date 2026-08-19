@@ -84,27 +84,27 @@ export function ClipInspector() {
       </label>
 
       <label className="field">
-        <span>Fade in — {clip.fadeInSeconds.toFixed(1)}s</span>
+        <span>Fade in{source?.kind === "video" ? " (from black)" : ""} — {clip.fadeInSeconds.toFixed(1)}s</span>
         <input
           type="range"
           min={0}
           max={maxFade}
           step={0.1}
           value={clip.fadeInSeconds}
-          disabled={clip.muted}
+          disabled={clip.muted && source?.kind !== "video"}
           onChange={(e) => update({ fadeInSeconds: Number(e.target.value) })}
         />
       </label>
 
       <label className="field">
-        <span>Fade out — {clip.fadeOutSeconds.toFixed(1)}s</span>
+        <span>Fade out{source?.kind === "video" ? " (to black)" : ""} — {clip.fadeOutSeconds.toFixed(1)}s</span>
         <input
           type="range"
           min={0}
           max={maxFade}
           step={0.1}
           value={clip.fadeOutSeconds}
-          disabled={clip.muted}
+          disabled={clip.muted && source?.kind !== "video"}
           onChange={(e) => update({ fadeOutSeconds: Number(e.target.value) })}
         />
       </label>

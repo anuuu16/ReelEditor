@@ -42,6 +42,18 @@ function buildFadeSuffix(clip: Clip, duration: number): string {
   return parts.length > 0 ? `,${parts.join(",")}` : "";
 }
 
+// Same fadeInSeconds/fadeOutSeconds fields as the audio fade, applied as a fade-to-black
+// transition on the video — the preview compositor achieves the same look by multiplying
+// globalAlpha (computeFadeMultiplier) against a black-cleared canvas.
+function buildVideoFadeSuffix(clip: Clip, duration: number): string {
+  const parts: string[] = [];
+  const fadeIn = Math.min(Math.max(clip.fadeInSeconds, 0), duration / 2);
+  const fadeOut = Math.min(Math.max(clip.fadeOutSeconds, 0), duration / 2);
+  if (fadeIn > 0) parts.push(`fade=t=in:st=0:d=${fadeIn.toFixed(3)}:color=black`);
+  if (fadeOut > 0) parts.push(`fade=t=out:st=${(duration - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}:color=black`);
+  return parts.length > 0 ? `,${parts.join(",")}` : "";
+}
+
 function buildAtempoChain(speed: number): string {
   if (speed === 1) return "";
   const factors: number[] = [];
@@ -170,7 +182,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     filterChains.push(
-      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`
+      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
     );
     videoLabels.push(`[${vLabel}]`);
 
