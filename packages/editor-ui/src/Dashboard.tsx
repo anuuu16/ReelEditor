@@ -5,10 +5,10 @@ import { formatProjectDate, useProjectBrowser } from "./persistence/useProjectBr
 
 interface DashboardProps {
   onOpenProject: (project: ProjectModel) => void;
-  onOpenResizer: () => void;
+  onOpenImageEditor: () => void;
 }
 
-export function Dashboard({ onOpenProject, onOpenResizer }: DashboardProps) {
+export function Dashboard({ onOpenProject, onOpenImageEditor }: DashboardProps) {
   const { realProjects, templates, refresh, errorMessage, busyProjectId, openProject, useAsTemplate, deleteProject } = useProjectBrowser();
 
   useEffect(() => {
@@ -35,8 +35,8 @@ export function Dashboard({ onOpenProject, onOpenResizer }: DashboardProps) {
       <header className="dashboard-header">
         <h1>Reel Studio</h1>
         <div className="inline-fields">
-          <button type="button" onClick={onOpenResizer}>
-            Image Resizer
+          <button type="button" onClick={onOpenImageEditor}>
+            Image Editor
           </button>
         </div>
       </header>
