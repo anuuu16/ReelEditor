@@ -2,6 +2,7 @@ import type { ChangeEvent } from "react";
 import { getSequenceDuration, layoutSequentialClips } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorHistory, useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { findMergeableNeighbor } from "../state/reducer.js";
 import { previewCanvasRef } from "../state/previewCanvasRef.js";
 
 function formatTimecode(totalSeconds: number, frameRate: number): string {
@@ -23,6 +24,8 @@ export function Transport() {
   const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips), overlaysEnd);
   const frameRate = state.project.canvas.frameRate;
   const frameDuration = 1 / frameRate;
+  const selectedClip = state.project.clips.find((c) => c.id === state.selectedClipId) ?? null;
+  const canMerge = selectedClip ? findMergeableNeighbor(state.project.clips, selectedClip) !== null : false;
 
   function togglePlay() {
     dispatch({ type: state.isPlaying ? "PAUSE" : "PLAY" });
@@ -41,6 +44,11 @@ export function Transport() {
   function handleSplit() {
     if (!state.selectedClipId) return;
     dispatch({ type: "SPLIT_CLIP", clipId: state.selectedClipId, atTime: state.playhead });
+  }
+
+  function handleMerge() {
+    if (!state.selectedClipId) return;
+    dispatch({ type: "MERGE_CLIP", clipId: state.selectedClipId });
   }
 
   function toggleFullscreen() {
@@ -85,11 +93,31 @@ export function Transport() {
       <button
         type="button"
         className="icon-button"
+        onClick={handleMerge}
+        disabled={!canMerge}
+        title="Merge with next clip"
+      >
+        Merge
+      </button>
+      <button
+        type="button"
+        className="icon-button"
         onClick={() => dispatch({ type: "TOGGLE_MASTER_MUTE" })}
         title={state.masterMuted ? "Unmute preview" : "Mute preview"}
       >
         {state.masterMuted ? "Muted" : "Sound"}
       </button>
+      <input
+        type="range"
+        className="master-volume-slider"
+        min={0}
+        max={1}
+        step={0.01}
+        value={state.masterVolume}
+        disabled={state.masterMuted}
+        title={`Preview volume — ${Math.round(state.masterVolume * 100)}%`}
+        onChange={(e) => dispatch({ type: "SET_MASTER_VOLUME", volume: Number(e.target.value) })}
+      />
       <span className="time-display">{formatTimecode(state.playhead, frameRate)}</span>
       <button type="button" className="icon-button" onClick={() => stepFrame(-1)} disabled={totalDuration === 0} title="Previous frame">
         ⏮

@@ -92,7 +92,14 @@ export function OverlayBlock({ overlay, pixelsPerSecond }: OverlayBlockProps) {
       ) : (
         <span className="overlay-block-text">{overlay.content || "Title"}</span>
       )}
-      <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove overlay">
+      <button
+        type="button"
+        className="clip-remove"
+        draggable={false}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={handleRemove}
+        title="Remove overlay"
+      >
         ×
       </button>
       <div

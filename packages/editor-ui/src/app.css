@@ -281,6 +281,11 @@ body {
   flex: 1;
 }
 
+.transport input[type="range"].master-volume-slider {
+  flex: none;
+  width: 80px;
+}
+
 .transport button.icon-button {
   background: #23242b;
   color: #b7b8c2;

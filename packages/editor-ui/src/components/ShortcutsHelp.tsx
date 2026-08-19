@@ -7,6 +7,7 @@ const SHORTCUTS: Array<{ keys: string; description: string }> = [
   { keys: "Cmd/Ctrl + Shift + Z", description: "Redo" },
   { keys: "Cmd/Ctrl + D", description: "Duplicate the selected clip" },
   { keys: "S", description: "Split the selected clip at the playhead" },
+  { keys: "M", description: "Merge the selected clip with the next one (undoes a split)" },
 ];
 
 export function ShortcutsHelp() {

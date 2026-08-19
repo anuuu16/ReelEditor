@@ -25,6 +25,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       selectedClipId: null,
       selectedOverlayId: null,
       masterMuted: false,
+      masterVolume: 1,
     })
   );
 

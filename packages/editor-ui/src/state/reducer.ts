@@ -11,6 +11,7 @@ export interface EditorState {
   selectedClipId: string | null;
   selectedOverlayId: string | null;
   masterMuted: boolean;
+  masterVolume: number;
 }
 
 export type Action =
@@ -21,6 +22,7 @@ export type Action =
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
+  | { type: "MERGE_CLIP"; clipId: string }
   | { type: "DUPLICATE_CLIP"; clipId: string }
   | { type: "REPLACE_CLIP_SOURCE"; clipId: string; sourceId: string }
   | { type: "BULK_MUTE"; trackId: string; muted: boolean }
@@ -38,6 +40,7 @@ export type Action =
   | { type: "SET_ASPECT"; aspectRatio: AspectRatioPreset; width: number; height: number }
   | { type: "SET_PROJECT_NAME"; name: string }
   | { type: "TOGGLE_MASTER_MUTE" }
+  | { type: "SET_MASTER_VOLUME"; volume: number }
   | { type: "LOAD_PROJECT"; project: ProjectModel };
 
 function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: Clip): Clip[] {
@@ -46,6 +49,15 @@ function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: 
   const index = Math.max(0, Math.min(atIndex, trackClips.length));
   trackClips.splice(index, 0, newClip);
   return [...others, ...trackClips];
+}
+
+export function findMergeableNeighbor(clips: Clip[], clip: Clip): Clip | null {
+  const trackClips = clips.filter((c) => c.trackId === clip.trackId);
+  const index = trackClips.findIndex((c) => c.id === clip.id);
+  if (index === -1) return null;
+  const next = trackClips[index + 1];
+  if (!next || next.sourceId !== clip.sourceId || next.inPoint !== clip.outPoint) return null;
+  return next;
 }
 
 function moveClipTo(clips: Clip[], clipId: string, trackId: string, atIndex: number): Clip[] {
@@ -191,6 +203,18 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return { ...state, project: { ...state.project, clips }, selectedClipId: firstHalf.id };
     }
 
+    case "MERGE_CLIP": {
+      const clip = state.project.clips.find((c) => c.id === action.clipId);
+      if (!clip) return state;
+      const next = findMergeableNeighbor(state.project.clips, clip);
+      if (!next) return state;
+
+      const merged: Clip = { ...clip, outPoint: next.outPoint };
+      const clips = state.project.clips.filter((c) => c.id !== next.id).map((c) => (c.id === clip.id ? merged : c));
+
+      return { ...state, project: { ...state.project, clips }, selectedClipId: merged.id };
+    }
+
     case "DUPLICATE_CLIP": {
       const index = state.project.clips.findIndex((c) => c.id === action.clipId);
       if (index === -1) return state;
@@ -318,6 +342,9 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "TOGGLE_MASTER_MUTE":
       return { ...state, masterMuted: !state.masterMuted };
 
+    case "SET_MASTER_VOLUME":
+      return { ...state, masterVolume: Math.max(0, Math.min(1, action.volume)) };
+
     case "LOAD_PROJECT":
       return {
         project: action.project,
@@ -326,6 +353,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         selectedClipId: null,
         selectedOverlayId: null,
         masterMuted: false,
+        masterVolume: 1,
       };
 
     default:

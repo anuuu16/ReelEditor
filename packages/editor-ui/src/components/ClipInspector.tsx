@@ -144,6 +144,28 @@ export function ClipInspector() {
       {source?.kind === "video" && (
         <>
           <div className="field">
+            <span>Frame fit</span>
+            <div className="inline-fields">
+              <button
+                type="button"
+                className={clip.fitMode === "fit" ? "active" : ""}
+                title="Show the whole frame, with letterbox bars if the aspect ratio doesn't match"
+                onClick={() => update({ fitMode: "fit" })}
+              >
+                Fit (letterbox)
+              </button>
+              <button
+                type="button"
+                className={clip.fitMode === "fill" ? "active" : ""}
+                title="Fill the canvas edge-to-edge, cropping anything that doesn't fit"
+                onClick={() => update({ fitMode: "fill" })}
+              >
+                Fill (crop)
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
             <span>Filter</span>
             <div className="inline-fields inline-fields-wrap">
               {FILTER_PRESET_NAMES.map((name) => (
