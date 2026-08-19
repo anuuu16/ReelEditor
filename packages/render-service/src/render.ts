@@ -57,9 +57,10 @@ export function startRenderJob(
   jobId: string,
   project: ProjectModel,
   sourcePaths: Record<string, string>,
-  workDir: string
+  workDir: string,
+  output?: { width: number; height: number }
 ): Job {
-  const plan = buildFfmpegPlan({ project, sourcePaths });
+  const plan = buildFfmpegPlan({ project, sourcePaths, output });
   const job = createJob(jobId, workDir, plan.totalDurationSeconds);
 
   writeOverlayTextFiles(workDir, plan.overlayTextFiles)

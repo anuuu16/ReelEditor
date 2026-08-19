@@ -1,5 +1,11 @@
 import { useState, type MouseEvent } from "react";
-import { EXPORT_PRESETS, getSequenceDuration, layoutSequentialClips } from "@reel-studio/timeline-core";
+import {
+  computeExportDimensions,
+  EXPORT_PRESETS,
+  getSequenceDuration,
+  layoutSequentialClips,
+  QUALITY_TIERS,
+} from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { loadMediaBlob } from "../persistence/db.js";
 import { getUsedSourceIds } from "../media/usedSources.js";
@@ -24,6 +30,7 @@ export function ExportPanel() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
   const [presetId, setPresetId] = useState<string | null>(null);
+  const [qualityId, setQualityId] = useState<string>("1080p");
 
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
   const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
@@ -31,6 +38,17 @@ export function ExportPanel() {
   const selectedPreset = EXPORT_PRESETS.find((p) => p.id === presetId) ?? null;
   const aspectMismatch = selectedPreset && selectedPreset.aspectRatio !== state.project.canvas.aspectRatio;
   const overDuration = selectedPreset?.maxDurationSeconds != null && totalDuration > selectedPreset.maxDurationSeconds;
+
+  const qualityTier = QUALITY_TIERS.find((q) => q.id === qualityId) ?? QUALITY_TIERS[2];
+  const exportDimensions = computeExportDimensions(state.project.canvas.width, state.project.canvas.height, qualityTier.scale);
+
+  const usedVideoSourceIds = new Set(videoClips.map((c) => c.sourceId));
+  const usedVideoSources = state.project.sources.filter((s) => s.kind === "video" && usedVideoSourceIds.has(s.id));
+  const maxSourceLongEdge = usedVideoSources.length
+    ? Math.max(...usedVideoSources.map((s) => Math.max(s.width, s.height)))
+    : 0;
+  const targetLongEdge = Math.max(exportDimensions.width, exportDimensions.height);
+  const willUpscale = maxSourceLongEdge > 0 && targetLongEdge > maxSourceLongEdge;
 
   function reset() {
     eventSource?.close();
@@ -68,6 +86,8 @@ export function ExportPanel() {
     const usedSourceIds = getUsedSourceIds(state.project);
     const formData = new FormData();
     formData.append("project", JSON.stringify(state.project));
+    formData.append("width", String(exportDimensions.width));
+    formData.append("height", String(exportDimensions.height));
 
     try {
       for (const sourceId of usedSourceIds) {
@@ -192,8 +212,33 @@ export function ExportPanel() {
               </p>
             )}
 
+            <div className="field">
+              <span>Quality</span>
+              <div className="inline-fields">
+                {QUALITY_TIERS.map((tier) => (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    className={qualityId === tier.id ? "active" : ""}
+                    onClick={() => setQualityId(tier.id)}
+                  >
+                    {tier.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {willUpscale && (
+              <p className="export-warning">
+                Your source footage tops out around {maxSourceLongEdge}px, lower than the {targetLongEdge}px this quality
+                renders at — video will be upscaled and may look soft. Pick a lower quality for a crisper result, or keep
+                this one if file size/resolution matters more than sharpness.
+              </p>
+            )}
+
             <p className="hint">
-              Renders the current project locally through ffmpeg at {state.project.canvas.width}×{state.project.canvas.height}.
+              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height}{" "}
+              ({qualityTier.label}).
             </p>
             <button type="button" onClick={startExport}>
               Start export

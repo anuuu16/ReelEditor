@@ -81,8 +81,15 @@ app.post("/render", assignJobId, renderUpload.any(), (req: Request, res: Respons
     sourcePaths[file.fieldname.replace(/^media_/, "")] = file.path;
   }
 
+  const outputWidth = Number(req.body.width);
+  const outputHeight = Number(req.body.height);
+  const output =
+    Number.isFinite(outputWidth) && Number.isFinite(outputHeight) && outputWidth > 0 && outputHeight > 0
+      ? { width: outputWidth, height: outputHeight }
+      : undefined;
+
   try {
-    startRenderJob(jobId, project, sourcePaths, workDir);
+    startRenderJob(jobId, project, sourcePaths, workDir, output);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
     return;

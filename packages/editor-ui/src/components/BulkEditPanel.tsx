@@ -1,8 +1,11 @@
 import { useState } from "react";
+import type { ClipFilter } from "@reel-studio/shared-types";
+import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 
 const MAX_BULK_FADE_SECONDS = 5;
+const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
 
 export function BulkEditPanel() {
   const state = useEditorState();
@@ -15,9 +18,23 @@ export function BulkEditPanel() {
     dispatch({ type: "BULK_SET_FADE", trackId, fadeInSeconds, fadeOutSeconds });
   }
 
+  function applyFilterPatch(patch: Partial<ClipFilter>) {
+    dispatch({ type: "BULK_SET_FILTER", trackId, patch });
+  }
+
   const avgFadeIn = clips.length ? clips.reduce((sum, c) => sum + c.fadeInSeconds, 0) / clips.length : 0;
   const avgFadeOut = clips.length ? clips.reduce((sum, c) => sum + c.fadeOutSeconds, 0) / clips.length : 0;
   const avgVolume = clips.length ? clips.reduce((sum, c) => sum + c.volume, 0) / clips.length : 1;
+  const avgBrightness = clips.length ? clips.reduce((sum, c) => sum + c.filter.brightness, 0) / clips.length : 0;
+  const avgContrast = clips.length ? clips.reduce((sum, c) => sum + c.filter.contrast, 0) / clips.length : 1;
+  const avgSaturation = clips.length ? clips.reduce((sum, c) => sum + c.filter.saturation, 0) / clips.length : 1;
+  const avgHue = clips.length ? clips.reduce((sum, c) => sum + c.filter.hue, 0) / clips.length : 0;
+
+  const commonFitMode = clips.length && clips.every((c) => c.fitMode === clips[0].fitMode) ? clips[0].fitMode : null;
+  const commonPreset =
+    clips.length && clips.every((c) => (c.filter.preset ?? "none") === (clips[0].filter.preset ?? "none"))
+      ? clips[0].filter.preset ?? "none"
+      : null;
 
   return (
     <div className="clip-inspector">
@@ -92,6 +109,103 @@ export function BulkEditPanel() {
           onChange={(e) => applyFade(avgFadeIn, Number(e.target.value))}
         />
       </label>
+
+      {target === "video" && (
+        <>
+          <div className="field">
+            <span>Frame fit (all)</span>
+            <div className="inline-fields">
+              <button
+                type="button"
+                className={commonFitMode === "fit" ? "active" : ""}
+                disabled={clips.length === 0}
+                title="Show the whole frame, with letterbox bars if the aspect ratio doesn't match"
+                onClick={() => dispatch({ type: "BULK_SET_FIT_MODE", trackId, fitMode: "fit" })}
+              >
+                Fit (letterbox)
+              </button>
+              <button
+                type="button"
+                className={commonFitMode === "fill" ? "active" : ""}
+                disabled={clips.length === 0}
+                title="Fill the canvas edge-to-edge, cropping anything that doesn't fit"
+                onClick={() => dispatch({ type: "BULK_SET_FIT_MODE", trackId, fitMode: "fill" })}
+              >
+                Fill (crop)
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
+            <span>Filter (all)</span>
+            <div className="inline-fields inline-fields-wrap">
+              {FILTER_PRESET_NAMES.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={commonPreset === name ? "active" : ""}
+                  disabled={clips.length === 0}
+                  onClick={() => dispatch({ type: "BULK_SET_FILTER", trackId, patch: applyFilterPreset(name) })}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="field">
+            <span>Brightness (all) — {avgBrightness > 0 ? "+" : ""}{Math.round(avgBrightness * 100)}</span>
+            <input
+              type="range"
+              min={-0.5}
+              max={0.5}
+              step={0.01}
+              value={avgBrightness}
+              disabled={clips.length === 0}
+              onChange={(e) => applyFilterPatch({ preset: null, brightness: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Contrast (all) — {Math.round(avgContrast * 100)}%</span>
+            <input
+              type="range"
+              min={0.5}
+              max={1.5}
+              step={0.01}
+              value={avgContrast}
+              disabled={clips.length === 0}
+              onChange={(e) => applyFilterPatch({ preset: null, contrast: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Saturation (all) — {Math.round(avgSaturation * 100)}%</span>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.01}
+              value={avgSaturation}
+              disabled={clips.length === 0}
+              onChange={(e) => applyFilterPatch({ preset: null, saturation: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Hue (all) — {Math.round(avgHue)}°</span>
+            <input
+              type="range"
+              min={-30}
+              max={30}
+              step={1}
+              value={avgHue}
+              disabled={clips.length === 0}
+              onChange={(e) => applyFilterPatch({ preset: null, hue: Number(e.target.value) })}
+            />
+          </label>
+        </>
+      )}
     </div>
   );
 }

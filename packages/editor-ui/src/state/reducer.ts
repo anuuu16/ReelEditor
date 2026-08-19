@@ -1,4 +1,4 @@
-import type { AspectRatioPreset, Clip, MediaSource, Overlay, ProjectModel } from "@reel-studio/shared-types";
+import type { AspectRatioPreset, Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { layoutSequentialClips } from "@reel-studio/timeline-core";
 
 export const MIN_CLIP_DURATION_SECONDS = 0.1;
@@ -28,6 +28,8 @@ export type Action =
   | { type: "BULK_MUTE"; trackId: string; muted: boolean }
   | { type: "BULK_SET_VOLUME"; trackId: string; volume: number }
   | { type: "BULK_SET_FADE"; trackId: string; fadeInSeconds: number; fadeOutSeconds: number }
+  | { type: "BULK_SET_FIT_MODE"; trackId: string; fitMode: FitMode }
+  | { type: "BULK_SET_FILTER"; trackId: string; patch: Partial<ClipFilter> }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "ADD_TEXT_OVERLAY"; trackId: string; start: number; end: number }
   | { type: "ADD_IMAGE_OVERLAY"; trackId: string; sourceId: string; start: number; end: number }
@@ -176,6 +178,26 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
               fadeOutSeconds: Math.min(Math.max(action.fadeOutSeconds, 0), maxFade),
             };
           }),
+        },
+      };
+
+    case "BULK_SET_FIT_MODE":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => (c.trackId === action.trackId ? { ...c, fitMode: action.fitMode } : c)),
+        },
+      };
+
+    case "BULK_SET_FILTER":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) =>
+            c.trackId === action.trackId ? { ...c, filter: { ...c.filter, ...action.patch } } : c
+          ),
         },
       };
 

@@ -6,6 +6,8 @@ import { buildFfmpegColorFilter } from "./filter-presets.js";
 export interface RenderPlanInput {
   project: ProjectModel;
   sourcePaths: Record<string, string>;
+  /** Overrides the project canvas size for the final render (e.g. a 4K/2K/720p export quality choice). */
+  output?: { width: number; height: number };
 }
 
 export interface OverlayTextFile {
@@ -159,7 +161,9 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return index;
   }
 
-  const { width, height, frameRate } = project.canvas;
+  const { frameRate } = project.canvas;
+  const width = input.output?.width ?? project.canvas.width;
+  const height = input.output?.height ?? project.canvas.height;
   const filterChains: string[] = [];
   const videoLabels: string[] = [];
   const clipAudioLabels: string[] = [];
