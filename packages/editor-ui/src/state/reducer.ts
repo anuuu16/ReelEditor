@@ -59,6 +59,13 @@ function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: 
   return [...others, ...trackClips];
 }
 
+// Projects saved before a given clip field existed won't have it in storage at all. Loading one
+// straight into state would leave that field `undefined` at runtime despite the type saying
+// otherwise — fill in safe defaults so older projects behave exactly like new ones.
+function normalizeProject(project: ProjectModel): ProjectModel {
+  return { ...project, clips: project.clips.map((c) => ({ ...c, transitionOutSeconds: c.transitionOutSeconds ?? 0 })) };
+}
+
 export function findMergeableNeighbor(clips: Clip[], clip: Clip): Clip | null {
   const trackClips = clips.filter((c) => c.trackId === clip.trackId);
   const index = trackClips.findIndex((c) => c.id === clip.id);
@@ -419,17 +426,19 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "SET_MASTER_VOLUME":
       return { ...state, masterVolume: Math.max(0, Math.min(1, action.volume)) };
 
-    case "LOAD_PROJECT":
+    case "LOAD_PROJECT": {
+      const project = normalizeProject(action.project);
       return {
-        project: action.project,
+        project,
         playhead: 0,
         isPlaying: false,
         selectedClipId: null,
         selectedOverlayId: null,
         masterMuted: false,
         masterVolume: 1,
-        activeAudioTrackId: getTracksByKind(action.project, "audio")[0]?.id ?? null,
+        activeAudioTrackId: getTracksByKind(project, "audio")[0]?.id ?? null,
       };
+    }
 
     default:
       return state;

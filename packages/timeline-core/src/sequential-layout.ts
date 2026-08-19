@@ -23,7 +23,9 @@ export function layoutSequentialClips(clips: Clip[]): LaidOutClip[] {
     const next = clips[i + 1];
     if (next) {
       const nextDuration = (next.outPoint - next.inPoint) / next.speed;
-      cursor += duration - clampedOverlap(duration, nextDuration, clip.transitionOutSeconds);
+      // `?? 0`: projects saved before transitions existed have no transitionOutSeconds field at
+      // all, and Math.min(undefined, ...) is NaN — which would corrupt every later clip's layout.
+      cursor += duration - clampedOverlap(duration, nextDuration, clip.transitionOutSeconds ?? 0);
     } else {
       cursor += duration;
     }
