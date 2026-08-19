@@ -1,7 +1,11 @@
 import { useRef, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { Overlay } from "@reel-studio/shared-types";
+import { snapTime } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { MIN_OVERLAY_DURATION_SECONDS } from "../state/reducer.js";
+import { computeSnapTargets } from "../state/snapTargets.js";
+
+const SNAP_THRESHOLD_PX = 8;
 
 interface OverlayBlockProps {
   overlay: Overlay;
@@ -47,16 +51,21 @@ export function OverlayBlock({ overlay, pixelsPerSecond }: OverlayBlockProps) {
     const drag = dragRef.current;
     if (!drag) return;
     const deltaSeconds = (e.clientX - drag.startClientX) / pixelsPerSecond;
+    const snapThreshold = SNAP_THRESHOLD_PX / pixelsPerSecond;
+    const targets = computeSnapTargets(state, overlay.id);
 
     if (drag.mode === "move") {
       const duration = drag.startEnd - drag.startStart;
-      const nextStart = Math.max(0, drag.startStart + deltaSeconds);
+      const rawStart = Math.max(0, drag.startStart + deltaSeconds);
+      const nextStart = snapTime(rawStart, targets, snapThreshold);
       dispatch({ type: "UPDATE_OVERLAY", overlayId: overlay.id, patch: { start: nextStart, end: nextStart + duration } });
     } else if (drag.mode === "left") {
-      const nextStart = Math.max(0, Math.min(drag.startStart + deltaSeconds, overlay.end - MIN_OVERLAY_DURATION_SECONDS));
+      const rawStart = Math.max(0, Math.min(drag.startStart + deltaSeconds, overlay.end - MIN_OVERLAY_DURATION_SECONDS));
+      const nextStart = snapTime(rawStart, targets, snapThreshold);
       dispatch({ type: "UPDATE_OVERLAY", overlayId: overlay.id, patch: { start: nextStart } });
     } else {
-      const nextEnd = Math.max(overlay.start + MIN_OVERLAY_DURATION_SECONDS, drag.startEnd + deltaSeconds);
+      const rawEnd = Math.max(overlay.start + MIN_OVERLAY_DURATION_SECONDS, drag.startEnd + deltaSeconds);
+      const nextEnd = snapTime(rawEnd, targets, snapThreshold);
       dispatch({ type: "UPDATE_OVERLAY", overlayId: overlay.id, patch: { end: nextEnd } });
     }
   }
