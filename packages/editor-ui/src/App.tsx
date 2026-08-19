@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AddTitleButton } from "./components/AddTitleButton.js";
 import { AspectSelector } from "./components/AspectSelector.js";
 import { BrandKitPanel } from "./components/BrandKitPanel.js";
@@ -8,6 +9,7 @@ import { MediaLibrary } from "./components/MediaLibrary.js";
 import { PreviewCanvas } from "./components/PreviewCanvas.js";
 import { ProjectsPanel } from "./components/ProjectsPanel.js";
 import { ProjectTitle } from "./components/ProjectTitle.js";
+import { ResizeHandle } from "./components/ResizeHandle.js";
 import { SaveStatus } from "./components/SaveStatus.js";
 import { SceneStrip } from "./components/SceneStrip.js";
 import { ShortcutsHelp } from "./components/ShortcutsHelp.js";
@@ -15,7 +17,34 @@ import { Timeline } from "./components/Timeline.js";
 import { Transport } from "./components/Transport.js";
 import { EditorProvider } from "./state/EditorContext.js";
 
+const MEDIA_LIBRARY_WIDTH_RANGE = [180, 480] as const;
+const INSPECTOR_WIDTH_RANGE = [200, 480] as const;
+const TIMELINE_HEIGHT_RANGE = [120, 480] as const;
+
+function clamp(value: number, [min, max]: readonly [number, number]): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function usePersistedSize(key: string, defaultValue: number): [number, (updater: (prev: number) => number) => void] {
+  const [value, setValue] = useState(() => {
+    const stored = Number(localStorage.getItem(key));
+    return Number.isFinite(stored) && stored > 0 ? stored : defaultValue;
+  });
+  function update(updater: (prev: number) => number) {
+    setValue((prev) => {
+      const next = updater(prev);
+      localStorage.setItem(key, String(next));
+      return next;
+    });
+  }
+  return [value, update];
+}
+
 export function App() {
+  const [mediaLibraryWidth, setMediaLibraryWidth] = usePersistedSize("panelWidth:mediaLibrary", 260);
+  const [inspectorWidth, setInspectorWidth] = usePersistedSize("panelWidth:inspector", 260);
+  const [timelineHeight, setTimelineHeight] = usePersistedSize("panelHeight:timeline", 220);
+
   return (
     <EditorProvider>
       <KeyboardShortcuts />
@@ -34,12 +63,33 @@ export function App() {
           </div>
         </header>
         <div className="app-body">
-          <MediaLibrary />
+          <div className="panel-sizer" style={{ width: mediaLibraryWidth }}>
+            <MediaLibrary />
+          </div>
+          <ResizeHandle
+            orientation="vertical"
+            title="Drag to resize the media library"
+            onResize={(delta) => setMediaLibraryWidth((w) => clamp(w + delta, MEDIA_LIBRARY_WIDTH_RANGE))}
+          />
           <PreviewCanvas />
-          <Inspector />
+          <ResizeHandle
+            orientation="vertical"
+            title="Drag to resize the inspector"
+            onResize={(delta) => setInspectorWidth((w) => clamp(w - delta, INSPECTOR_WIDTH_RANGE))}
+          />
+          <div className="panel-sizer" style={{ width: inspectorWidth }}>
+            <Inspector />
+          </div>
         </div>
         <Transport />
-        <Timeline />
+        <ResizeHandle
+          orientation="horizontal"
+          title="Drag to resize the timeline"
+          onResize={(delta) => setTimelineHeight((h) => clamp(h - delta, TIMELINE_HEIGHT_RANGE))}
+        />
+        <div style={{ height: timelineHeight, flexShrink: 0, overflow: "hidden" }}>
+          <Timeline />
+        </div>
       </div>
     </EditorProvider>
   );
