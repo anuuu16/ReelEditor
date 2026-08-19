@@ -2,14 +2,14 @@ import { useState, type MouseEvent } from "react";
 import {
   computeExportDimensions,
   EXPORT_PRESETS,
-  getSequenceDuration,
+  getProjectDuration,
   layoutSequentialClips,
   QUALITY_TIERS,
 } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { loadMediaBlob } from "../persistence/db.js";
 import { getUsedSourceIds } from "../media/usedSources.js";
-import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { RENDER_SERVICE_URL } from "../constants.js";
 
 type ExportPhase = "idle" | "uploading" | "rendering" | "done" | "error";
@@ -33,8 +33,7 @@ export function ExportPanel() {
   const [qualityId, setQualityId] = useState<string>("1080p");
 
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
-  const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
-  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips));
+  const totalDuration = getProjectDuration(state.project);
   const selectedPreset = EXPORT_PRESETS.find((p) => p.id === presetId) ?? null;
   const aspectMismatch = selectedPreset && selectedPreset.aspectRatio !== state.project.canvas.aspectRatio;
   const overDuration = selectedPreset?.maxDurationSeconds != null && totalDuration > selectedPreset.maxDurationSeconds;

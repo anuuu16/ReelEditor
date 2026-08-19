@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { ClipFilter } from "@reel-studio/shared-types";
-import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
+import { applyFilterPreset, getTracksByKind, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
-import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 
 const MAX_BULK_FADE_SECONDS = 5;
 const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
@@ -10,8 +10,9 @@ const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono",
 export function BulkEditPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
-  const [target, setTarget] = useState<"video" | "audio">("video");
-  const trackId = target === "video" ? VIDEO_TRACK_ID : AUDIO_TRACK_ID;
+  const [trackId, setTrackId] = useState<string>(VIDEO_TRACK_ID);
+  const audioTracks = getTracksByKind(state.project, "audio");
+  const isVideoTrack = trackId === VIDEO_TRACK_ID;
   const clips = state.project.clips.filter((c) => c.trackId === trackId);
 
   function applyFade(fadeInSeconds: number, fadeOutSeconds: number) {
@@ -43,13 +44,15 @@ export function BulkEditPanel() {
 
       <div className="field">
         <span>Track</span>
-        <div className="inline-fields">
-          <button type="button" className={target === "video" ? "active" : ""} onClick={() => setTarget("video")}>
+        <div className="inline-fields inline-fields-wrap">
+          <button type="button" className={trackId === VIDEO_TRACK_ID ? "active" : ""} onClick={() => setTrackId(VIDEO_TRACK_ID)}>
             Video
           </button>
-          <button type="button" className={target === "audio" ? "active" : ""} onClick={() => setTarget("audio")}>
-            Audio
-          </button>
+          {audioTracks.map((track, i) => (
+            <button key={track.id} type="button" className={trackId === track.id ? "active" : ""} onClick={() => setTrackId(track.id)}>
+              {audioTracks.length > 1 ? `Audio ${i + 1}` : "Audio"}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -110,7 +113,7 @@ export function BulkEditPanel() {
         />
       </label>
 
-      {target === "video" && (
+      {isVideoTrack && (
         <>
           <div className="field">
             <span>Frame fit (all)</span>

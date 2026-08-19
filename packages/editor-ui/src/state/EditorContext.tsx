@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
-import { createInitialProject } from "./initialProject.js";
+import { createInitialProject, AUDIO_TRACK_ID } from "./initialProject.js";
 import type { EditorState } from "./reducer.js";
 import { createInitialHistoryState, historyReducer, type HistoryAction } from "./historyReducer.js";
 import { loadMediaBlob, loadProject } from "../persistence/db.js";
@@ -26,6 +26,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       selectedOverlayId: null,
       masterMuted: false,
       masterVolume: 1,
+      activeAudioTrackId: AUDIO_TRACK_ID,
     })
   );
 

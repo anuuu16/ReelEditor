@@ -11,12 +11,14 @@ import {
   computeOverlaySlideOffsetRatio,
   findActiveClip,
   getSequenceDuration,
+  getTracksByKind,
   isOverlayActive,
   layoutSequentialClips,
+  layoutTrackClips,
   type LaidOutClip,
 } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState, type EditorState } from "../state/EditorContext.js";
-import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { previewCanvasRef } from "../state/previewCanvasRef.js";
 
 const SEEK_THRESHOLD = 0.12;
@@ -148,8 +150,9 @@ export function PreviewCanvas() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const audioTrackIds = new Set(getTracksByKind(state.project, "audio").map((t) => t.id));
   const videoClips = state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID);
-  const audioClips = state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID);
+  const audioClips = state.project.clips.filter((c) => audioTrackIds.has(c.trackId));
   const imageSources = [
     ...new Set(state.project.overlays.filter((o) => o.kind === "image" && o.imageSourceId).map((o) => o.imageSourceId as string)),
   ]
@@ -170,7 +173,7 @@ export function PreviewCanvas() {
     function renderFrame(
       s: EditorState,
       laidOutVideo: LaidOutClip[],
-      laidOutAudio: LaidOutClip[],
+      laidOutAudioTracks: LaidOutClip[][],
       totalDuration: number
     ) {
       const canvas = canvasRef.current;
@@ -226,20 +229,24 @@ export function PreviewCanvas() {
         }
       }
 
-      const activeAudio = findActiveClip(laidOutAudio, queryTime);
-      laidOutAudio.forEach((clip) => {
-        const el = audioElsRef.current.get(clip.id);
-        if (!el) return;
-        if (activeAudio?.clip.id === clip.id) {
-          if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
-            el.currentTime = activeAudio.localTime;
+      // Each audio track plays independently (and simultaneously with the others) — a track's
+      // own active clip is found and driven the same way the single audio lane used to be.
+      laidOutAudioTracks.forEach((laidOutAudio) => {
+        const activeAudio = findActiveClip(laidOutAudio, queryTime);
+        laidOutAudio.forEach((clip) => {
+          const el = audioElsRef.current.get(clip.id);
+          if (!el) return;
+          if (activeAudio?.clip.id === clip.id) {
+            if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
+              el.currentTime = activeAudio.localTime;
+            }
+            el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume;
+            if (s.isPlaying && el.paused) el.play().catch(() => {});
+            if (!s.isPlaying && !el.paused) el.pause();
+          } else if (!el.paused) {
+            el.pause();
           }
-          el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume;
-          if (s.isPlaying && el.paused) el.play().catch(() => {});
-          if (!s.isPlaying && !el.paused) el.pause();
-        } else if (!el.paused) {
-          el.pause();
-        }
+        });
       });
 
       drawOverlays(ctx, canvas, s, imageElsRef.current);
@@ -248,9 +255,13 @@ export function PreviewCanvas() {
     function tick(ts: number) {
       const current = stateRef.current;
       const laidOutVideo = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
-      const laidOutAudio = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
+      const laidOutAudioTracks = getTracksByKind(current.project, "audio").map((track) => layoutTrackClips(current.project, track.id));
       const overlaysEnd = current.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-      const totalDuration = Math.max(getSequenceDuration(laidOutVideo), getSequenceDuration(laidOutAudio), overlaysEnd);
+      const totalDuration = Math.max(
+        getSequenceDuration(laidOutVideo),
+        ...laidOutAudioTracks.map((clips) => getSequenceDuration(clips)),
+        overlaysEnd
+      );
 
       if (current.isPlaying && lastTs !== null) {
         const dt = (ts - lastTs) / 1000;
@@ -264,7 +275,7 @@ export function PreviewCanvas() {
       }
       lastTs = ts;
 
-      renderFrame(stateRef.current, laidOutVideo, laidOutAudio, totalDuration);
+      renderFrame(stateRef.current, laidOutVideo, laidOutAudioTracks, totalDuration);
       raf = requestAnimationFrame(tick);
     }
 

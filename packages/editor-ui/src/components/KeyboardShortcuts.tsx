@@ -22,6 +22,17 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      if (e.key === "Escape") {
+        if (state.selectedClipId) {
+          dispatch({ type: "SELECT_CLIP", clipId: null });
+          return;
+        }
+        if (state.selectedOverlayId) {
+          dispatch({ type: "SELECT_OVERLAY", overlayId: null });
+          return;
+        }
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedClipId) {
           e.preventDefault();

@@ -49,7 +49,12 @@ export function ClipInspector() {
 
   return (
     <div className="clip-inspector">
-      <h2>Clip</h2>
+      <div className="clip-inspector-header">
+        <h2>Clip</h2>
+        <button type="button" className="clip-deselect" onClick={() => dispatch({ type: "SELECT_CLIP", clipId: null })}>
+          ← Bulk edit all clips
+        </button>
+      </div>
 
       <div className={`clip-preview-thumb${source?.kind === "audio" ? " clip-preview-thumb-audio" : ""}`}>
         {thumbnail && <img src={thumbnail} alt="" />}

@@ -1,7 +1,6 @@
 import type { ChangeEvent } from "react";
-import { getSequenceDuration, layoutSequentialClips } from "@reel-studio/timeline-core";
+import { getProjectDuration } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorHistory, useEditorState } from "../state/EditorContext.js";
-import { AUDIO_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { findMergeableNeighbor } from "../state/reducer.js";
 import { previewCanvasRef } from "../state/previewCanvasRef.js";
 
@@ -18,10 +17,8 @@ export function Transport() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const { canUndo, canRedo } = useEditorHistory();
-  const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
-  const audioClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === AUDIO_TRACK_ID));
   const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-  const totalDuration = Math.max(getSequenceDuration(videoClips), getSequenceDuration(audioClips), overlaysEnd);
+  const totalDuration = getProjectDuration(state.project, [overlaysEnd]);
   const frameRate = state.project.canvas.frameRate;
   const frameDuration = 1 / frameRate;
   const selectedClip = state.project.clips.find((c) => c.id === state.selectedClipId) ?? null;

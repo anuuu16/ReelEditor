@@ -8,9 +8,12 @@ interface TrackRowProps {
   label: string;
   accept: "video" | "audio";
   pixelsPerSecond: number;
+  isActive?: boolean;
+  onSelect?: () => void;
+  onRemove?: () => void;
 }
 
-export function TrackRow({ trackId, label, accept, pixelsPerSecond }: TrackRowProps) {
+export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, onSelect, onRemove }: TrackRowProps) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -50,7 +53,26 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond }: TrackRowPr
 
   return (
     <div className="track-row">
-      <div className="track-label">{label}</div>
+      <div
+        className={`track-label${onSelect ? " track-label-selectable" : ""}${isActive ? " active" : ""}`}
+        onClick={onSelect}
+        title={onSelect ? "Click to make this the destination for newly added audio" : undefined}
+      >
+        <span>{label}</span>
+        {onRemove && (
+          <button
+            type="button"
+            className="track-remove"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            title="Remove track"
+          >
+            ×
+          </button>
+        )}
+      </div>
       <div
         className={`track-lane track-lane-${accept}${isDragOver ? " drag-over" : ""}`}
         style={{ width: Math.max(clips.reduce((end, c) => Math.max(end, c.timelineStart + c.duration), 0) * pixelsPerSecond, 600) }}
@@ -60,7 +82,10 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond }: TrackRowPr
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        onClick={() => dispatch({ type: "SELECT_CLIP", clipId: null })}
+        onClick={() => {
+          dispatch({ type: "SELECT_CLIP", clipId: null });
+          onSelect?.();
+        }}
       >
         {clips.map((clip) => (
           <ClipBlock key={clip.id} clip={clip} pixelsPerSecond={pixelsPerSecond} />

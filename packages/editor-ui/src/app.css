@@ -379,6 +379,51 @@ body {
   color: #9294a1;
   padding-top: 8px;
   background: #17181c;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.track-label-selectable {
+  cursor: pointer;
+}
+
+.track-label.active {
+  color: #5b7cff;
+}
+
+.track-remove {
+  background: none;
+  border: none;
+  color: #6e707c;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.track-remove:hover {
+  color: #ff9d9d;
+}
+
+.timeline-add-track {
+  padding: 2px 0 10px 60px;
+}
+
+.timeline-add-track button {
+  background: #23242b;
+  color: #b7b8c2;
+  border: 1px dashed #34353d;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.timeline-add-track button:hover {
+  color: #e6e6e9;
+  border-color: #5b7cff;
 }
 
 .track-lane {
@@ -536,6 +581,32 @@ body {
   letter-spacing: 0.04em;
   color: #9294a1;
   margin: 0 0 12px;
+}
+
+.clip-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.clip-inspector-header h2 {
+  margin: 0 0 12px;
+}
+
+.clip-deselect {
+  background: none;
+  border: none;
+  color: #5b7cff;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  white-space: nowrap;
+}
+
+.clip-deselect:hover {
+  text-decoration: underline;
 }
 
 .clip-inspector > button {

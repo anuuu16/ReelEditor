@@ -1,5 +1,5 @@
-import type { AspectRatioPreset, Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel } from "@reel-studio/shared-types";
-import { layoutSequentialClips } from "@reel-studio/timeline-core";
+import type { AspectRatioPreset, Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel, Track } from "@reel-studio/shared-types";
+import { getTracksByKind, layoutSequentialClips } from "@reel-studio/timeline-core";
 
 export const MIN_CLIP_DURATION_SECONDS = 0.1;
 export const MIN_OVERLAY_DURATION_SECONDS = 0.2;
@@ -12,6 +12,8 @@ export interface EditorState {
   selectedOverlayId: string | null;
   masterMuted: boolean;
   masterVolume: number;
+  /** The audio track new clips (dropped from the media library) land on, and the default bulk-edit target. */
+  activeAudioTrackId: string | null;
 }
 
 export type Action =
@@ -31,6 +33,9 @@ export type Action =
   | { type: "BULK_SET_FIT_MODE"; trackId: string; fitMode: FitMode }
   | { type: "BULK_SET_FILTER"; trackId: string; patch: Partial<ClipFilter> }
   | { type: "SELECT_CLIP"; clipId: string | null }
+  | { type: "ADD_TRACK"; kind: "audio" }
+  | { type: "REMOVE_TRACK"; trackId: string }
+  | { type: "SELECT_TRACK"; trackId: string }
   | { type: "ADD_TEXT_OVERLAY"; trackId: string; start: number; end: number }
   | { type: "ADD_IMAGE_OVERLAY"; trackId: string; sourceId: string; start: number; end: number }
   | { type: "UPDATE_OVERLAY"; overlayId: string; patch: Partial<Overlay> }
@@ -269,6 +274,37 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "SELECT_CLIP":
       return { ...state, selectedClipId: action.clipId, selectedOverlayId: action.clipId ? null : state.selectedOverlayId };
 
+    case "ADD_TRACK": {
+      const maxOrder = state.project.tracks.reduce((max, t) => Math.max(max, t.order), -1);
+      const newTrack: Track = { id: crypto.randomUUID(), kind: action.kind, order: maxOrder + 1, volume: 1, fadeIn: 0, fadeOut: 0 };
+      return {
+        ...state,
+        project: { ...state.project, tracks: [...state.project.tracks, newTrack] },
+        activeAudioTrackId: action.kind === "audio" ? newTrack.id : state.activeAudioTrackId,
+      };
+    }
+
+    case "REMOVE_TRACK": {
+      const track = state.project.tracks.find((t) => t.id === action.trackId);
+      if (!track) return state;
+      // Every clip kind needs somewhere to live — refuse to remove the last track of its kind.
+      if (getTracksByKind(state.project, track.kind).length <= 1) return state;
+
+      const remainingTracks = state.project.tracks.filter((t) => t.id !== action.trackId);
+      const remainingClips = state.project.clips.filter((c) => c.trackId !== action.trackId);
+      const wasActive = state.activeAudioTrackId === action.trackId;
+      const selectedClipRemoved = state.selectedClipId != null && !remainingClips.some((c) => c.id === state.selectedClipId);
+      return {
+        ...state,
+        project: { ...state.project, tracks: remainingTracks, clips: remainingClips },
+        selectedClipId: selectedClipRemoved ? null : state.selectedClipId,
+        activeAudioTrackId: wasActive ? getTracksByKind({ ...state.project, tracks: remainingTracks }, "audio")[0]?.id ?? null : state.activeAudioTrackId,
+      };
+    }
+
+    case "SELECT_TRACK":
+      return { ...state, activeAudioTrackId: action.trackId };
+
     case "ADD_TEXT_OVERLAY": {
       const newOverlay: Overlay = {
         id: crypto.randomUUID(),
@@ -376,6 +412,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         selectedOverlayId: null,
         masterMuted: false,
         masterVolume: 1,
+        activeAudioTrackId: getTracksByKind(action.project, "audio")[0]?.id ?? null,
       };
 
     default:

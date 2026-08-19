@@ -2,6 +2,7 @@ import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-t
 import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
+import { getTracksByKind } from "./track-utils.js";
 
 export interface RenderPlanInput {
   project: ProjectModel;
@@ -136,7 +137,9 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const { project, sourcePaths } = input;
   const trackKindById = new Map(project.tracks.map((t) => [t.id, t.kind] as const));
   const videoClips = layoutSequentialClips(project.clips.filter((c) => trackKindById.get(c.trackId) === "video"));
-  const audioClips = layoutSequentialClips(project.clips.filter((c) => trackKindById.get(c.trackId) === "audio"));
+  // Each audio track is its own independent sequential lane; tracks are mixed together (not
+  // concatenated) so clips on different tracks can overlap in time.
+  const audioTracks = getTracksByKind(project, "audio");
 
   if (videoClips.length === 0) {
     throw new Error("Add at least one video clip before exporting.");
@@ -195,12 +198,20 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     clipAudioLabels.push(`[${aLabel}]`);
   });
 
-  const musicLabels: string[] = [];
-  audioClips.forEach((clip, i) => {
-    const inputIdx = inputIndexFor(clip.sourceId);
-    const label = `ma${i}`;
-    filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label));
-    musicLabels.push(`[${label}]`);
+  const musicTrackLabels: string[] = [];
+  audioTracks.forEach((track, trackIndex) => {
+    const trackClips = layoutSequentialClips(project.clips.filter((c) => c.trackId === track.id));
+    if (trackClips.length === 0) return;
+    const labels: string[] = [];
+    trackClips.forEach((clip, i) => {
+      const inputIdx = inputIndexFor(clip.sourceId);
+      const label = `ma${trackIndex}_${i}`;
+      filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label));
+      labels.push(`[${label}]`);
+    });
+    const trackLabel = `amusic${trackIndex}`;
+    filterChains.push(`${labels.join("")}concat=n=${labels.length}:v=0:a=1[${trackLabel}]`);
+    musicTrackLabels.push(`[${trackLabel}]`);
   });
 
   filterChains.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vconcat]`);
@@ -234,11 +245,11 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   filterChains.push(`${clipAudioLabels.join("")}concat=n=${clipAudioLabels.length}:v=0:a=1[aclips]`);
 
   let finalAudioLabel = "[aclips]";
-  if (musicLabels.length > 0) {
-    filterChains.push(`${musicLabels.join("")}concat=n=${musicLabels.length}:v=0:a=1[amusic]`);
-    // duration=first anchors output length to the video track; if the audio track runs longer,
+  if (musicTrackLabels.length > 0) {
+    // duration=first anchors output length to the video track; if an audio track runs longer,
     // the tail is dropped (unlike the preview compositor, which keeps playing past the last video frame).
-    filterChains.push(`[aclips][amusic]amix=inputs=2:duration=first:dropout_transition=0[aout]`);
+    const mixInputLabels = ["[aclips]", ...musicTrackLabels];
+    filterChains.push(`${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=first:dropout_transition=0[aout]`);
     finalAudioLabel = "[aout]";
   }
 

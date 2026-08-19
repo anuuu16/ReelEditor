@@ -1,7 +1,8 @@
 import { useState, type DragEvent } from "react";
 import type { MediaSource } from "@reel-studio/shared-types";
+import { getTracksByKind } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
-import { AUDIO_TRACK_ID, OVERLAY_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
+import { OVERLAY_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { readMediaMetadata } from "../media/importFile.js";
 import { deleteMediaBlob, saveMediaBlob } from "../persistence/db.js";
 
@@ -40,7 +41,9 @@ export function MediaLibrary() {
       });
       return;
     }
-    const trackId = source.kind === "video" ? VIDEO_TRACK_ID : AUDIO_TRACK_ID;
+    const trackId =
+      source.kind === "video" ? VIDEO_TRACK_ID : state.activeAudioTrackId ?? getTracksByKind(state.project, "audio")[0]?.id;
+    if (!trackId) return;
     const clipsOnTrack = state.project.clips.filter((c) => c.trackId === trackId);
     dispatch({ type: "ADD_CLIP", trackId, sourceId: source.id, atIndex: clipsOnTrack.length });
   }
