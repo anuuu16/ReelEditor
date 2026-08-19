@@ -726,6 +726,23 @@ body {
   white-space: pre-wrap;
 }
 
+.export-warning {
+  color: #f2a65a;
+  font-size: 12px;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.export-warning-action {
+  background: transparent;
+  color: #f2a65a;
+  border: none;
+  border-bottom: 1px solid #f2a65a;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .add-title-button {
   background: #23242b;
   color: #e6e6e9;
