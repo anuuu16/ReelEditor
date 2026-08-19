@@ -95,6 +95,7 @@ export interface ProjectMetadata {
   templateId: string | null;
   createdAt: number;
   updatedAt: number;
+  thumbnailDataUrl: string | null;
 }
 
 export interface ProjectModel {

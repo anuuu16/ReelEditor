@@ -25,6 +25,7 @@ export interface ProjectSummary {
   updatedAt: number;
   clipCount: number;
   overlayCount: number;
+  thumbnailDataUrl: string | null;
 }
 
 export async function saveProjectFile(projectId: string, project: ProjectModel): Promise<void> {
@@ -57,6 +58,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
         updatedAt: project.metadata.updatedAt,
         clipCount: project.clips.length,
         overlayCount: project.overlays.length,
+        thumbnailDataUrl: project.metadata.thumbnailDataUrl,
       });
     } catch {
       // Skip a project directory whose project.json is missing or unreadable.

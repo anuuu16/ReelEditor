@@ -125,6 +125,9 @@ export function ProjectsPanel() {
           {projects.length === 0 && <p className="hint">No saved projects yet.</p>}
           {projects.map((p) => (
             <li key={p.id} className="project-list-item">
+              <div className="project-list-thumb">
+                {p.thumbnailDataUrl && <img src={p.thumbnailDataUrl} alt="" />}
+              </div>
               <div className="project-list-info">
                 <span className="project-list-name">{p.name || "Untitled reel"}</span>
                 <span className="project-list-meta">

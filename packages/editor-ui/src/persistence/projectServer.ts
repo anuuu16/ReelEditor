@@ -1,6 +1,8 @@
 import type { ProjectModel } from "@reel-studio/shared-types";
+import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { RENDER_SERVICE_URL } from "../constants.js";
 import { getUsedSourceIds } from "../media/usedSources.js";
+import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
 import { loadMediaBlob, saveMediaBlob } from "./db.js";
 
 export interface ProjectSummary {
@@ -9,6 +11,7 @@ export interface ProjectSummary {
   updatedAt: number;
   clipCount: number;
   overlayCount: number;
+  thumbnailDataUrl: string | null;
 }
 
 export async function listProjectsFromServer(): Promise<ProjectSummary[]> {
@@ -17,10 +20,30 @@ export async function listProjectsFromServer(): Promise<ProjectSummary[]> {
   return response.json();
 }
 
+async function computeProjectThumbnail(project: ProjectModel): Promise<string | null> {
+  const videoTrackId = project.tracks.find((t) => t.kind === "video")?.id;
+  if (!videoTrackId) return null;
+  const laidOut = layoutSequentialClips(project.clips.filter((c) => c.trackId === videoTrackId));
+  const firstClip = laidOut[0];
+  if (!firstClip) return null;
+  const source = project.sources.find((s) => s.id === firstClip.sourceId);
+  if (!source || !source.previewUrl) return null;
+
+  try {
+    const frames = await generateVideoThumbnails(source.previewUrl, firstClip.inPoint, firstClip.outPoint, 1);
+    return frames[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function saveProjectToServer(project: ProjectModel): Promise<void> {
+  const thumbnailDataUrl = await computeProjectThumbnail(project);
+  const projectToSave: ProjectModel = { ...project, metadata: { ...project.metadata, thumbnailDataUrl } };
+
   const usedSourceIds = getUsedSourceIds(project);
   const formData = new FormData();
-  formData.append("project", JSON.stringify(project));
+  formData.append("project", JSON.stringify(projectToSave));
 
   for (const sourceId of usedSourceIds) {
     const blob = await loadMediaBlob(sourceId);
