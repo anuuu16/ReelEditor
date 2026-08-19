@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import type { Clip } from "@reel-studio/shared-types";
+import type { Clip, ClipFilter } from "@reel-studio/shared-types";
+import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { getOrCreate } from "../thumbnails/cache.js";
 import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
+
+const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
 
 export function ClipInspector() {
   const state = useEditorState();
@@ -33,6 +36,14 @@ export function ClipInspector() {
 
   function update(patch: Partial<Clip>) {
     dispatch({ type: "UPDATE_CLIP", clipId: clip!.id, patch });
+  }
+
+  function updateFilter(patch: Partial<ClipFilter>) {
+    update({ filter: { ...clip!.filter, preset: null, ...patch } });
+  }
+
+  function applyPreset(name: FilterPresetName) {
+    update({ filter: applyFilterPreset(name) });
   }
 
   return (
@@ -97,6 +108,74 @@ export function ClipInspector() {
           onChange={(e) => update({ fadeOutSeconds: Number(e.target.value) })}
         />
       </label>
+
+      {source?.kind === "video" && (
+        <>
+          <div className="field">
+            <span>Filter</span>
+            <div className="inline-fields inline-fields-wrap">
+              {FILTER_PRESET_NAMES.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={(clip.filter.preset ?? "none") === name ? "active" : ""}
+                  onClick={() => applyPreset(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="field">
+            <span>Brightness — {clip.filter.brightness > 0 ? "+" : ""}{Math.round(clip.filter.brightness * 100)}</span>
+            <input
+              type="range"
+              min={-0.5}
+              max={0.5}
+              step={0.01}
+              value={clip.filter.brightness}
+              onChange={(e) => updateFilter({ brightness: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Contrast — {Math.round(clip.filter.contrast * 100)}%</span>
+            <input
+              type="range"
+              min={0.5}
+              max={1.5}
+              step={0.01}
+              value={clip.filter.contrast}
+              onChange={(e) => updateFilter({ contrast: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Saturation — {Math.round(clip.filter.saturation * 100)}%</span>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.01}
+              value={clip.filter.saturation}
+              onChange={(e) => updateFilter({ saturation: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Hue — {clip.filter.hue}°</span>
+            <input
+              type="range"
+              min={-30}
+              max={30}
+              step={1}
+              value={clip.filter.hue}
+              onChange={(e) => updateFilter({ hue: Number(e.target.value) })}
+            />
+          </label>
+        </>
+      )}
     </div>
   );
 }

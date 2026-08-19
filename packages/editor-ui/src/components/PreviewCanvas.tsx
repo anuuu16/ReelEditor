@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Overlay } from "@reel-studio/shared-types";
 import {
+  buildCanvasFilterString,
   computeEffectiveVolume,
   computeFitRect,
   computeOverlayAlpha,
@@ -207,7 +208,9 @@ export function PreviewCanvas() {
         if (source && el && el.readyState >= 2) {
           const rect = computeFitRect(canvas.width, canvas.height, source.width, source.height, activeVideo.clip.fitMode);
           ctx.globalAlpha = activeVideo.clip.opacity;
+          ctx.filter = buildCanvasFilterString(activeVideo.clip.filter);
           ctx.drawImage(el, rect.x, rect.y, rect.width, rect.height);
+          ctx.filter = "none";
           ctx.globalAlpha = 1;
         }
       }

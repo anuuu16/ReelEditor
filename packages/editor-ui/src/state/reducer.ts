@@ -99,7 +99,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         fadeOutSeconds: 0,
         speed: 1,
         opacity: 1,
-        filter: { preset: null, brightness: 0, contrast: 0, saturation: 0 },
+        filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
       };
       return {
         ...state,

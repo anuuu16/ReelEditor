@@ -21,6 +21,7 @@ export interface ClipFilter {
   brightness: number;
   contrast: number;
   saturation: number;
+  hue: number;
 }
 
 export interface Clip {

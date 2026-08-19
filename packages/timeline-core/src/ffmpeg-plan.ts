@@ -1,6 +1,7 @@
 import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS } from "./overlay-animation.js";
+import { buildFfmpegColorFilter } from "./filter-presets.js";
 
 export interface RenderPlanInput {
   project: ProjectModel;
@@ -153,11 +154,12 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   videoClips.forEach((clip, i) => {
     const inputIdx = inputIndexFor(clip.sourceId);
     const fitFilter = buildFitFilter(clip.fitMode, width, height);
+    const colorFilter = buildFfmpegColorFilter(clip.filter);
     const vLabel = `v${i}`;
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     filterChains.push(
-      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},setsar=1,fps=${frameRate}[${vLabel}]`
+      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`
     );
     videoLabels.push(`[${vLabel}]`);
 
