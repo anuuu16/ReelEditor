@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { Clip, ClipFilter, Transform, TransitionType } from "@reel-studio/shared-types";
 import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
+import { trackKindAccepts } from "../media/trackAccepts.js";
+import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { getOrCreate } from "../thumbnails/cache.js";
 import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
 
@@ -46,6 +48,9 @@ export function ClipInspector() {
   const trackClips = state.project.clips.filter((c) => c.trackId === clip.trackId);
   const clipIndex = trackClips.findIndex((c) => c.id === clip.id);
   const hasNextClip = clipIndex !== -1 && clipIndex < trackClips.length - 1;
+  const trackKind = clip.trackId === VIDEO_TRACK_ID ? "video" : "audio";
+  const insertCandidates = state.project.sources.filter((s) => !s.isPlaceholder && trackKindAccepts(trackKind, s.kind));
+  const isVisual = source?.kind === "video" || source?.kind === "image";
 
   function update(patch: Partial<Clip>) {
     dispatch({ type: "UPDATE_CLIP", clipId: clip!.id, patch });
@@ -109,6 +114,69 @@ export function ClipInspector() {
         </label>
       )}
 
+      {trackClips.length > 1 && (
+        <label className="field">
+          <span>
+            Position — {clipIndex + 1} of {trackClips.length}
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={trackClips.length}
+            value={clipIndex + 1}
+            onChange={(e) => {
+              const requested = Number(e.target.value);
+              if (Number.isNaN(requested)) return;
+              const atIndex = Math.max(0, Math.min(trackClips.length - 1, requested - 1));
+              dispatch({ type: "MOVE_CLIP", clipId: clip.id, trackId: clip.trackId, atIndex });
+            }}
+          />
+        </label>
+      )}
+
+      {insertCandidates.length > 0 && (
+        <label className="field">
+          <span>Insert clip before this one</span>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) dispatch({ type: "ADD_CLIP", trackId: clip.trackId, sourceId: e.target.value, atIndex: clipIndex });
+            }}
+          >
+            <option value="" disabled>
+              Choose media…
+            </option>
+            {insertCandidates.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {insertCandidates.length > 0 && (
+        <label className="field">
+          <span>Insert clip after this one</span>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value)
+                dispatch({ type: "ADD_CLIP", trackId: clip.trackId, sourceId: e.target.value, atIndex: clipIndex + 1 });
+            }}
+          >
+            <option value="" disabled>
+              Choose media…
+            </option>
+            {insertCandidates.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <label className="field">
         <span>Description</span>
         <textarea
@@ -119,52 +187,74 @@ export function ClipInspector() {
         />
       </label>
 
-      <label className="field checkbox-field">
-        <input type="checkbox" checked={clip.muted} onChange={(e) => update({ muted: e.target.checked })} />
-        <span>Mute</span>
-      </label>
-
-      <label className="field">
-        <span>Volume — {Math.round(clip.volume * 100)}%</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={clip.volume}
-          disabled={clip.muted}
-          onChange={(e) => update({ volume: Number(e.target.value) })}
-        />
-      </label>
-
-      <label className="field">
-        <span>Fade in{source?.kind === "video" ? " (from black)" : ""} — {clip.fadeInSeconds.toFixed(1)}s</span>
-        <input
-          type="range"
-          min={0}
-          max={maxFade}
-          step={0.1}
-          value={clip.fadeInSeconds}
-          disabled={clip.muted && source?.kind !== "video"}
-          onChange={(e) => update({ fadeInSeconds: Number(e.target.value) })}
-        />
-      </label>
-
-      <label className="field">
-        <span>Fade out{source?.kind === "video" ? " (to black)" : ""} — {clip.fadeOutSeconds.toFixed(1)}s</span>
-        <input
-          type="range"
-          min={0}
-          max={maxFade}
-          step={0.1}
-          value={clip.fadeOutSeconds}
-          disabled={clip.muted && source?.kind !== "video"}
-          onChange={(e) => update({ fadeOutSeconds: Number(e.target.value) })}
-        />
-      </label>
-
-      {source?.kind === "video" && (
+      {source?.kind !== "image" && (
         <>
+          <label className="field checkbox-field">
+            <input type="checkbox" checked={clip.muted} onChange={(e) => update({ muted: e.target.checked })} />
+            <span>Mute</span>
+          </label>
+
+          <label className="field">
+            <span>Volume — {Math.round(clip.volume * 100)}%</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={clip.volume}
+              disabled={clip.muted}
+              onChange={(e) => update({ volume: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>
+              Fade in{source?.kind === "video" ? " (from black)" : ""} — {clip.fadeInSeconds.toFixed(1)}s
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={maxFade}
+              step={0.1}
+              value={clip.fadeInSeconds}
+              disabled={clip.muted && source?.kind !== "video"}
+              onChange={(e) => update({ fadeInSeconds: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>
+              Fade out{source?.kind === "video" ? " (to black)" : ""} — {clip.fadeOutSeconds.toFixed(1)}s
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={maxFade}
+              step={0.1}
+              value={clip.fadeOutSeconds}
+              disabled={clip.muted && source?.kind !== "video"}
+              onChange={(e) => update({ fadeOutSeconds: Number(e.target.value) })}
+            />
+          </label>
+        </>
+      )}
+
+      {isVisual && (
+        <>
+          {source?.kind === "image" && (
+            <label className="field">
+              <span>Duration — {duration.toFixed(1)}s</span>
+              <input
+                type="range"
+                min={0.5}
+                max={30}
+                step={0.5}
+                value={duration}
+                onChange={(e) => update({ outPoint: clip.inPoint + Number(e.target.value) * clip.speed })}
+              />
+            </label>
+          )}
+
           <div className="field">
             <span>Frame fit</span>
             <div className="inline-fields">

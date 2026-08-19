@@ -7,6 +7,7 @@ import { ClipWaveform } from "./ClipWaveform.js";
 
 interface ClipBlockProps {
   clip: LaidOutClip;
+  index: number;
   pixelsPerSecond: number;
 }
 
@@ -16,7 +17,7 @@ interface TrimDragState {
   startValue: number;
 }
 
-export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
+export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const source = state.project.sources.find((s) => s.id === clip.sourceId);
@@ -84,6 +85,16 @@ export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
       {source?.kind === "audio" && (
         <ClipWaveform source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
       )}
+      {source?.kind === "image" && !source.isPlaceholder && (
+        <div className="clip-image-fill">
+          <img src={source.previewUrl} draggable={false} alt="" />
+        </div>
+      )}
+      {source?.kind === "image" && source.isPlaceholder && (
+        <div className="clip-thumbnails clip-thumbnails-placeholder">
+          <span>+ Add your footage</span>
+        </div>
+      )}
       <div className="clip-overlay">
         <button
           type="button"
@@ -94,7 +105,9 @@ export function ClipBlock({ clip, pixelsPerSecond }: ClipBlockProps) {
         >
           {clip.muted ? "Muted" : "Mute"}
         </button>
-        <span className="clip-name">{clip.label || source?.name || "clip"}</span>
+        <span className="clip-name">
+          {index + 1}. {clip.label || source?.name || "clip"}
+        </span>
         <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove clip">
           ×
         </button>

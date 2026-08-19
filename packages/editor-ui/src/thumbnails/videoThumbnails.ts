@@ -56,3 +56,28 @@ export function generateVideoThumbnails(previewUrl: string, inPoint: number, out
     video.onerror = () => reject(new Error("Failed to load video for thumbnails"));
   });
 }
+
+export function generateImageThumbnail(previewUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (!previewUrl) {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const aspect = img.naturalWidth / img.naturalHeight || 9 / 16;
+      const canvas = document.createElement("canvas");
+      canvas.width = THUMB_WIDTH;
+      canvas.height = Math.round(THUMB_WIDTH / aspect);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.6));
+    };
+    img.onerror = () => resolve(null);
+    img.src = previewUrl;
+  });
+}

@@ -146,7 +146,10 @@ export function PreviewCanvas() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoElsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // An image-kind clip on the video track (e.g. a still filling a gap between two videos) mounts an
+  // <img> into this same map instead of a <video> — keyed by clip.id either way, since fit/pan-zoom/
+  // filter are per-clip regardless of the underlying media type.
+  const videoElsRef = useRef<Map<string, HTMLVideoElement | HTMLImageElement>>(new Map());
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const imageElsRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const overlayDragRef = useRef<OverlayDragState | null>(null);
@@ -203,7 +206,9 @@ export function PreviewCanvas() {
 
       laidOutVideo.forEach((clip) => {
         const el = videoElsRef.current.get(clip.id);
-        if (!el) return;
+        // Image clips have no playback state (no seeking, no volume) — only the draw step below
+        // treats them differently; this loop only drives actual <video> elements.
+        if (!el || !(el instanceof HTMLVideoElement)) return;
         const activeInfo = activeInfoFor(clip.id);
         const isUpNext = !transition && activeVideo != null && laidOutVideo[activeVideo.index + 1]?.id === clip.id;
 
@@ -239,7 +244,9 @@ export function PreviewCanvas() {
         const { alphaMultiplier = 1, xOffsetPx = 0, extraScale = 1, clipRectPx } = options;
         const source = s.project.sources.find((src) => src.id === activeInfo.clip.sourceId);
         const el = videoElsRef.current.get(activeInfo.clip.id);
-        if (!source || !el || el.readyState < 2) return;
+        if (!source || !el) return;
+        const isReady = el instanceof HTMLVideoElement ? el.readyState >= 2 : el.complete;
+        if (!isReady) return;
         const fitRect = computeFitRect(cv.width, cv.height, source.width, source.height, activeInfo.clip.fitMode);
         let rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
         if (extraScale !== 1) {
@@ -466,6 +473,19 @@ export function PreviewCanvas() {
         {videoClips.map((clip) => {
           const source = state.project.sources.find((s) => s.id === clip.sourceId);
           if (!source) return null;
+          if (source.kind === "image") {
+            return (
+              <img
+                key={clip.id}
+                ref={(el) => {
+                  if (el) videoElsRef.current.set(clip.id, el);
+                  else videoElsRef.current.delete(clip.id);
+                }}
+                src={source.previewUrl}
+                alt=""
+              />
+            );
+          }
           return (
             <video
               key={clip.id}

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type MouseEvent } from "react";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { OVERLAY_TRACK_ID } from "../state/initialProject.js";
+import { MAX_IMAGE_CLIP_DURATION_SECONDS } from "../media/trackAccepts.js";
 import { saveMediaBlob } from "../persistence/db.js";
 import {
   clearBrandLogo,
@@ -76,7 +77,7 @@ export function BrandKitPanel() {
           name: "Brand logo",
           filePath: "",
           previewUrl,
-          durationSeconds: 0,
+          durationSeconds: MAX_IMAGE_CLIP_DURATION_SECONDS,
           width: img.naturalWidth,
           height: img.naturalHeight,
           kind: "image",

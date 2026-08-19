@@ -1,5 +1,6 @@
 import type { AspectRatioPreset, Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel, Track, Transform } from "@reel-studio/shared-types";
 import { getTracksByKind, layoutSequentialClips } from "@reel-studio/timeline-core";
+import { DEFAULT_IMAGE_CLIP_DURATION_SECONDS } from "../media/trackAccepts.js";
 
 export const MIN_CLIP_DURATION_SECONDS = 0.1;
 export const MIN_OVERLAY_DURATION_SECONDS = 0.2;
@@ -121,18 +122,21 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "ADD_CLIP": {
       const source = state.project.sources.find((s) => s.id === action.sourceId);
       if (!source) return state;
+      const isImage = source.kind === "image";
       const newClip: Clip = {
         id: crypto.randomUUID(),
         sourceId: source.id,
         trackId: action.trackId,
         label: "",
         inPoint: 0,
-        outPoint: source.durationSeconds,
+        // A video/audio clip defaults to its full source length. An image has no intrinsic length
+        // (source.durationSeconds is just the trim ceiling), so it defaults to a short still instead.
+        outPoint: isImage ? Math.min(DEFAULT_IMAGE_CLIP_DURATION_SECONDS, source.durationSeconds) : source.durationSeconds,
         timelineStart: 0,
         fitMode: "fit",
         transform: { scale: 1, x: 0, y: 0, rotation: 0 },
         volume: 1,
-        muted: false,
+        muted: isImage,
         fadeInSeconds: 0,
         fadeOutSeconds: 0,
         speed: 1,

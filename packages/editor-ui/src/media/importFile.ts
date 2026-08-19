@@ -1,4 +1,5 @@
 import type { MediaSource } from "@reel-studio/shared-types";
+import { MAX_IMAGE_CLIP_DURATION_SECONDS } from "./trackAccepts.js";
 
 function readImageMetadata(file: File, url: string): Promise<MediaSource> {
   return new Promise((resolve, reject) => {
@@ -9,7 +10,9 @@ function readImageMetadata(file: File, url: string): Promise<MediaSource> {
         name: file.name,
         filePath: "",
         previewUrl: url,
-        durationSeconds: 0,
+        // Images have no intrinsic length — this is a generous ceiling for how long a clip made
+        // from this image can be trimmed to, not a real duration the way video/audio have one.
+        durationSeconds: MAX_IMAGE_CLIP_DURATION_SECONDS,
         width: img.naturalWidth,
         height: img.naturalHeight,
         kind: "image",

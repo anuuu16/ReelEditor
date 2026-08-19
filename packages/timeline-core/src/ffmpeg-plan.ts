@@ -165,6 +165,16 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return index;
   }
 
+  // Image clips deliberately bypass inputIndexFor's sourceId cache: each needs its own -t matching
+  // that specific clip's duration, and two clips could reuse the same image at different durations.
+  function addImageInput(sourceId: string, durationSeconds: number): number {
+    const path = sourcePaths[sourceId];
+    if (!path) throw new Error(`Missing local file for source ${sourceId}`);
+    const index = inputs.length;
+    inputs.push({ path, extraArgs: ["-loop", "1", "-t", durationSeconds.toFixed(3)] });
+    return index;
+  }
+
   const { frameRate } = project.canvas;
   const width = input.output?.width ?? project.canvas.width;
   const height = input.output?.height ?? project.canvas.height;
@@ -208,8 +218,8 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return prevLabel;
   }
 
-  function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string): string {
-    if (clip.muted) {
+  function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
+    if (clip.muted || forceSilent) {
       return `anullsrc=r=48000:cl=stereo,atrim=duration=${duration.toFixed(3)}[${label}]`;
     }
     return (
@@ -219,20 +229,26 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   }
 
   videoClips.forEach((clip, i) => {
-    const inputIdx = inputIndexFor(clip.sourceId);
+    const clipSource = project.sources.find((s) => s.id === clip.sourceId);
+    const isImageClip = clipSource?.kind === "image";
     const fitFilter = buildFitFilter(clip.fitMode, width, height);
     const panZoomFilter = buildPanZoomFilter(clip.transform, width, height);
     const colorFilter = buildFfmpegColorFilter(clip.filter);
     const vLabel = `v${i}`;
+    const aLabel = `ca${i}`;
+
+    // An image clip has no in/out point or speed to trim/stretch — the input is already looped to
+    // exactly this clip's duration (addImageInput), and it has no audio track at all (forced silent).
+    const inputIdx = isImageClip ? addImageInput(clip.sourceId, clip.duration) : inputIndexFor(clip.sourceId);
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
+    const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},`;
     filterChains.push(
-      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
+      `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
     );
     videoLabels.push(`[${vLabel}]`);
 
-    const aLabel = `ca${i}`;
-    filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, aLabel));
+    filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, aLabel, isImageClip));
     clipAudioLabels.push(`[${aLabel}]`);
   });
 
@@ -244,7 +260,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     trackClips.forEach((clip, i) => {
       const inputIdx = inputIndexFor(clip.sourceId);
       const label = `ma${trackIndex}_${i}`;
-      filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label));
+      filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label, false));
       labels.push(`[${label}]`);
     });
     const trackLabel = `amusic${trackIndex}`;

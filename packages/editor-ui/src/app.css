@@ -617,6 +617,19 @@ body {
   display: block;
 }
 
+.clip-image-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.clip-image-fill img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .clip-thumbnails-placeholder {
   align-items: center;
   justify-content: center;

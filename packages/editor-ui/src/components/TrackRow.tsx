@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from "react";
 import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
+import { trackKindAccepts } from "../media/trackAccepts.js";
 import { ClipBlock } from "./ClipBlock.js";
 
 interface TrackRowProps {
@@ -19,7 +20,7 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
   const [isDragOver, setIsDragOver] = useState(false);
   const [addMenuSide, setAddMenuSide] = useState<"start" | "end" | null>(null);
   const clips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === trackId));
-  const candidateSources = state.project.sources.filter((s) => s.kind === accept);
+  const candidateSources = state.project.sources.filter((s) => !s.isPlaceholder && trackKindAccepts(accept, s.kind));
   const endX = clips.reduce((end, c) => Math.max(end, c.timelineStart + c.duration), 0) * pixelsPerSecond;
 
   function handleAddClip(sourceId: string, atIndex: number) {
@@ -48,12 +49,12 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
     if (clipId) {
       const movingClip = state.project.clips.find((c) => c.id === clipId);
       const movingSource = movingClip && state.project.sources.find((s) => s.id === movingClip.sourceId);
-      if (movingSource && movingSource.kind === accept) {
+      if (movingSource && trackKindAccepts(accept, movingSource.kind)) {
         dispatch({ type: "MOVE_CLIP", clipId, trackId, atIndex });
       }
     } else if (sourceId) {
       const source = state.project.sources.find((s) => s.id === sourceId);
-      if (source && source.kind === accept) {
+      if (source && trackKindAccepts(accept, source.kind)) {
         dispatch({ type: "ADD_CLIP", trackId, sourceId, atIndex });
       }
     }
@@ -118,8 +119,8 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
           </div>
         )}
 
-        {clips.map((clip) => (
-          <ClipBlock key={clip.id} clip={clip} pixelsPerSecond={pixelsPerSecond} />
+        {clips.map((clip, i) => (
+          <ClipBlock key={clip.id} clip={clip} index={i} pixelsPerSecond={pixelsPerSecond} />
         ))}
 
         {clips.length > 0 && (

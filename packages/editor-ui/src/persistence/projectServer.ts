@@ -2,7 +2,7 @@ import type { ProjectModel } from "@reel-studio/shared-types";
 import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { RENDER_SERVICE_URL } from "../constants.js";
 import { getUsedSourceIds } from "../media/usedSources.js";
-import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
+import { generateImageThumbnail, generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
 import { loadMediaBlob, saveMediaBlob } from "./db.js";
 
 export interface ProjectSummary {
@@ -31,6 +31,7 @@ async function computeProjectThumbnail(project: ProjectModel): Promise<string | 
   if (!source || !source.previewUrl) return null;
 
   try {
+    if (source.kind === "image") return await generateImageThumbnail(source.previewUrl);
     const frames = await generateVideoThumbnails(source.previewUrl, firstClip.inPoint, firstClip.outPoint, 1);
     return frames[0] ?? null;
   } catch {
