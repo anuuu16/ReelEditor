@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Overlay } from "@reel-studio/shared-types";
 import {
+  applyPanZoom,
   buildCanvasFilterString,
   computeEffectiveVolume,
   computeFadeMultiplier,
@@ -214,7 +215,8 @@ export function PreviewCanvas() {
         const source = s.project.sources.find((src) => src.id === activeVideo.clip.sourceId);
         const el = videoElsRef.current.get(activeVideo.clip.id);
         if (source && el && el.readyState >= 2) {
-          const rect = computeFitRect(canvas.width, canvas.height, source.width, source.height, activeVideo.clip.fitMode);
+          const fitRect = computeFitRect(canvas.width, canvas.height, source.width, source.height, activeVideo.clip.fitMode);
+          const rect = applyPanZoom(fitRect, activeVideo.clip.transform, canvas.width, canvas.height);
           const fadeMultiplier = computeFadeMultiplier(
             activeVideo.clip.fadeInSeconds,
             activeVideo.clip.fadeOutSeconds,

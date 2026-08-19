@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Clip, ClipFilter } from "@reel-studio/shared-types";
+import type { Clip, ClipFilter, Transform } from "@reel-studio/shared-types";
 import { applyFilterPreset, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { getOrCreate } from "../thumbnails/cache.js";
@@ -41,6 +41,10 @@ export function ClipInspector() {
 
   function updateFilter(patch: Partial<ClipFilter>) {
     update({ filter: { ...clip!.filter, preset: null, ...patch } });
+  }
+
+  function updateTransform(patch: Partial<Transform>) {
+    update({ transform: { ...clip!.transform, ...patch } });
   }
 
   function applyPreset(name: FilterPresetName) {
@@ -169,6 +173,42 @@ export function ClipInspector() {
               </button>
             </div>
           </div>
+
+          <label className="field">
+            <span>Zoom — {clip.transform.scale.toFixed(2)}x</span>
+            <input
+              type="range"
+              min={1}
+              max={2.5}
+              step={0.05}
+              value={clip.transform.scale}
+              onChange={(e) => updateTransform({ scale: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Pan X — {Math.round(clip.transform.x * 100)}</span>
+            <input
+              type="range"
+              min={-0.4}
+              max={0.4}
+              step={0.01}
+              value={clip.transform.x}
+              onChange={(e) => updateTransform({ x: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Pan Y — {Math.round(clip.transform.y * 100)}</span>
+            <input
+              type="range"
+              min={-0.4}
+              max={0.4}
+              step={0.01}
+              value={clip.transform.y}
+              onChange={(e) => updateTransform({ y: Number(e.target.value) })}
+            />
+          </label>
 
           <div className="field">
             <span>Filter</span>

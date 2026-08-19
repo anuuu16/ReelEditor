@@ -2,6 +2,7 @@ import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-t
 import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
+import { buildPanZoomFilter } from "./fit-rect.js";
 import { getTracksByKind } from "./track-utils.js";
 
 export interface RenderPlanInput {
@@ -184,12 +185,13 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   videoClips.forEach((clip, i) => {
     const inputIdx = inputIndexFor(clip.sourceId);
     const fitFilter = buildFitFilter(clip.fitMode, width, height);
+    const panZoomFilter = buildPanZoomFilter(clip.transform, width, height);
     const colorFilter = buildFfmpegColorFilter(clip.filter);
     const vLabel = `v${i}`;
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     filterChains.push(
-      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
+      `[${inputIdx}:v]trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
     );
     videoLabels.push(`[${vLabel}]`);
 

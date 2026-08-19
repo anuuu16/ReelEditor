@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ClipFilter } from "@reel-studio/shared-types";
+import type { ClipFilter, Transform } from "@reel-studio/shared-types";
 import { applyFilterPreset, getTracksByKind, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
@@ -23,6 +23,10 @@ export function BulkEditPanel() {
     dispatch({ type: "BULK_SET_FILTER", trackId, patch });
   }
 
+  function applyTransformPatch(patch: Partial<Transform>) {
+    dispatch({ type: "BULK_SET_TRANSFORM", trackId, patch });
+  }
+
   const avgFadeIn = clips.length ? clips.reduce((sum, c) => sum + c.fadeInSeconds, 0) / clips.length : 0;
   const avgFadeOut = clips.length ? clips.reduce((sum, c) => sum + c.fadeOutSeconds, 0) / clips.length : 0;
   const avgVolume = clips.length ? clips.reduce((sum, c) => sum + c.volume, 0) / clips.length : 1;
@@ -30,6 +34,9 @@ export function BulkEditPanel() {
   const avgContrast = clips.length ? clips.reduce((sum, c) => sum + c.filter.contrast, 0) / clips.length : 1;
   const avgSaturation = clips.length ? clips.reduce((sum, c) => sum + c.filter.saturation, 0) / clips.length : 1;
   const avgHue = clips.length ? clips.reduce((sum, c) => sum + c.filter.hue, 0) / clips.length : 0;
+  const avgZoom = clips.length ? clips.reduce((sum, c) => sum + c.transform.scale, 0) / clips.length : 1;
+  const avgPanX = clips.length ? clips.reduce((sum, c) => sum + c.transform.x, 0) / clips.length : 0;
+  const avgPanY = clips.length ? clips.reduce((sum, c) => sum + c.transform.y, 0) / clips.length : 0;
 
   const commonFitMode = clips.length && clips.every((c) => c.fitMode === clips[0].fitMode) ? clips[0].fitMode : null;
   const commonPreset =
@@ -138,6 +145,45 @@ export function BulkEditPanel() {
               </button>
             </div>
           </div>
+
+          <label className="field">
+            <span>Zoom (all) — {avgZoom.toFixed(2)}x</span>
+            <input
+              type="range"
+              min={1}
+              max={2.5}
+              step={0.05}
+              value={avgZoom}
+              disabled={clips.length === 0}
+              onChange={(e) => applyTransformPatch({ scale: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Pan X (all) — {Math.round(avgPanX * 100)}</span>
+            <input
+              type="range"
+              min={-0.4}
+              max={0.4}
+              step={0.01}
+              value={avgPanX}
+              disabled={clips.length === 0}
+              onChange={(e) => applyTransformPatch({ x: Number(e.target.value) })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Pan Y (all) — {Math.round(avgPanY * 100)}</span>
+            <input
+              type="range"
+              min={-0.4}
+              max={0.4}
+              step={0.01}
+              value={avgPanY}
+              disabled={clips.length === 0}
+              onChange={(e) => applyTransformPatch({ y: Number(e.target.value) })}
+            />
+          </label>
 
           <div className="field">
             <span>Filter (all)</span>
