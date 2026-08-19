@@ -21,6 +21,7 @@ export type Action =
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
+  | { type: "DUPLICATE_CLIP"; clipId: string }
   | { type: "BULK_MUTE"; trackId: string; muted: boolean }
   | { type: "BULK_SET_VOLUME"; trackId: string; volume: number }
   | { type: "BULK_SET_FADE"; trackId: string; fadeInSeconds: number; fadeOutSeconds: number }
@@ -187,6 +188,15 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       clips.splice(index, 1, firstHalf, secondHalf);
 
       return { ...state, project: { ...state.project, clips }, selectedClipId: firstHalf.id };
+    }
+
+    case "DUPLICATE_CLIP": {
+      const index = state.project.clips.findIndex((c) => c.id === action.clipId);
+      if (index === -1) return state;
+      const duplicate: Clip = { ...state.project.clips[index], id: crypto.randomUUID() };
+      const clips = [...state.project.clips];
+      clips.splice(index + 1, 0, duplicate);
+      return { ...state, project: { ...state.project, clips }, selectedClipId: duplicate.id };
     }
 
     case "SELECT_CLIP":

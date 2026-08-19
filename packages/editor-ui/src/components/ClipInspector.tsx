@@ -55,6 +55,16 @@ export function ClipInspector() {
         {source?.kind === "audio" && <span>Audio</span>}
       </div>
 
+      <div className="field">
+        <button
+          type="button"
+          title="Duplicate (Cmd/Ctrl+D)"
+          onClick={() => dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })}
+        >
+          Duplicate clip
+        </button>
+      </div>
+
       <label className="field">
         <span>Description</span>
         <textarea

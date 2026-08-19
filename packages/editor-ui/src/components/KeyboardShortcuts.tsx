@@ -41,6 +41,12 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      if (isModifier && e.key.toLowerCase() === "d" && state.selectedClipId) {
+        e.preventDefault();
+        dispatch({ type: "DUPLICATE_CLIP", clipId: state.selectedClipId });
+        return;
+      }
+
       if (!isModifier && e.key.toLowerCase() === "s" && state.selectedClipId) {
         e.preventDefault();
         dispatch({ type: "SPLIT_CLIP", clipId: state.selectedClipId, atTime: state.playhead });
