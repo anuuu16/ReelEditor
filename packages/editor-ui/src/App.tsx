@@ -9,6 +9,7 @@ import { ProjectsPanel } from "./components/ProjectsPanel.js";
 import { ProjectTitle } from "./components/ProjectTitle.js";
 import { SaveStatus } from "./components/SaveStatus.js";
 import { SceneStrip } from "./components/SceneStrip.js";
+import { ShortcutsHelp } from "./components/ShortcutsHelp.js";
 import { Timeline } from "./components/Timeline.js";
 import { Transport } from "./components/Transport.js";
 import { EditorProvider } from "./state/EditorContext.js";
@@ -27,6 +28,7 @@ export function App() {
             <SaveStatus />
             <ProjectsPanel />
             <ExportPanel />
+            <ShortcutsHelp />
           </div>
         </header>
         <div className="app-body">
