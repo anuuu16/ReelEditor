@@ -1,5 +1,6 @@
 import type { Overlay, OverlayAnimation } from "@reel-studio/shared-types";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
+import { loadBrandKit } from "../persistence/brandKit.js";
 
 const POSITION_PRESETS: Array<{ label: string; x: number; y: number }> = [
   { label: "Top left", x: 0.15, y: 0.15 },
@@ -141,7 +142,19 @@ export function OverlayInspector() {
 
           <label className="field">
             <span>Text color</span>
-            <input type="color" value={overlay.style.color} onChange={(e) => updateStyle({ color: e.target.value })} />
+            <div className="inline-fields">
+              <input type="color" value={overlay.style.color} onChange={(e) => updateStyle({ color: e.target.value })} />
+              <button type="button" title="Use brand primary color" onClick={() => updateStyle({ color: loadBrandKit().primaryColor })}>
+                Primary
+              </button>
+              <button
+                type="button"
+                title="Use brand secondary color"
+                onClick={() => updateStyle({ color: loadBrandKit().secondaryColor })}
+              >
+                Secondary
+              </button>
+            </div>
           </label>
 
           <label className="field checkbox-field">

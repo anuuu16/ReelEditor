@@ -1,5 +1,6 @@
 import { AddTitleButton } from "./components/AddTitleButton.js";
 import { AspectSelector } from "./components/AspectSelector.js";
+import { BrandKitPanel } from "./components/BrandKitPanel.js";
 import { ExportPanel } from "./components/ExportPanel.js";
 import { Inspector } from "./components/Inspector.js";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts.js";
@@ -26,6 +27,7 @@ export function App() {
             <AddTitleButton />
             <AspectSelector />
             <SaveStatus />
+            <BrandKitPanel />
             <ProjectsPanel />
             <ExportPanel />
             <ShortcutsHelp />

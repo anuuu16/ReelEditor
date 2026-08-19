@@ -557,6 +557,15 @@ body {
   justify-content: center;
 }
 
+.brand-kit-logo-preview {
+  aspect-ratio: auto;
+  height: 100px;
+}
+
+.brand-kit-upload {
+  margin-bottom: 0;
+}
+
 .clip-preview-thumb img {
   width: 100%;
   height: 100%;
