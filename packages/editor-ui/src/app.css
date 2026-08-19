@@ -293,7 +293,21 @@ body {
   pointer-events: none;
 }
 
+.bottom-bar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.timeline-sizer {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .transport {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -376,7 +390,10 @@ body {
 }
 
 .timeline-scroll {
-  flex: 1;
+  /* Grow to fill the panel when there's room to scroll many tracks, but shrink below content
+     height (rather than stretch past it) when there are only a couple of short tracks — flex-grow
+     alone left dead space between the last track and the toolbar when content was short. */
+  flex: 0 1 auto;
   min-height: 0;
   overflow: auto;
 }

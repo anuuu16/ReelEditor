@@ -19,7 +19,7 @@ import { EditorProvider } from "./state/EditorContext.js";
 
 const MEDIA_LIBRARY_WIDTH_RANGE = [180, 480] as const;
 const INSPECTOR_WIDTH_RANGE = [200, 480] as const;
-const TIMELINE_HEIGHT_RANGE = [120, 480] as const;
+const BOTTOM_BAR_HEIGHT_RANGE = [160, 600] as const;
 
 function clamp(value: number, [min, max]: readonly [number, number]): number {
   return Math.min(max, Math.max(min, value));
@@ -43,7 +43,7 @@ function usePersistedSize(key: string, defaultValue: number): [number, (updater:
 export function App() {
   const [mediaLibraryWidth, setMediaLibraryWidth] = usePersistedSize("panelWidth:mediaLibrary", 260);
   const [inspectorWidth, setInspectorWidth] = usePersistedSize("panelWidth:inspector", 260);
-  const [timelineHeight, setTimelineHeight] = usePersistedSize("panelHeight:timeline", 220);
+  const [bottomBarHeight, setBottomBarHeight] = usePersistedSize("panelHeight:bottomBar", 260);
 
   return (
     <EditorProvider>
@@ -81,14 +81,16 @@ export function App() {
             <Inspector />
           </div>
         </div>
-        <Transport />
         <ResizeHandle
           orientation="horizontal"
-          title="Drag to resize the timeline"
-          onResize={(delta) => setTimelineHeight((h) => clamp(h - delta, TIMELINE_HEIGHT_RANGE))}
+          title="Drag to resize the bottom panel"
+          onResize={(delta) => setBottomBarHeight((h) => clamp(h - delta, BOTTOM_BAR_HEIGHT_RANGE))}
         />
-        <div style={{ height: timelineHeight, flexShrink: 0, overflow: "hidden" }}>
-          <Timeline />
+        <div className="bottom-bar" style={{ height: bottomBarHeight }}>
+          <Transport />
+          <div className="timeline-sizer">
+            <Timeline />
+          </div>
         </div>
       </div>
     </EditorProvider>
