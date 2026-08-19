@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
+import type { ProjectModel } from "@reel-studio/shared-types";
 import { createInitialProject, AUDIO_TRACK_ID } from "./initialProject.js";
 import type { EditorState } from "./reducer.js";
 import { createInitialHistoryState, historyReducer, type HistoryAction } from "./historyReducer.js";
@@ -16,10 +17,17 @@ const EditorStateContext = createContext<EditorState | null>(null);
 const EditorDispatchContext = createContext<Dispatch<HistoryAction> | null>(null);
 const EditorHistoryContext = createContext<HistoryMeta | null>(null);
 
-export function EditorProvider({ children }: { children: ReactNode }) {
+interface EditorProviderProps {
+  children: ReactNode;
+  /** When set (e.g. a project picked from the Dashboard), seeds the editor with it directly and
+   * skips the IndexedDB autosave restore — the person explicitly chose what to open. */
+  initialProject?: ProjectModel | null;
+}
+
+export function EditorProvider({ children, initialProject }: EditorProviderProps) {
   const [history, dispatch] = useReducer(historyReducer, undefined, () =>
     createInitialHistoryState({
-      project: createInitialProject(),
+      project: initialProject ?? createInitialProject(),
       playhead: 0,
       isPlaying: false,
       selectedClipId: null,
@@ -31,6 +39,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (initialProject) return;
     (async () => {
       const saved = await loadProject();
       if (!saved) return;
@@ -46,6 +55,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       );
       dispatch({ type: "LOAD_PROJECT", project: { ...saved, sources: hydratedSources } });
     })().catch((err) => console.error("Failed to load saved project", err));
+    // Only ever run on mount — initialProject is a one-time seed, not something to react to changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const historyMeta: HistoryMeta = { canUndo: history.past.length > 0, canRedo: history.future.length > 0 };

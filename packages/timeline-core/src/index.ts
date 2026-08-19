@@ -8,3 +8,4 @@ export * from "./filter-presets.js";
 export * from "./snapping.js";
 export * from "./export-presets.js";
 export * from "./quality-presets.js";
+export * from "./aspect-presets.js";

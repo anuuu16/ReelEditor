@@ -1,41 +1,18 @@
 import { useState, type MouseEvent } from "react";
-import type { ProjectModel } from "@reel-studio/shared-types";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { createInitialProject } from "../state/initialProject.js";
-import {
-  deleteProjectFromServer,
-  listProjectsFromServer,
-  loadProjectFromServer,
-  saveProjectToServer,
-  stripProjectToTemplate,
-  type ProjectSummary,
-} from "../persistence/projectServer.js";
+import { formatProjectDate, useProjectBrowser } from "../persistence/useProjectBrowser.js";
+import { saveProjectToServer, stripProjectToTemplate } from "../persistence/projectServer.js";
 
 type Status = "idle" | "saving";
-
-function formatDate(ms: number): string {
-  if (!ms) return "";
-  return new Date(ms).toLocaleString();
-}
 
 export function ProjectsPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [isOpen, setIsOpen] = useState(false);
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [status, setStatus] = useState<Status>("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
-  const realProjects = projects.filter((p) => !p.isTemplate);
-  const templates = projects.filter((p) => p.isTemplate);
-
-  async function refresh() {
-    try {
-      setProjects(await listProjectsFromServer());
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-    }
-  }
+  const { realProjects, templates, refresh, errorMessage, setErrorMessage, busyProjectId, openProject, useAsTemplate, deleteProject } =
+    useProjectBrowser();
 
   function openPanel() {
     setIsOpen(true);
@@ -76,28 +53,10 @@ export function ProjectsPanel() {
   }
 
   async function handleUseTemplate(id: string) {
-    setBusyProjectId(id);
-    setErrorMessage(null);
-    try {
-      const template = await loadProjectFromServer(id);
-      const newProject: ProjectModel = {
-        ...template,
-        id: crypto.randomUUID(),
-        metadata: {
-          ...template.metadata,
-          isTemplate: false,
-          templateId: id,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      };
-      dispatch({ type: "LOAD_PROJECT", project: newProject });
-      setIsOpen(false);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyProjectId(null);
-    }
+    const project = await useAsTemplate(id);
+    if (!project) return;
+    dispatch({ type: "LOAD_PROJECT", project });
+    setIsOpen(false);
   }
 
   function handleNew() {
@@ -110,31 +69,10 @@ export function ProjectsPanel() {
   }
 
   async function handleOpen(id: string) {
-    setBusyProjectId(id);
-    setErrorMessage(null);
-    try {
-      const project = await loadProjectFromServer(id);
-      dispatch({ type: "LOAD_PROJECT", project });
-      setIsOpen(false);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyProjectId(null);
-    }
-  }
-
-  async function handleDelete(id: string, name: string) {
-    const proceed = window.confirm(`Delete "${name || "Untitled reel"}"? This removes its folder and media permanently.`);
-    if (!proceed) return;
-    setBusyProjectId(id);
-    try {
-      await deleteProjectFromServer(id);
-      await refresh();
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyProjectId(null);
-    }
+    const project = await openProject(id);
+    if (!project) return;
+    dispatch({ type: "LOAD_PROJECT", project });
+    setIsOpen(false);
   }
 
   if (!isOpen) {
@@ -178,7 +116,7 @@ export function ProjectsPanel() {
               <div className="project-list-info">
                 <span className="project-list-name">{p.name || "Untitled reel"}</span>
                 <span className="project-list-meta">
-                  {p.clipCount} clip{p.clipCount === 1 ? "" : "s"} · {formatDate(p.updatedAt)}
+                  {p.clipCount} clip{p.clipCount === 1 ? "" : "s"} · {formatProjectDate(p.updatedAt)}
                 </span>
               </div>
               <button type="button" disabled={busyProjectId === p.id} onClick={() => handleOpen(p.id)}>
@@ -188,7 +126,7 @@ export function ProjectsPanel() {
                 type="button"
                 className="project-delete-button"
                 disabled={busyProjectId === p.id}
-                onClick={() => handleDelete(p.id, p.name)}
+                onClick={() => deleteProject(p.id, p.name)}
               >
                 Delete
               </button>
@@ -209,7 +147,7 @@ export function ProjectsPanel() {
               <div className="project-list-info">
                 <span className="project-list-name">{p.name || "Untitled template"}</span>
                 <span className="project-list-meta">
-                  {p.clipCount} clip{p.clipCount === 1 ? "" : "s"} · {formatDate(p.updatedAt)}
+                  {p.clipCount} clip{p.clipCount === 1 ? "" : "s"} · {formatProjectDate(p.updatedAt)}
                 </span>
               </div>
               <button type="button" disabled={busyProjectId === p.id} onClick={() => handleUseTemplate(p.id)}>
@@ -219,7 +157,7 @@ export function ProjectsPanel() {
                 type="button"
                 className="project-delete-button"
                 disabled={busyProjectId === p.id}
-                onClick={() => handleDelete(p.id, p.name)}
+                onClick={() => deleteProject(p.id, p.name)}
               >
                 Delete
               </button>
