@@ -181,6 +181,14 @@ export function ClipInspector() {
               >
                 Fill (crop)
               </button>
+              <button
+                type="button"
+                className={clip.fitMode === "stretch" ? "active" : ""}
+                title="Stretch width and height independently to exactly fill the canvas, distorting the image"
+                onClick={() => update({ fitMode: "stretch" })}
+              >
+                Stretch
+              </button>
             </div>
           </div>
 

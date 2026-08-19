@@ -143,6 +143,15 @@ export function BulkEditPanel() {
               >
                 Fill (crop)
               </button>
+              <button
+                type="button"
+                className={commonFitMode === "stretch" ? "active" : ""}
+                disabled={clips.length === 0}
+                title="Stretch width and height independently to exactly fill the canvas, distorting the image"
+                onClick={() => dispatch({ type: "BULK_SET_FIT_MODE", trackId, fitMode: "stretch" })}
+              >
+                Stretch
+              </button>
             </div>
           </div>
 
