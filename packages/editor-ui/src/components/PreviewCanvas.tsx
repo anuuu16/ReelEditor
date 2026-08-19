@@ -6,6 +6,8 @@ import {
   computeEffectiveVolume,
   computeFitRect,
   computeOverlayAlpha,
+  computeOverlayPopScale,
+  computeOverlaySlideOffsetRatio,
   findActiveClip,
   getSequenceDuration,
   isOverlayActive,
@@ -79,9 +81,11 @@ function drawOverlays(
       continue;
     }
 
-    const x = overlay.position.x * canvas.width;
+    const slideOffsetRatio = computeOverlaySlideOffsetRatio(overlay, s.playhead);
+    const popScale = computeOverlayPopScale(overlay, s.playhead);
+    const x = (overlay.position.x + slideOffsetRatio) * canvas.width;
     const y = overlay.position.y * canvas.height;
-    const fontSize = overlay.style.size * scale;
+    const fontSize = overlay.style.size * scale * popScale;
     const lines = overlay.content.split("\n");
     const lineHeight = fontSize * 1.2;
     const blockHeight = lineHeight * lines.length;

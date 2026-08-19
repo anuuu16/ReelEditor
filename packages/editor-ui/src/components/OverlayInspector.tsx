@@ -175,6 +175,8 @@ export function OverlayInspector() {
         <select value={overlay.animation} onChange={(e) => update({ animation: e.target.value as OverlayAnimation })}>
           <option value="none">None</option>
           <option value="fade">Fade</option>
+          {overlay.kind === "text" && <option value="slide-in">Slide in</option>}
+          {overlay.kind === "text" && <option value="pop">Pop</option>}
         </select>
       </label>
 

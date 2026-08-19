@@ -1,6 +1,6 @@
 import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
-import { FADE_DURATION_SECONDS } from "./overlay-animation.js";
+import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
 
 export interface RenderPlanInput {
@@ -63,13 +63,19 @@ function buildAtempoChain(speed: number): string {
 function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
   const duration = overlay.end - overlay.start;
   const fadeDuration = Math.min(FADE_DURATION_SECONDS, duration / 2);
+  const animDuration = Math.min(FADE_DURATION_SECONDS, duration);
+
+  const slideTerm =
+    overlay.animation === "slide-in" && animDuration > 0
+      ? `+if(lt(t,${overlay.start}+${animDuration}),(${slideStartOffsetRatio(overlay)})*(1-(t-${overlay.start})/${animDuration}),0)`
+      : "";
 
   const xExpr =
     overlay.style.align === "center"
-      ? `${overlay.position.x}*w-text_w/2`
+      ? `(${overlay.position.x}${slideTerm})*w-text_w/2`
       : overlay.style.align === "right"
-        ? `${overlay.position.x}*w-text_w`
-        : `${overlay.position.x}*w`;
+        ? `(${overlay.position.x}${slideTerm})*w-text_w`
+        : `(${overlay.position.x}${slideTerm})*w`;
   const yExpr = `${overlay.position.y}*h-text_h/2`;
 
   const alphaExpr =
@@ -77,12 +83,17 @@ function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
       ? `if(lt(t,${overlay.start}+${fadeDuration}),(t-${overlay.start})/${fadeDuration},if(gt(t,${overlay.end}-${fadeDuration}),(${overlay.end}-t)/${fadeDuration},1))`
       : "1";
 
+  const fontSizeExpr =
+    overlay.animation === "pop" && animDuration > 0
+      ? `if(lt(t,${overlay.start}+${animDuration}),${overlay.style.size}*(0.5+0.5*(t-${overlay.start})/${animDuration}),${overlay.style.size})`
+      : `${overlay.style.size}`;
+
   const parts = [
     `textfile=${fileName}`,
-    `fontsize=${overlay.style.size}`,
+    `fontsize='${fontSizeExpr}'`,
     `fontcolor=${overlay.style.color}`,
-    `x=${xExpr}`,
-    `y=${yExpr}`,
+    `x='${xExpr}'`,
+    `y='${yExpr}'`,
     `enable='between(t,${overlay.start},${overlay.end})'`,
     `alpha='${alphaExpr}'`,
   ];
