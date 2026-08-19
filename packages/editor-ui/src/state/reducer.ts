@@ -22,6 +22,7 @@ export type Action =
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
   | { type: "DUPLICATE_CLIP"; clipId: string }
+  | { type: "REPLACE_CLIP_SOURCE"; clipId: string; sourceId: string }
   | { type: "BULK_MUTE"; trackId: string; muted: boolean }
   | { type: "BULK_SET_VOLUME"; trackId: string; volume: number }
   | { type: "BULK_SET_FADE"; trackId: string; fadeInSeconds: number; fadeOutSeconds: number }
@@ -197,6 +198,26 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       const clips = [...state.project.clips];
       clips.splice(index + 1, 0, duplicate);
       return { ...state, project: { ...state.project, clips }, selectedClipId: duplicate.id };
+    }
+
+    case "REPLACE_CLIP_SOURCE": {
+      const clip = state.project.clips.find((c) => c.id === action.clipId);
+      const oldSource = clip && state.project.sources.find((s) => s.id === clip.sourceId);
+      const newSource = state.project.sources.find((s) => s.id === action.sourceId);
+      if (!clip || !newSource || (oldSource && oldSource.kind !== newSource.kind)) return state;
+
+      const currentDuration = (clip.outPoint - clip.inPoint) / clip.speed;
+      const outPoint = Math.min(currentDuration * clip.speed, newSource.durationSeconds);
+
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) =>
+            c.id === action.clipId ? { ...c, sourceId: action.sourceId, inPoint: 0, outPoint } : c
+          ),
+        },
+      };
     }
 
     case "SELECT_CLIP":

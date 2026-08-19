@@ -33,6 +33,7 @@ export function ClipInspector() {
 
   const duration = (clip.outPoint - clip.inPoint) / clip.speed;
   const maxFade = Math.max(duration / 2, 0.1);
+  const replaceCandidates = state.project.sources.filter((s) => s.kind === source?.kind && s.id !== clip.sourceId);
 
   function update(patch: Partial<Clip>) {
     dispatch({ type: "UPDATE_CLIP", clipId: clip!.id, patch });
@@ -64,6 +65,27 @@ export function ClipInspector() {
           Duplicate clip
         </button>
       </div>
+
+      {replaceCandidates.length > 0 && (
+        <label className="field">
+          <span>Replace media (keeps position &amp; trim)</span>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) dispatch({ type: "REPLACE_CLIP_SOURCE", clipId: clip.id, sourceId: e.target.value });
+            }}
+          >
+            <option value="" disabled>
+              Choose a clip to swap in…
+            </option>
+            {replaceCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="field">
         <span>Description</span>
