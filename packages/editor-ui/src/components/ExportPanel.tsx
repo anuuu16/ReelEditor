@@ -49,6 +49,10 @@ export function ExportPanel() {
   const targetLongEdge = Math.max(exportDimensions.width, exportDimensions.height);
   const willUpscale = maxSourceLongEdge > 0 && targetLongEdge > maxSourceLongEdge;
 
+  const placeholderClipCount = getUsedSourceIds(state.project).filter(
+    (id) => state.project.sources.find((s) => s.id === id)?.isPlaceholder
+  ).length;
+
   function reset() {
     eventSource?.close();
     setEventSource(null);
@@ -235,11 +239,18 @@ export function ExportPanel() {
               </p>
             )}
 
+            {placeholderClipCount > 0 && (
+              <p className="export-warning">
+                This project has {placeholderClipCount} placeholder clip{placeholderClipCount === 1 ? "" : "s"} from a
+                template — use each one's "Replace media" control to add your own footage before exporting.
+              </p>
+            )}
+
             <p className="hint">
               Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height}{" "}
               ({qualityTier.label}).
             </p>
-            <button type="button" onClick={startExport}>
+            <button type="button" onClick={startExport} disabled={placeholderClipCount > 0}>
               Start export
             </button>
           </>

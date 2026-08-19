@@ -70,6 +70,8 @@ function normalizeProject(project: ProjectModel): ProjectModel {
       transitionOutSeconds: c.transitionOutSeconds ?? 0,
       transitionOutType: c.transitionOutType ?? "dissolve",
     })),
+    sources: project.sources.map((s) => ({ ...s, isPlaceholder: s.isPlaceholder ?? false })),
+    metadata: { ...project.metadata, isTemplate: project.metadata.isTemplate ?? false },
   };
 }
 

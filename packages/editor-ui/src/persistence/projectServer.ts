@@ -12,6 +12,7 @@ export interface ProjectSummary {
   clipCount: number;
   overlayCount: number;
   thumbnailDataUrl: string | null;
+  isTemplate: boolean;
 }
 
 export async function listProjectsFromServer(): Promise<ProjectSummary[]> {
@@ -35,6 +36,27 @@ async function computeProjectThumbnail(project: ProjectModel): Promise<string | 
   } catch {
     return null;
   }
+}
+
+// Turns a finished project into a reusable template: keeps the arrangement (clips, timing, titles,
+// filters, transitions) but replaces every source with a placeholder that has no real file, so the
+// template saves and loads with zero media, and the person swaps in their own footage per clip
+// (via each clip's existing "Replace media" control) once they start from it.
+export function stripProjectToTemplate(project: ProjectModel, name: string): ProjectModel {
+  return {
+    ...project,
+    id: crypto.randomUUID(),
+    sources: project.sources.map((s) => ({ ...s, filePath: "", previewUrl: "", isPlaceholder: true })),
+    metadata: {
+      ...project.metadata,
+      name,
+      isTemplate: true,
+      templateId: null,
+      thumbnailDataUrl: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    },
+  };
 }
 
 export async function saveProjectToServer(project: ProjectModel): Promise<void> {
@@ -65,6 +87,7 @@ export async function loadProjectFromServer(projectId: string): Promise<ProjectM
 
   const hydratedSources = await Promise.all(
     project.sources.map(async (source) => {
+      if (source.isPlaceholder) return source;
       try {
         const mediaResponse = await fetch(`${RENDER_SERVICE_URL}/projects/${projectId}/media/${source.id}`);
         if (!mediaResponse.ok) throw new Error("missing media");

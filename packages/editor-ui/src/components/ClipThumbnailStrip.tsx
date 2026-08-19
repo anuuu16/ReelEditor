@@ -19,6 +19,7 @@ export function ClipThumbnailStrip({ source, inPoint, outPoint, widthPx }: ClipT
   const [frames, setFrames] = useState<string[]>([]);
 
   useEffect(() => {
+    if (source.isPlaceholder) return;
     let cancelled = false;
     const key = `video:${source.id}:${inPoint}:${outPoint}:${count}`;
     getOrCreate(key, () => generateVideoThumbnails(source.previewUrl, inPoint, outPoint, count))
@@ -29,7 +30,15 @@ export function ClipThumbnailStrip({ source, inPoint, outPoint, widthPx }: ClipT
     return () => {
       cancelled = true;
     };
-  }, [source.id, source.previewUrl, inPoint, outPoint, count]);
+  }, [source.id, source.previewUrl, source.isPlaceholder, inPoint, outPoint, count]);
+
+  if (source.isPlaceholder) {
+    return (
+      <div className="clip-thumbnails clip-thumbnails-placeholder">
+        <span>+ Add your footage</span>
+      </div>
+    );
+  }
 
   return (
     <div className="clip-thumbnails">

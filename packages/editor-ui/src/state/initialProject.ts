@@ -16,6 +16,13 @@ export function createInitialProject(): ProjectModel {
     clips: [],
     overlays: [],
     sources: [],
-    metadata: { name: "Untitled reel", templateId: null, createdAt: Date.now(), updatedAt: Date.now(), thumbnailDataUrl: null },
+    metadata: {
+      name: "Untitled reel",
+      templateId: null,
+      isTemplate: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      thumbnailDataUrl: null,
+    },
   };
 }

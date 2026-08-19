@@ -13,6 +13,7 @@ function readImageMetadata(file: File, url: string): Promise<MediaSource> {
         width: img.naturalWidth,
         height: img.naturalHeight,
         kind: "image",
+        isPlaceholder: false,
       });
     };
     img.onerror = () => reject(new Error(`Failed to read metadata for ${file.name}`));
@@ -42,6 +43,7 @@ export function readMediaMetadata(file: File): Promise<MediaSource> {
         width: isVideo ? el.videoWidth : 0,
         height: isVideo ? el.videoHeight : 0,
         kind: isVideo ? "video" : "audio",
+        isPlaceholder: false,
       });
     };
     el.onerror = () => reject(new Error(`Failed to read metadata for ${file.name}`));

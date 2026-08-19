@@ -93,11 +93,16 @@ export interface MediaSource {
   width: number;
   height: number;
   kind: "video" | "audio" | "image";
+  /** A template's placeholder slot — has no real file, waiting for the person to assign their own footage. */
+  isPlaceholder: boolean;
 }
 
 export interface ProjectMetadata {
   name: string;
+  /** The template this project was started from, if any (lineage only — not "this project is a template"). */
   templateId: string | null;
+  /** True when this saved project IS a reusable template (placeholder sources, no real media). */
+  isTemplate: boolean;
   createdAt: number;
   updatedAt: number;
   thumbnailDataUrl: string | null;

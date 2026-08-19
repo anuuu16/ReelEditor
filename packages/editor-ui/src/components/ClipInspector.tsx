@@ -23,7 +23,7 @@ export function ClipInspector() {
 
   useEffect(() => {
     setThumbnail(null);
-    if (!clip || source?.kind !== "video") return;
+    if (!clip || source?.kind !== "video" || source.isPlaceholder) return;
     let cancelled = false;
     const key = `video:${source.id}:${clip.inPoint}:${clip.outPoint}:1`;
     getOrCreate(key, () => generateVideoThumbnails(source.previewUrl, clip.inPoint, clip.outPoint, 1))
@@ -40,7 +40,9 @@ export function ClipInspector() {
 
   const duration = (clip.outPoint - clip.inPoint) / clip.speed;
   const maxFade = Math.max(duration / 2, 0.1);
-  const replaceCandidates = state.project.sources.filter((s) => s.kind === source?.kind && s.id !== clip.sourceId);
+  const replaceCandidates = state.project.sources.filter(
+    (s) => s.kind === source?.kind && s.id !== clip.sourceId && !s.isPlaceholder
+  );
   const trackClips = state.project.clips.filter((c) => c.trackId === clip.trackId);
   const clipIndex = trackClips.findIndex((c) => c.id === clip.id);
   const hasNextClip = clipIndex !== -1 && clipIndex < trackClips.length - 1;
@@ -73,6 +75,7 @@ export function ClipInspector() {
       <div className={`clip-preview-thumb${source?.kind === "audio" ? " clip-preview-thumb-audio" : ""}`}>
         {thumbnail && <img src={thumbnail} alt="" />}
         {source?.kind === "audio" && <span>Audio</span>}
+        {source?.isPlaceholder && <span>Placeholder — use "Replace media" below to add your own footage</span>}
       </div>
 
       <div className="field">

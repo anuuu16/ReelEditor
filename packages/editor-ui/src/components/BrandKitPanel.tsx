@@ -80,6 +80,7 @@ export function BrandKitPanel() {
           width: img.naturalWidth,
           height: img.naturalHeight,
           kind: "image",
+          isPlaceholder: false,
         },
       });
       dispatch({
