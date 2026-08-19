@@ -34,6 +34,9 @@ export function ClipInspector() {
   const duration = (clip.outPoint - clip.inPoint) / clip.speed;
   const maxFade = Math.max(duration / 2, 0.1);
   const replaceCandidates = state.project.sources.filter((s) => s.kind === source?.kind && s.id !== clip.sourceId);
+  const trackClips = state.project.clips.filter((c) => c.trackId === clip.trackId);
+  const clipIndex = trackClips.findIndex((c) => c.id === clip.id);
+  const hasNextClip = clipIndex !== -1 && clipIndex < trackClips.length - 1;
 
   function update(patch: Partial<Clip>) {
     dispatch({ type: "UPDATE_CLIP", clipId: clip!.id, patch });
@@ -273,6 +276,42 @@ export function ClipInspector() {
               onChange={(e) => updateFilter({ hue: Number(e.target.value) })}
             />
           </label>
+
+          {hasNextClip && (
+            <div className="field">
+              <span>Transition to next clip</span>
+              <div className="inline-fields">
+                <button
+                  type="button"
+                  className={clip.transitionOutSeconds === 0 ? "active" : ""}
+                  onClick={() => update({ transitionOutSeconds: 0 })}
+                >
+                  None (cut)
+                </button>
+                <button
+                  type="button"
+                  className={clip.transitionOutSeconds > 0 ? "active" : ""}
+                  onClick={() => update({ transitionOutSeconds: clip.transitionOutSeconds > 0 ? clip.transitionOutSeconds : 0.5 })}
+                >
+                  Dissolve
+                </button>
+              </div>
+            </div>
+          )}
+
+          {hasNextClip && clip.transitionOutSeconds > 0 && (
+            <label className="field">
+              <span>Dissolve duration — {clip.transitionOutSeconds.toFixed(1)}s</span>
+              <input
+                type="range"
+                min={0.1}
+                max={2}
+                step={0.1}
+                value={clip.transitionOutSeconds}
+                onChange={(e) => update({ transitionOutSeconds: Number(e.target.value) })}
+              />
+            </label>
+          )}
         </>
       )}
     </div>

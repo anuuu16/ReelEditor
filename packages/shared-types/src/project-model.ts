@@ -41,6 +41,8 @@ export interface Clip {
   speed: number;
   opacity: number;
   filter: ClipFilter;
+  /** Cross-dissolve into the next clip on this track, in seconds. 0 = a hard cut. Ignored on the last clip. */
+  transitionOutSeconds: number;
 }
 
 export type OverlayAnimation = "none" | "fade" | "slide-in" | "pop" | "typewriter";

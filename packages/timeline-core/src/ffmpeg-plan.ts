@@ -1,5 +1,5 @@
 import type { Clip, FitMode, Overlay, ProjectModel } from "@reel-studio/shared-types";
-import { getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
+import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type LaidOutClip } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
 import { buildPanZoomFilter } from "./fit-rect.js";
@@ -172,6 +172,34 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const videoLabels: string[] = [];
   const clipAudioLabels: string[] = [];
 
+  // Chains consecutive per-clip streams into one, using an ffmpeg cross-dissolve (xfade for video,
+  // acrossfade for audio) wherever two clips overlap, and a plain concat wherever they don't — so a
+  // reel can freely mix hard cuts and dissolves. `clips` supplies each label's laid-out duration and
+  // the overlap between consecutive entries (via getOverlapSeconds), and must be 1:1 with `labels`.
+  function chainSequential(labels: string[], clips: LaidOutClip[], kind: "video" | "audio", labelPrefix: string): string {
+    let prevLabel = labels[0];
+    let cumulative = clips[0].duration;
+    for (let i = 1; i < labels.length; i++) {
+      const overlap = getOverlapSeconds(clips[i - 1], clips[i]);
+      const outLabel = `${labelPrefix}${i}`;
+      if (overlap > 0) {
+        const offset = cumulative - overlap;
+        const transitionFilter =
+          kind === "video"
+            ? `xfade=transition=fade:duration=${overlap.toFixed(3)}:offset=${offset.toFixed(3)}`
+            : `acrossfade=d=${overlap.toFixed(3)}`;
+        filterChains.push(`${prevLabel}${labels[i]}${transitionFilter}[${outLabel}]`);
+        cumulative += clips[i].duration - overlap;
+      } else {
+        const concatArgs = kind === "video" ? "n=2:v=1:a=0" : "n=2:v=0:a=1";
+        filterChains.push(`${prevLabel}${labels[i]}concat=${concatArgs}[${outLabel}]`);
+        cumulative += clips[i].duration;
+      }
+      prevLabel = `[${outLabel}]`;
+    }
+    return prevLabel;
+  }
+
   function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string): string {
     if (clip.muted) {
       return `anullsrc=r=48000:cl=stereo,atrim=duration=${duration.toFixed(3)}[${label}]`;
@@ -216,10 +244,10 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     musicTrackLabels.push(`[${trackLabel}]`);
   });
 
-  filterChains.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vconcat]`);
+  const videoConcatLabel = chainSequential(videoLabels, videoClips, "video", "vxf");
 
   const overlayTextFiles: OverlayTextFile[] = [];
-  let finalVideoLabel = "[vconcat]";
+  let finalVideoLabel = videoConcatLabel;
   project.overlays.forEach((overlay, i) => {
     if (overlay.kind === "image") {
       if (!overlay.imageSourceId) return;
@@ -244,13 +272,13 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     finalVideoLabel = `[${nextLabel}]`;
   });
 
-  filterChains.push(`${clipAudioLabels.join("")}concat=n=${clipAudioLabels.length}:v=0:a=1[aclips]`);
+  const clipAudioConcatLabel = chainSequential(clipAudioLabels, videoClips, "audio", "axf");
 
-  let finalAudioLabel = "[aclips]";
+  let finalAudioLabel = clipAudioConcatLabel;
   if (musicTrackLabels.length > 0) {
     // duration=first anchors output length to the video track; if an audio track runs longer,
     // the tail is dropped (unlike the preview compositor, which keeps playing past the last video frame).
-    const mixInputLabels = ["[aclips]", ...musicTrackLabels];
+    const mixInputLabels = [clipAudioConcatLabel, ...musicTrackLabels];
     filterChains.push(`${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=first:dropout_transition=0[aout]`);
     finalAudioLabel = "[aout]";
   }

@@ -122,6 +122,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         speed: 1,
         opacity: 1,
         filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
+        transitionOutSeconds: 0,
       };
       return {
         ...state,
@@ -233,7 +234,9 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         return state;
       }
 
-      const firstHalf: Clip = { ...clip, outPoint: splitSourceTime };
+      // A split is a hard cut: the transition that used to carry from `clip` into whatever followed
+      // it now belongs to the second half, which is the one that actually still has that neighbor.
+      const firstHalf: Clip = { ...clip, outPoint: splitSourceTime, transitionOutSeconds: 0 };
       const secondHalf: Clip = { ...clip, id: crypto.randomUUID(), inPoint: splitSourceTime };
       const index = state.project.clips.findIndex((c) => c.id === action.clipId);
       const clips = [...state.project.clips];
@@ -248,7 +251,8 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       const next = findMergeableNeighbor(state.project.clips, clip);
       if (!next) return state;
 
-      const merged: Clip = { ...clip, outPoint: next.outPoint };
+      // The merged clip now transitions into whatever `next` used to transition into, not into `next` itself.
+      const merged: Clip = { ...clip, outPoint: next.outPoint, transitionOutSeconds: next.transitionOutSeconds };
       const clips = state.project.clips.filter((c) => c.id !== next.id).map((c) => (c.id === clip.id ? merged : c));
 
       return { ...state, project: { ...state.project, clips }, selectedClipId: merged.id };

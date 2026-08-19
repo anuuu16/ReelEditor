@@ -11,11 +11,13 @@ import {
   computeOverlayPopScale,
   computeOverlaySlideOffsetRatio,
   findActiveClip,
+  findTransitionAt,
   getSequenceDuration,
   getTracksByKind,
   isOverlayActive,
   layoutSequentialClips,
   layoutTrackClips,
+  type ActiveClip,
   type LaidOutClip,
 } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState, type EditorState } from "../state/EditorContext.js";
@@ -185,19 +187,34 @@ export function PreviewCanvas() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const queryTime = totalDuration > 0 ? Math.min(s.playhead, totalDuration - 0.0001) : s.playhead;
-      const activeVideo = findActiveClip(laidOutVideo, queryTime);
+      // During a cross-dissolve, both clips are "active" (both decoding and playing) at once —
+      // outside of one, exactly one clip is active, same as before transitions existed.
+      const transition = findTransitionAt(laidOutVideo, queryTime);
+      const activeVideo = transition ? null : findActiveClip(laidOutVideo, queryTime);
+
+      function activeInfoFor(clipId: string): ActiveClip | null {
+        if (transition) {
+          if (transition.outgoing.clip.id === clipId) return transition.outgoing;
+          if (transition.incoming.clip.id === clipId) return transition.incoming;
+          return null;
+        }
+        return activeVideo?.clip.id === clipId ? activeVideo : null;
+      }
 
       laidOutVideo.forEach((clip) => {
         const el = videoElsRef.current.get(clip.id);
         if (!el) return;
-        const isActive = activeVideo?.clip.id === clip.id;
-        const isUpNext = activeVideo != null && laidOutVideo[activeVideo.index + 1]?.id === clip.id;
+        const activeInfo = activeInfoFor(clip.id);
+        const isUpNext = !transition && activeVideo != null && laidOutVideo[activeVideo.index + 1]?.id === clip.id;
 
-        if (isActive && activeVideo) {
-          if (Math.abs(el.currentTime - activeVideo.localTime) > SEEK_THRESHOLD) {
-            el.currentTime = activeVideo.localTime;
+        if (activeInfo) {
+          if (Math.abs(el.currentTime - activeInfo.localTime) > SEEK_THRESHOLD) {
+            el.currentTime = activeInfo.localTime;
           }
-          el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume;
+          // Crossfade this clip's own (embedded) audio in lockstep with the visual dissolve.
+          const crossfade = transition ? (transition.outgoing.clip.id === clip.id ? 1 - transition.progress : transition.progress) : 1;
+          el.volume =
+            s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume * crossfade;
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else {
@@ -211,24 +228,32 @@ export function PreviewCanvas() {
         }
       });
 
-      if (activeVideo) {
-        const source = s.project.sources.find((src) => src.id === activeVideo.clip.sourceId);
-        const el = videoElsRef.current.get(activeVideo.clip.id);
-        if (source && el && el.readyState >= 2) {
-          const fitRect = computeFitRect(canvas.width, canvas.height, source.width, source.height, activeVideo.clip.fitMode);
-          const rect = applyPanZoom(fitRect, activeVideo.clip.transform, canvas.width, canvas.height);
-          const fadeMultiplier = computeFadeMultiplier(
-            activeVideo.clip.fadeInSeconds,
-            activeVideo.clip.fadeOutSeconds,
-            s.playhead - activeVideo.clip.timelineStart,
-            activeVideo.clip.duration
-          );
-          ctx.globalAlpha = activeVideo.clip.opacity * fadeMultiplier;
-          ctx.filter = buildCanvasFilterString(activeVideo.clip.filter);
-          ctx.drawImage(el, rect.x, rect.y, rect.width, rect.height);
-          ctx.filter = "none";
-          ctx.globalAlpha = 1;
-        }
+      function drawVideoClip(cv: HTMLCanvasElement, context: CanvasRenderingContext2D, activeInfo: ActiveClip, alphaMultiplier: number) {
+        const source = s.project.sources.find((src) => src.id === activeInfo.clip.sourceId);
+        const el = videoElsRef.current.get(activeInfo.clip.id);
+        if (!source || !el || el.readyState < 2) return;
+        const fitRect = computeFitRect(cv.width, cv.height, source.width, source.height, activeInfo.clip.fitMode);
+        const rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
+        const fadeMultiplier = computeFadeMultiplier(
+          activeInfo.clip.fadeInSeconds,
+          activeInfo.clip.fadeOutSeconds,
+          s.playhead - activeInfo.clip.timelineStart,
+          activeInfo.clip.duration
+        );
+        context.globalAlpha = activeInfo.clip.opacity * fadeMultiplier * alphaMultiplier;
+        context.filter = buildCanvasFilterString(activeInfo.clip.filter);
+        context.drawImage(el, rect.x, rect.y, rect.width, rect.height);
+        context.filter = "none";
+        context.globalAlpha = 1;
+      }
+
+      if (transition) {
+        // Outgoing drawn first as the base layer, incoming blended over it at `progress` opacity —
+        // equivalent to a linear crossfade and matches ffmpeg xfade's "fade" transition exactly.
+        drawVideoClip(canvas, ctx, transition.outgoing, 1 - transition.progress);
+        drawVideoClip(canvas, ctx, transition.incoming, transition.progress);
+      } else if (activeVideo) {
+        drawVideoClip(canvas, ctx, activeVideo, 1);
       }
 
       // Each audio track plays independently (and simultaneously with the others) — a track's
