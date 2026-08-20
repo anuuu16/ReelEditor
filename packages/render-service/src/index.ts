@@ -308,7 +308,7 @@ app.post("/studio", async (req: Request, res: Response) => {
     title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Untitled project",
     createdAt: now,
     updatedAt: now,
-    languages: Array.isArray(body.languages) && body.languages.length ? body.languages : ["en"],
+    languages: Array.isArray(body.languages) && body.languages.length ? body.languages : ["English"],
     poem: {},
     videoType,
     aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio : videoType === "reel" ? "9:16" : "16:9",

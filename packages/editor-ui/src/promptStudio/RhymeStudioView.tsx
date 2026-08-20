@@ -5,8 +5,9 @@ import { buildRhymePoemPromptTemplate, parseRhymePoemJson } from "./rhymeImportE
 import { generateRhymePoem } from "./rhymeApi.js";
 import { RhymePoemCard } from "./RhymePoemCard.js";
 import { RhymeWizard } from "./RhymeWizard.js";
-import type { RhymePoemParams, RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
+import type { RhymeContentType, RhymePoemParams, RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
 import type { StudioProject } from "./types.js";
+import { Chip, NumberField, TextField } from "./ui/index.js";
 
 interface RhymeStudioViewProps {
   project: StudioProject;
@@ -17,6 +18,25 @@ interface RhymeStudioViewProps {
 const AGE_OPTIONS = ["Toddler (2-4)", "Preschool (4-6)", "Early school (6-9)"];
 const STYLE_OPTIONS = ["Rhyme", "Story poem", "Lullaby", "Action song", "Counting song"];
 const LANGUAGE_OPTIONS = ["English", "Hindi", "Hinglish"];
+const CONTENT_TYPE_OPTIONS: Array<{ id: RhymeContentType; label: string }> = [
+  { id: "poem", label: "Poem" },
+  { id: "story", label: "Story" },
+  { id: "script", label: "Script" },
+];
+
+// A Studio project's own `languages` list is a free-form tag used across every tab (resources,
+// editor links, and so on), so it sometimes holds a short code like "en" from elsewhere in the
+// app rather than the full name an AI generation prompt actually needs. Normalizing here means an
+// older project doesn't show "English" and "en" as two separate, confusing chips.
+const LANGUAGE_CODE_ALIASES: Record<string, string> = { en: "English", hi: "Hindi", "hi-en": "Hinglish", hinglish: "Hinglish" };
+
+function normalizeLanguageName(value: string): string {
+  return LANGUAGE_CODE_ALIASES[value.toLowerCase()] ?? value;
+}
+
+function normalizeLanguageList(values: string[]): string[] {
+  return [...new Set(values.map(normalizeLanguageName))];
+}
 const MIN_LENGTH_SECONDS = 18;
 const MAX_LENGTH_SECONDS = 54;
 const DEFAULT_LENGTH_SECONDS = 32;
@@ -40,10 +60,13 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   const [pasteText, setPasteText] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
-  const [poemCountText, setPoemCountText] = useState("2");
-  const [lengthSecondsText, setLengthSecondsText] = useState(String(DEFAULT_LENGTH_SECONDS));
-  const [languages, setLanguages] = useState<string[]>(project.languages.length ? project.languages : ["English"]);
+  const [poemCount, setPoemCount] = useState(2);
+  const [lengthSeconds, setLengthSeconds] = useState(DEFAULT_LENGTH_SECONDS);
+  const [languages, setLanguages] = useState<string[]>(
+    project.languages.length ? normalizeLanguageList(project.languages) : ["English"]
+  );
   const [customLanguage, setCustomLanguage] = useState("");
+  const [contentType, setContentType] = useState<RhymeContentType>("poem");
   const [age, setAge] = useState(AGE_OPTIONS[1]);
   const [style, setStyle] = useState(STYLE_OPTIONS[0]);
   const [extra, setExtra] = useState("");
@@ -54,7 +77,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   const [error, setError] = useState<string | null>(null);
 
   const availableLanguages = [...new Set([...LANGUAGE_OPTIONS, ...languages])];
-  const scenes = scenesForLength(Number(lengthSecondsText) || DEFAULT_LENGTH_SECONDS);
+  const scenes = scenesForLength(lengthSeconds);
 
   function toggleLanguage(language: string) {
     setLanguages((prev) => (prev.includes(language) ? prev.filter((l) => l !== language) : [...prev, language]));
@@ -85,9 +108,10 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
       topic: topic.trim(),
       age,
       style,
-      lengthSeconds: Number(lengthSecondsText) || DEFAULT_LENGTH_SECONDS,
+      lengthSeconds,
       scenes,
       languages: languages.length ? languages : ["English"],
+      contentType,
       extra: extra.trim() || undefined,
     };
   }
@@ -109,7 +133,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     if (!topic.trim() || isGenerating) return;
     setIsGenerating(true);
     setError(null);
-    const count = Math.max(1, Math.min(6, Math.round(Number(poemCountText)) || 1));
+    const count = poemCount;
 
     const avoidTitles = slots.flatMap((s) => Object.values(s.versions[s.activeVersionIndex].poem.titles));
     const created: RhymePoemSlot[] = [];
@@ -148,47 +172,49 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     );
   }
 
+  const contentNoun = CONTENT_TYPE_OPTIONS.find((c) => c.id === contentType)?.label.toLowerCase() ?? "content";
+
   return (
     <div className="rhyme-studio">
       <section className="prompt-studio-section">
-        <h2>Generate poems</h2>
-        <p className="hint">Kids poems, pre-timed into reel scenes, in as many languages at once as you pick below.</p>
+        <h2>Generate content</h2>
+        <p className="hint">
+          Kids' poems, stories, or scripts, pre-timed into reel scenes, in as many languages at once as you pick below.
+        </p>
 
-        <div className="inline-fields prompt-studio-header-row">
-          <label className="field prompt-studio-topic-field">
-            <span>Topic</span>
-            <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should the poem be about?" />
-          </label>
-          <label className="field">
-            <span>How many poems (1-6)</span>
-            <input
-              type="number"
-              min={1}
-              max={6}
-              inputMode="numeric"
-              value={poemCountText}
-              onChange={(e) => setPoemCountText(e.target.value)}
-              onBlur={() => setPoemCountText(String(Math.max(1, Math.min(6, Math.round(Number(poemCountText)) || 1))))}
-            />
-          </label>
-          <label className="field">
-            <span>
-              Video length (seconds) <span className="prompt-studio-char-count">(~{scenes} scenes)</span>
-            </span>
-            <input
-              type="number"
-              min={MIN_LENGTH_SECONDS}
-              max={MAX_LENGTH_SECONDS}
-              inputMode="numeric"
-              value={lengthSecondsText}
-              onChange={(e) => setLengthSecondsText(e.target.value)}
-              onBlur={() =>
-                setLengthSecondsText(
-                  String(Math.max(MIN_LENGTH_SECONDS, Math.min(MAX_LENGTH_SECONDS, Math.round(Number(lengthSecondsText)) || DEFAULT_LENGTH_SECONDS)))
-                )
-              }
-            />
-          </label>
+        <div className="mb-3.5 flex flex-wrap gap-1.5">
+          {CONTENT_TYPE_OPTIONS.map((option) => (
+            <Chip key={option.id} active={contentType === option.id} onClick={() => setContentType(option.id)}>
+              {option.label}
+            </Chip>
+          ))}
+        </div>
+
+        <div className="mb-3.5 flex flex-wrap gap-3">
+          <TextField
+            label="Topic"
+            value={topic}
+            onChange={setTopic}
+            placeholder={`What should the ${contentNoun} be about?`}
+            className="min-w-[220px] flex-[2]"
+          />
+          <NumberField
+            label="How many pieces (1-6)"
+            value={poemCount}
+            onChange={setPoemCount}
+            min={1}
+            max={6}
+            className="min-w-[140px] flex-1"
+          />
+          <NumberField
+            label="Video length (seconds)"
+            hint={`(~${scenes} scenes)`}
+            value={lengthSeconds}
+            onChange={setLengthSeconds}
+            min={MIN_LENGTH_SECONDS}
+            max={MAX_LENGTH_SECONDS}
+            className="min-w-[160px] flex-1"
+          />
         </div>
 
         <div className="inline-fields prompt-studio-header-row">
@@ -215,7 +241,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
         </div>
 
         <div className="field">
-          <span>Languages — every one is a full, independently written poem, not a translation</span>
+          <span>Languages — every one is a full, independently written {contentNoun}, not a translation</span>
           <div className="rhyme-language-chips">
             {availableLanguages.map((language) => (
               <button

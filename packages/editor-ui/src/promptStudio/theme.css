@@ -1,0 +1,38 @@
+/* Prompt Studio / Rhyme Studio theme tokens. Dark is the default (matching the rest of this
+   app's existing look); [data-theme="light"] on .prompt-studio switches to light. Scoped to
+   .prompt-studio only, on purpose — the pre-existing editor is untouched by this. */
+
+.prompt-studio {
+  --ps-bg: #17181c;
+  --ps-bg-panel: #1a1b20;
+  --ps-bg-elevated: #1e1f26;
+  --ps-border: #2a2b31;
+  --ps-border-strong: #34353d;
+  --ps-text: #e6e6e9;
+  --ps-text-muted: #9294a1;
+  --ps-accent: #5b7cff;
+  --ps-accent-contrast: #ffffff;
+  --ps-danger: #ff9d9d;
+  --ps-success: #34d399;
+  --ps-warning: #f2a65a;
+}
+
+.prompt-studio[data-theme="light"] {
+  --ps-bg: #f5f6f8;
+  --ps-bg-panel: #ffffff;
+  --ps-bg-elevated: #ffffff;
+  --ps-border: #dde0e6;
+  --ps-border-strong: #c7cbd4;
+  --ps-text: #16171a;
+  --ps-text-muted: #5b5f68;
+  --ps-accent: #4a63e6;
+  --ps-accent-contrast: #ffffff;
+  --ps-danger: #d1435b;
+  --ps-success: #1f9d63;
+  --ps-warning: #b6791f;
+}
+
+.prompt-studio {
+  background: var(--ps-bg);
+  color: var(--ps-text);
+}

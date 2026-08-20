@@ -46,6 +46,7 @@ export function createRhymeRouter(): Router {
       lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(3, Math.min(6, Number(body.scenes) || 4)),
       languages,
+      contentType: body.contentType === "story" || body.contentType === "script" ? body.contentType : "poem",
       extra: body.extra,
       avoidTitles: Array.isArray(body.avoidTitles) ? body.avoidTitles.filter(isNonEmptyString) : undefined,
     };
@@ -74,6 +75,7 @@ export function createRhymeRouter(): Router {
       lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(3, Math.min(6, Number(body.scenes) || 4)),
       languages,
+      contentType: body.contentType === "story" || body.contentType === "script" ? body.contentType : "poem",
       extra: body.extra,
       avoidTitles: Array.isArray(body.avoidTitles) ? body.avoidTitles.filter(isNonEmptyString) : undefined,
       kind: body.kind,

@@ -11,6 +11,7 @@ import { ScenePromptsList } from "./ScenePromptsList.js";
 import { StudioOverview } from "./StudioOverview.js";
 import { StudioProjectHeader } from "./StudioProjectHeader.js";
 import type { StudioEditorProjectLink, StudioProject, StudioResource } from "./types.js";
+import { ThemeToggle, usePromptStudioTheme } from "./ui/index.js";
 
 export type DetailTab = "overview" | "settings" | "content" | "prompts" | "rhyme" | "scenes" | "resources" | "editors";
 
@@ -42,6 +43,7 @@ interface PromptStudioViewProps {
 // (/prompt-studio/:studioId/:tab) so every section is bookmarkable and survives a refresh.
 export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onBack, onOpenProject }: PromptStudioViewProps) {
   const activeTab: DetailTab = isDetailTab(rawTab) ? rawTab : "overview";
+  const [theme, toggleTheme] = usePromptStudioTheme();
 
   const [project, setProject] = useState<StudioProject | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
 
   if (isLoading) {
     return (
-      <div className="prompt-studio">
+      <div className="prompt-studio" data-theme={theme}>
         <p className="hint">Loading...</p>
       </div>
     );
@@ -102,7 +104,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
 
   if (detailError || !project) {
     return (
-      <div className="prompt-studio">
+      <div className="prompt-studio" data-theme={theme}>
         <p className="export-error">{detailError ?? "Studio project not found"}</p>
         <button type="button" onClick={onBack}>
           Back to dashboard
@@ -112,10 +114,11 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
   }
 
   return (
-    <div className="prompt-studio">
+    <div className="prompt-studio" data-theme={theme}>
       <header className="dashboard-header">
         <h1>{project.title}</h1>
         <div className="inline-fields">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button type="button" onClick={onBack}>
             Back to dashboard
           </button>

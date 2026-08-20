@@ -833,6 +833,7 @@ body {
 }
 
 .field input[type="text"],
+.field input[type="number"],
 .field textarea {
   background: #1e1f26;
   border: 1px solid #2a2b31;
@@ -843,6 +844,12 @@ body {
   font-family: inherit;
   resize: vertical;
 }
+
+/* No explicit width here on purpose: `.field`'s flex column already stretches a bare number
+   input to full width the same way it does text inputs, and letting that happen naturally
+   (instead of setting width: 100% here) means a more specific class like .ie-ratio-input or
+   .prompt-studio-scene-n-input can still narrow a particular number input without a specificity
+   fight against this rule. */
 
 .field input[type="range"] {
   width: 100%;

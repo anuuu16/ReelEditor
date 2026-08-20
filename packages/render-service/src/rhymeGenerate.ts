@@ -18,6 +18,8 @@ export interface Poem {
   scenes: Scene[];
 }
 
+export type ContentType = "poem" | "story" | "script";
+
 export interface PoemParams {
   topic: string;
   age: string;
@@ -25,6 +27,8 @@ export interface PoemParams {
   lengthSeconds: number;
   scenes: number;
   languages: string[];
+  /** What kind of written piece this is — changes the writing instruction, not the JSON shape. */
+  contentType?: ContentType;
   extra?: string;
   avoidTitles?: string[];
 }
@@ -86,19 +90,39 @@ function languageJsonExample(languages: string[]): string {
   return `{"titles":{${titles}},"poems":{${poems}},"scenes":[{"lines":{${sceneLines}},"seconds":7}]}`;
 }
 
+const CONTENT_TYPE_ROLE: Record<ContentType, string> = {
+  poem: "a beloved children's poet",
+  story: "a beloved children's story writer",
+  script: "a beloved children's video scriptwriter",
+};
+
+const CONTENT_TYPE_NOUN: Record<ContentType, string> = {
+  poem: "poem",
+  story: "story",
+  script: "script",
+};
+
+const CONTENT_TYPE_INSTRUCTION: Record<ContentType, string> = {
+  poem: "Write it with strong sing-song rhythm and clean rhyme",
+  story: "Write it as an engaging short narrative with simple, vivid sentences, it does not need to rhyme",
+  script: "Write it as spoken narration or dialogue lines ready to read aloud in a video, it does not need to rhyme",
+};
+
 function buildPoemPrompt(p: PoemParams): string {
   const hint = AGE_HINTS[p.age] ?? "";
   const languages = p.languages.length ? p.languages : ["English"];
   const primary = languages[0];
   const others = languages.slice(1);
   const lines = approximateLineCount(p.lengthSeconds);
+  const contentType = p.contentType ?? "poem";
+  const noun = CONTENT_TYPE_NOUN[contentType];
 
   const languageInstruction =
     others.length === 0
       ? `Primary language: ${primary}${langNote(primary)}.`
-      : `Write it in EVERY one of these languages at once, independently, not translations of each other: ${languages.map((l) => `${l}${langNote(l)}`).join(", ")}. Each language's version must rhyme and scan naturally on its own while keeping the same meaning, mood, and the SAME ${p.scenes} scenes, so every language lines up scene by scene.`;
+      : `Write it in EVERY one of these languages at once, independently, not translations of each other: ${languages.map((l) => `${l}${langNote(l)}`).join(", ")}. Each language's version must read naturally on its own while keeping the same meaning, mood, and the SAME ${p.scenes} scenes, so every language lines up scene by scene.`;
 
-  return `You are a beloved children's poet writing for short vertical video reels.
+  return `You are ${CONTENT_TYPE_ROLE[contentType]} writing for short vertical video reels.
 
 Topic: ${p.topic}
 Audience: ${p.age}. Guidance: ${hint}
@@ -108,18 +132,18 @@ ${languageInstruction}
 ${p.extra ? `Extra direction: ${p.extra}` : ""}
 ${p.avoidTitles && p.avoidTitles.length ? `Different from these titles: ${p.avoidTitles.join("; ")}` : ""}
 
-Write the poem with strong sing-song rhythm and clean rhyme in every language above. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point in the poem. Vary the durations to fit the lines. The scenes joined must equal the full poem, in every language.
+${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point in the ${noun}. Vary the durations to fit the lines. The scenes joined must equal the full ${noun}, in every language.
 
 Return ONLY valid JSON, no markdown, with a "titles" object, a "poems" object, and a "scenes" array, each keyed by the exact language names above:
 ${languageJsonExample(languages)}
 Use \\n between lines within a poem string.`;
 }
 
-const REWORK_INTROS: Record<"optimize" | "enhance", string> = {
-  optimize:
-    "Improve the RHYTHM, meter, and rhyme of this children's poem without changing its meaning, topic, length, or reading level.",
-  enhance:
-    "Enhance this children's poem: make imagery more vivid and playful, add sound-play or a fun refrain, optionally one short stanza. Keep the original idea.",
+const REWORK_INTROS: Record<"optimize" | "enhance", (noun: string) => string> = {
+  optimize: (noun) =>
+    `Improve the RHYTHM, flow, and word choice of this children's ${noun} without changing its meaning, topic, length, or reading level.`,
+  enhance: (noun) =>
+    `Enhance this children's ${noun}: make imagery more vivid and playful, add a fun repeated moment or refrain, optionally one short extra section. Keep the original idea.`,
 };
 
 function buildReworkPrompt(p: ReworkParams): string {
@@ -129,9 +153,10 @@ function buildReworkPrompt(p: ReworkParams): string {
   }
 
   const languages = p.languages.length ? p.languages : ["English"];
-  const intro = REWORK_INTROS[p.kind];
+  const noun = CONTENT_TYPE_NOUN[p.contentType ?? "poem"];
+  const intro = REWORK_INTROS[p.kind](noun);
   const currentBlocks = languages
-    .map((l) => `Current ${l} title: ${p.current.titles[l] ?? ""}\nCurrent ${l} poem:\n${p.current.poems[l] ?? ""}`)
+    .map((l) => `Current ${l} title: ${p.current.titles[l] ?? ""}\nCurrent ${l} ${noun}:\n${p.current.poems[l] ?? ""}`)
     .join("\n\n");
 
   return `${intro}

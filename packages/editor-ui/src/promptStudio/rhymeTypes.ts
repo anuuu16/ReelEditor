@@ -14,6 +14,8 @@ export interface RhymePoem {
   scenes: RhymeScene[];
 }
 
+export type RhymeContentType = "poem" | "story" | "script";
+
 export interface RhymePoemParams {
   topic: string;
   age: string;
@@ -22,6 +24,8 @@ export interface RhymePoemParams {
   scenes: number;
   /** Every language to generate at once, in order. First is the "primary" for display purposes only. */
   languages: string[];
+  /** What kind of written piece this is — a poem is not the only option. */
+  contentType: RhymeContentType;
   extra?: string;
   avoidTitles?: string[];
 }
