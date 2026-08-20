@@ -20,8 +20,11 @@ export function CopyButton({ text, label = "Copy", className }: CopyButtonProps)
     }
   }
 
+  const baseClass =
+    "rounded-ps border border-ps-border-strong bg-ps-elevated px-3 py-1.5 text-xs font-medium text-ps-text hover:border-ps-accent disabled:cursor-not-allowed disabled:opacity-40";
+
   return (
-    <button type="button" className={className ? `${className} prompt-studio-copy-button` : "prompt-studio-copy-button"} onClick={handleClick}>
+    <button type="button" className={className ? `${baseClass} ${className}` : baseClass} onClick={handleClick}>
       {copied ? "Copied" : label}
     </button>
   );

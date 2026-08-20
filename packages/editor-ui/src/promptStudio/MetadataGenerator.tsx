@@ -2,6 +2,7 @@ import { useState } from "react";
 import { generateStudioMetadata } from "./api.js";
 import { CopyButton } from "./CopyButton.js";
 import type { StudioProject } from "./types.js";
+import { Button } from "./ui/index.js";
 
 interface MetadataGeneratorProps {
   project: StudioProject;
@@ -28,38 +29,38 @@ export function MetadataGenerator({ project, onProjectUpdated }: MetadataGenerat
   }
 
   if (project.languages.length === 0) {
-    return <p className="hint">Add a language in Settings first.</p>;
+    return <p className="text-xs text-ps-muted">Add a language in Settings first.</p>;
   }
 
   return (
     <div className="metadata-generator">
-      {error && <p className="export-error">{error}</p>}
+      {error && <p className="whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
       {project.languages.map((language) => {
         const variant = project.metadata.find((m) => m.language === language);
         const isPending = pendingLanguage === language;
         return (
           <div key={language} className="metadata-generator-row">
             <div className="metadata-generator-row-header">
-              <span className="prompt-studio-resource-tag">{language}</span>
-              <button type="button" disabled={isPending} onClick={() => handleGenerate(language)}>
+              <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">{language}</span>
+              <Button variant="primary" disabled={isPending} onClick={() => handleGenerate(language)}>
                 {isPending ? "Generating..." : variant ? "Regenerate" : "Generate"}
-              </button>
+              </Button>
             </div>
 
             {variant && (
               <div className="metadata-generator-result">
                 <div className="metadata-generator-field">
-                  <span className="hint">Title</span>
+                  <span className="text-xs text-ps-muted">Title</span>
                   <p>{variant.title}</p>
                   <CopyButton text={variant.title ?? ""} label="Copy title" />
                 </div>
                 <div className="metadata-generator-field">
-                  <span className="hint">Description</span>
+                  <span className="text-xs text-ps-muted">Description</span>
                   <p>{variant.description}</p>
                   <CopyButton text={variant.description ?? ""} label="Copy description" />
                 </div>
                 <div className="metadata-generator-field">
-                  <span className="hint">Hashtags</span>
+                  <span className="text-xs text-ps-muted">Hashtags</span>
                   <p>{(variant.hashtags ?? []).map((h) => `#${h.replace(/^#/, "")}`).join(" ")}</p>
                   <CopyButton text={(variant.hashtags ?? []).map((h) => `#${h.replace(/^#/, "")}`).join(" ")} label="Copy hashtags" />
                 </div>

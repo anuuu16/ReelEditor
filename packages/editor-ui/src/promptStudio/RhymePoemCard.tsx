@@ -3,6 +3,7 @@ import { generateRhymeReelCaption, generateRhymeReelMaster, generateRhymeReelSce
 import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.js";
 import type { RhymePoemSlot, RhymePoemVersion, RhymeReel } from "./rhymeTypes.js";
 import { CopyButton } from "./CopyButton.js";
+import { Button, Card, SelectField, TextareaField } from "./ui/index.js";
 
 interface RhymePoemCardProps {
   slot: RhymePoemSlot;
@@ -116,10 +117,12 @@ export function RhymePoemCard({ slot, onChange }: RhymePoemCardProps) {
   }
 
   return (
-    <div className="prompt-studio-section rhyme-poem-card">
+    <Card>
       <div className="rhyme-poem-card-header">
+        {/* Bespoke heading input (no visible label, larger type) rather than TextField — same
+            treatment as the project title input in StudioProjectHeader. */}
         <input
-          className="rhyme-poem-title-input"
+          className="flex-1 rounded-ps border border-transparent bg-transparent px-1.5 py-1 text-base font-semibold text-ps-text hover:border-ps-border hover:bg-ps-elevated focus:border-ps-border focus:bg-ps-elevated focus:outline-none"
           type="text"
           value={primaryTitle}
           onChange={(e) => updatePoemField({ titles: { [languages[0]]: e.target.value } })}
@@ -127,32 +130,38 @@ export function RhymePoemCard({ slot, onChange }: RhymePoemCardProps) {
         />
         {slot.versions.length > 1 && (
           <div className="rhyme-version-pager">
-            <button type="button" disabled={slot.activeVersionIndex === 0} onClick={() => setActiveVersionIndex(slot.activeVersionIndex - 1)}>
+            <Button
+              variant="ghost"
+              className="!px-1.5 !py-1"
+              disabled={slot.activeVersionIndex === 0}
+              onClick={() => setActiveVersionIndex(slot.activeVersionIndex - 1)}
+            >
               ‹
-            </button>
+            </Button>
             <span>
               {version.label} ({slot.activeVersionIndex + 1}/{slot.versions.length})
             </span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              className="!px-1.5 !py-1"
               disabled={slot.activeVersionIndex === slot.versions.length - 1}
               onClick={() => setActiveVersionIndex(slot.activeVersionIndex + 1)}
             >
               ›
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {languages.map((language) => (
-        <label className="field" key={language}>
-          <span>Poem ({language})</span>
-          <textarea
-            rows={6}
-            value={poem.poems[language] ?? ""}
-            onChange={(e) => updatePoemField({ poems: { [language]: e.target.value } })}
-          />
-        </label>
+        <TextareaField
+          key={language}
+          label={`Poem (${language})`}
+          rows={6}
+          value={poem.poems[language] ?? ""}
+          onChange={(value) => updatePoemField({ poems: { [language]: value } })}
+          className="mb-3.5"
+        />
       ))}
 
       <div className="rhyme-timeline">
@@ -173,35 +182,32 @@ export function RhymePoemCard({ slot, onChange }: RhymePoemCardProps) {
         ))}
       </div>
 
-      <div className="inline-fields">
-        <button type="button" disabled={isReworking !== null} onClick={() => handleRework("regenerate")}>
+      <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
+        <Button disabled={isReworking !== null} onClick={() => handleRework("regenerate")}>
           {isReworking === "regenerate" ? "Regenerating..." : "Regenerate"}
-        </button>
-        <button type="button" disabled={isReworking !== null} onClick={() => handleRework("optimize")}>
+        </Button>
+        <Button disabled={isReworking !== null} onClick={() => handleRework("optimize")}>
           {isReworking === "optimize" ? "Optimizing..." : "Optimize rhythm"}
-        </button>
-        <button type="button" disabled={isReworking !== null} onClick={() => handleRework("enhance")}>
+        </Button>
+        <Button disabled={isReworking !== null} onClick={() => handleRework("enhance")}>
           {isReworking === "enhance" ? "Enhancing..." : "Enhance"}
-        </button>
+        </Button>
       </div>
 
-      <div className="inline-fields rhyme-poem-card-reel-controls">
-        <label className="field">
-          <span>Build reel for</span>
-          <select value={reelLanguage} onChange={(e) => setReelLanguage(e.target.value)}>
-            {languages.map((language) => (
-              <option key={language} value={language}>
-                {language}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="export-button" disabled={isBuildingReel} onClick={handleMakeReel}>
+      <div className="mb-3.5 flex flex-wrap items-end gap-3">
+        <SelectField
+          label="Build reel for"
+          value={reelLanguage}
+          onChange={setReelLanguage}
+          options={languages.map((language) => ({ value: language, label: language }))}
+          className="min-w-[160px]"
+        />
+        <Button variant="primary" disabled={isBuildingReel} onClick={handleMakeReel}>
           {isBuildingReel ? reelProgress || "Building..." : "Make reel"}
-        </button>
+        </Button>
       </div>
 
-      {error && <p className="export-error">{error}</p>}
+      {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
 
       {currentReel && (
         <div className="rhyme-reel">
@@ -221,7 +227,7 @@ export function RhymePoemCard({ slot, onChange }: RhymePoemCardProps) {
                 </span>
                 <CopyButton text={prompt} label="Copy" />
               </div>
-              <p className="hint">{timed[i]?.lines[reelLanguage]}</p>
+              <p className="text-xs text-ps-muted">{timed[i]?.lines[reelLanguage]}</p>
               <p>{prompt}</p>
             </div>
           ))}
@@ -242,6 +248,6 @@ export function RhymePoemCard({ slot, onChange }: RhymePoemCardProps) {
           />
         </div>
       )}
-    </div>
+    </Card>
   );
 }

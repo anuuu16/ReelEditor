@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ASPECT_RATIO_PRESETS } from "@reel-studio/timeline-core";
 import { creditsPerClipForModel } from "./creditMath.js";
 import type { StudioProject } from "./types.js";
+import { NumberField, SelectField, TextField } from "./ui/index.js";
 
 interface StudioProjectHeaderProps {
   project: StudioProject;
@@ -11,6 +12,12 @@ interface StudioProjectHeaderProps {
 const VIDEO_TYPES: Array<{ id: StudioProject["videoType"]; label: string }> = [
   { id: "reel", label: "Reel (vertical)" },
   { id: "full_video", label: "Full video (landscape)" },
+];
+
+const MODEL_OPTIONS = [
+  { value: "Veo 3.1 Lite", label: "Veo 3.1 Lite" },
+  { value: "Veo 3.1 Fast", label: "Veo 3.1 Fast" },
+  { value: "Veo 3.1 Quality", label: "Veo 3.1 Quality" },
 ];
 
 export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderProps) {
@@ -33,20 +40,6 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  function commitCreditsPerClip() {
-    const parsed = Number(creditsPerClipText);
-    const next = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : project.creditsPerClip;
-    setCreditsPerClipText(String(next));
-    if (next !== project.creditsPerClip) onPatch({ creditsPerClip: next });
-  }
-
-  function commitCreditsPerAccount() {
-    const parsed = Number(creditsPerAccountText);
-    const next = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : project.creditsPerAccount;
-    setCreditsPerAccountText(String(next));
-    if (next !== project.creditsPerAccount) onPatch({ creditsPerAccount: next });
-  }
-
   // Changing the model still fills in its usual credits-per-clip as a sensible default, but the
   // field stays freely editable afterward for accounts that price differently.
   function handleModelChange(nextModel: string) {
@@ -58,99 +51,80 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
 
   return (
     <header className="prompt-studio-header">
+      {/* This title input is a heading, not a labeled form field (no visible label sits above
+          it), so it stays a plain input rather than TextField — but it still only uses ps-*
+          tokens, no hardcoded colors. */}
       <input
-        className="prompt-studio-title-input"
+        className="w-full rounded-ps border border-transparent bg-transparent px-1.5 py-1 text-lg font-semibold text-ps-text hover:border-ps-border hover:bg-ps-elevated focus:border-ps-border focus:bg-ps-elevated focus:outline-none"
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => title.trim() && title !== project.title && onPatch({ title: title.trim() })}
       />
 
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field">
-          <span>Video type</span>
-          <select
-            value={project.videoType}
-            onChange={(e) => onPatch({ videoType: e.target.value as StudioProject["videoType"] })}
-          >
-            {VIDEO_TYPES.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mb-3.5 flex flex-wrap gap-3">
+        <SelectField
+          label="Video type"
+          value={project.videoType}
+          onChange={(value) => onPatch({ videoType: value as StudioProject["videoType"] })}
+          options={VIDEO_TYPES.map((v) => ({ value: v.id, label: v.label }))}
+          className="min-w-[160px] flex-1"
+        />
 
-        <label className="field">
-          <span>Aspect ratio</span>
-          <select value={project.aspectRatio} onChange={(e) => onPatch({ aspectRatio: e.target.value })}>
-            {ASPECT_RATIO_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.id}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="Aspect ratio"
+          value={project.aspectRatio}
+          onChange={(value) => onPatch({ aspectRatio: value })}
+          options={ASPECT_RATIO_PRESETS.map((p) => ({ value: p.id, label: p.id }))}
+          className="min-w-[140px] flex-1"
+        />
 
-        <label className="field">
-          <span>Platform</span>
-          <input
-            type="text"
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
-            onBlur={() => onPatch({ platform })}
-            placeholder="Instagram Reels"
-          />
-        </label>
+        <TextField
+          label="Platform"
+          value={platform}
+          onChange={setPlatform}
+          onBlur={() => onPatch({ platform })}
+          placeholder="Instagram Reels"
+          className="min-w-[180px] flex-1"
+        />
 
-        <label className="field">
-          <span>Style</span>
-          <input
-            type="text"
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-            onBlur={() => onPatch({ style })}
-            placeholder="cinematic, warm film grade"
-          />
-        </label>
+        <TextField
+          label="Style"
+          value={style}
+          onChange={setStyle}
+          onBlur={() => onPatch({ style })}
+          placeholder="cinematic, warm film grade"
+          className="min-w-[180px] flex-1"
+        />
       </div>
 
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field">
-          <span>Model</span>
-          <select value={model} onChange={(e) => handleModelChange(e.target.value)}>
-            <option value="Veo 3.1 Lite">Veo 3.1 Lite</option>
-            <option value="Veo 3.1 Fast">Veo 3.1 Fast</option>
-            <option value="Veo 3.1 Quality">Veo 3.1 Quality</option>
-          </select>
-        </label>
+      <div className="mb-3.5 flex flex-wrap gap-3">
+        <SelectField label="Model" value={model} onChange={handleModelChange} options={MODEL_OPTIONS} className="min-w-[160px] flex-1" />
 
-        <label className="field">
-          <span>Credits per clip</span>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={creditsPerClipText}
-            onChange={(e) => setCreditsPerClipText(e.target.value)}
-            onBlur={commitCreditsPerClip}
-          />
-        </label>
+        <NumberField
+          label="Credits per clip"
+          value={Number(creditsPerClipText) || 0}
+          onChange={(n) => {
+            setCreditsPerClipText(String(n));
+            if (n !== project.creditsPerClip) onPatch({ creditsPerClip: n });
+          }}
+          min={1}
+          className="min-w-[140px] flex-1"
+        />
 
-        <label className="field">
-          <span>Credits per account</span>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={creditsPerAccountText}
-            onChange={(e) => setCreditsPerAccountText(e.target.value)}
-            onBlur={commitCreditsPerAccount}
-          />
-        </label>
+        <NumberField
+          label="Credits per account"
+          value={Number(creditsPerAccountText) || 0}
+          onChange={(n) => {
+            setCreditsPerAccountText(String(n));
+            if (n !== project.creditsPerAccount) onPatch({ creditsPerAccount: n });
+          }}
+          min={1}
+          className="min-w-[140px] flex-1"
+        />
       </div>
 
-      {project.namingConvention && <p className="hint">Clip naming: {project.namingConvention}</p>}
+      {project.namingConvention && <p className="text-xs text-ps-muted">Clip naming: {project.namingConvention}</p>}
     </header>
   );
 }

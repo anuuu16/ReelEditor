@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CopyButton } from "./CopyButton.js";
 import type { StudioAccountGroup, StudioProject, StudioScene } from "./types.js";
+import { Button, Card, TextField, TextareaField } from "./ui/index.js";
 
 interface ScenePromptsListProps {
   project: StudioProject;
@@ -69,18 +70,13 @@ export function ScenePromptsList({ project, onPatch }: ScenePromptsListProps) {
   const groups = groupByAccount(scenes, project.accounts);
 
   return (
-    <section className="prompt-studio-section">
-      <h2>Scene prompts</h2>
-      <p className="hint">
-        One ~8s Flow prompt per scene, grouped by account. Edit any field directly, or generate a first draft above.
-      </p>
+    <Card title="Scene prompts" hint="One ~8s Flow prompt per scene, grouped by account. Edit any field directly, or generate a first draft above.">
+      {groups.length === 0 && <p className="mb-3.5 text-xs text-ps-muted">No scenes yet. Generate above, or add one by hand.</p>}
 
-      {groups.length === 0 && <p className="hint">No scenes yet. Generate above, or add one by hand.</p>}
-
-      {groups.map((group) => (
-        <div key={group.account} className="prompt-studio-account-group">
-          <div className="prompt-studio-account-header">
-            <h3>
+      {groups.map((group, groupIndex) => (
+        <div key={group.account} className={groupIndex > 0 ? "mt-3.5 border-t border-ps-border pt-3.5" : ""}>
+          <div className="mb-2.5 flex items-center justify-between gap-2.5">
+            <h3 className="m-0 text-xs font-semibold uppercase tracking-wide text-ps-muted">
               Account {group.account}
               {group.credits !== null ? ` · ${group.credits} credits` : ""}
             </h3>
@@ -88,71 +84,62 @@ export function ScenePromptsList({ project, onPatch }: ScenePromptsListProps) {
           </div>
 
           {group.scenes.map((scene) => (
-            <div className="prompt-studio-scene-row" key={scene.n}>
-              <div className="inline-fields prompt-studio-header-row">
-                <label className="field">
-                  <span>Scene {scene.n} title</span>
-                  <input
-                    type="text"
-                    value={scene.title ?? ""}
-                    onChange={(e) => updateSceneField(scene.n, { title: e.target.value })}
-                    onBlur={flush}
-                  />
-                </label>
-                <label className="field">
-                  <span>Clip name</span>
-                  <input
-                    type="text"
-                    value={scene.clipName}
-                    onChange={(e) => updateSceneField(scene.n, { clipName: e.target.value })}
-                    onBlur={flush}
-                  />
-                </label>
-                <label className="field">
-                  <span>Start</span>
-                  <input
-                    type="text"
-                    value={scene.timeStart ?? ""}
-                    onChange={(e) => updateSceneField(scene.n, { timeStart: e.target.value })}
-                    onBlur={flush}
-                  />
-                </label>
-                <label className="field">
-                  <span>End</span>
-                  <input
-                    type="text"
-                    value={scene.timeEnd ?? ""}
-                    onChange={(e) => updateSceneField(scene.n, { timeEnd: e.target.value })}
-                    onBlur={flush}
-                  />
-                </label>
+            <div className="mb-2.5 rounded-ps border border-ps-border bg-ps-elevated p-3" key={scene.n}>
+              <div className="mb-3.5 flex flex-wrap gap-3">
+                <TextField
+                  label={`Scene ${scene.n} title`}
+                  value={scene.title ?? ""}
+                  onChange={(value) => updateSceneField(scene.n, { title: value })}
+                  onBlur={flush}
+                  className="min-w-[160px] flex-1"
+                />
+                <TextField
+                  label="Clip name"
+                  value={scene.clipName}
+                  onChange={(value) => updateSceneField(scene.n, { clipName: value })}
+                  onBlur={flush}
+                  className="min-w-[160px] flex-1"
+                />
+                <TextField
+                  label="Start"
+                  value={scene.timeStart ?? ""}
+                  onChange={(value) => updateSceneField(scene.n, { timeStart: value })}
+                  onBlur={flush}
+                  className="min-w-[100px] flex-1"
+                />
+                <TextField
+                  label="End"
+                  value={scene.timeEnd ?? ""}
+                  onChange={(value) => updateSceneField(scene.n, { timeEnd: value })}
+                  onBlur={flush}
+                  className="min-w-[100px] flex-1"
+                />
               </div>
 
-              <label className="field">
-                <span>Prompt</span>
-                <textarea
-                  rows={4}
-                  value={scene.prompt}
-                  onChange={(e) => updateSceneField(scene.n, { prompt: e.target.value })}
-                  onBlur={flush}
-                  placeholder="Paste or write this scene's Flow prompt..."
-                />
-              </label>
+              <TextareaField
+                label="Prompt"
+                rows={4}
+                value={scene.prompt}
+                onChange={(value) => updateSceneField(scene.n, { prompt: value })}
+                onBlur={flush}
+                placeholder="Paste or write this scene's Flow prompt..."
+                className="mb-3.5"
+              />
 
-              <div className="inline-fields">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <CopyButton text={scene.prompt} label="Copy prompt" />
-                <button type="button" className="project-delete-button" onClick={() => handleRemoveScene(scene.n)}>
+                <Button variant="danger" onClick={() => handleRemoveScene(scene.n)}>
                   Remove scene
-                </button>
+                </Button>
               </div>
             </div>
           ))}
         </div>
       ))}
 
-      <button type="button" onClick={handleAddScene}>
+      <Button onClick={handleAddScene} className="mt-1">
         + Add scene
-      </button>
-    </section>
+      </Button>
+    </Card>
   );
 }
