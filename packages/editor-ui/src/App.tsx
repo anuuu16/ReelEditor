@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { Dashboard } from "./Dashboard.js";
 import { Editor } from "./Editor.js";
-import { ImageResizer } from "./ImageResizer.js";
+import { ImageEditor } from "./ImageEditor.js";
 
-type View = "dashboard" | "editor" | "resizer";
+type View = "dashboard" | "editor" | "imageEditor";
 
 export function App() {
   const [view, setView] = useState<View>("dashboard");
@@ -15,13 +15,13 @@ export function App() {
     setView("editor");
   }
 
-  if (view === "resizer") {
-    return <ImageResizer onBack={() => setView("dashboard")} />;
+  if (view === "imageEditor") {
+    return <ImageEditor onBack={() => setView("dashboard")} />;
   }
 
   if (view === "editor") {
     return <Editor initialProject={activeProject} onBackToDashboard={() => setView("dashboard")} />;
   }
 
-  return <Dashboard onOpenProject={openProject} onOpenResizer={() => setView("resizer")} />;
+  return <Dashboard onOpenProject={openProject} onOpenImageEditor={() => setView("imageEditor")} />;
 }

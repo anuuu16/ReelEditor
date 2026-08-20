@@ -1,9 +1,10 @@
 import type { ProjectModel } from "@reel-studio/shared-types";
 
 const DB_NAME = "reel-studio";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const PROJECT_STORE = "project";
 const MEDIA_STORE = "media";
+const IMAGE_STORE = "savedImages";
 const PROJECT_KEY = "current";
 
 function openDb(): Promise<IDBDatabase> {
@@ -16,6 +17,11 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(MEDIA_STORE)) {
         db.createObjectStore(MEDIA_STORE);
+      }
+      // v2: images exported from the Image Editor, kept separately from project media so they
+      // survive independently of any project and can be listed on the Dashboard.
+      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+        db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -61,4 +67,27 @@ export async function loadMediaBlob(id: string): Promise<Blob | null> {
 
 export async function deleteMediaBlob(id: string): Promise<void> {
   await runTransaction(MEDIA_STORE, "readwrite", (store) => store.delete(id));
+}
+
+export interface SavedImage {
+  id: string;
+  name: string;
+  blob: Blob;
+  width: number;
+  height: number;
+  format: string;
+  savedAt: number;
+}
+
+export async function saveImageToGallery(image: SavedImage): Promise<void> {
+  await runTransaction(IMAGE_STORE, "readwrite", (store) => store.put(image));
+}
+
+export async function listSavedImages(): Promise<SavedImage[]> {
+  const all = await runTransaction<SavedImage[]>(IMAGE_STORE, "readonly", (store) => store.getAll());
+  return (all ?? []).sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export async function deleteSavedImage(id: string): Promise<void> {
+  await runTransaction(IMAGE_STORE, "readwrite", (store) => store.delete(id));
 }
