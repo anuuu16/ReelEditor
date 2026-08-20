@@ -45,7 +45,13 @@ export type Action =
   | { type: "BULK_SET_FIT_MODE"; trackId: string; fitMode: FitMode }
   | { type: "BULK_SET_FILTER"; trackId: string; patch: Partial<ClipFilter> }
   | { type: "BULK_SET_TRANSFORM"; trackId: string; patch: Partial<Transform> }
-  | { type: "BULK_SET_TRANSITION"; trackId: string; transitionOutSeconds: number; transitionOutType: TransitionType }
+  | {
+      type: "BULK_SET_TRANSITION";
+      trackId: string;
+      transitionOutSeconds: number;
+      transitionOutType: TransitionType;
+      compensateLength?: boolean;
+    }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "ADD_TRACK"; kind: "audio" }
   | { type: "REMOVE_TRACK"; trackId: string }
@@ -252,18 +258,35 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         },
       };
 
-    case "BULK_SET_TRANSITION":
+    case "BULK_SET_TRANSITION": {
+      // The last clip on the track has no "next" clip to transition into, so
+      // layoutSequentialClips ignores its transitionOutSeconds — extending its
+      // outPoint here would just add trailing footage with nothing to offset it.
+      const trackClips = state.project.clips.filter((c) => c.trackId === action.trackId);
+      const lastId = trackClips.length > 0 ? trackClips[trackClips.length - 1].id : null;
+
       return {
         ...state,
         project: {
           ...state.project,
-          clips: state.project.clips.map((c) =>
-            c.trackId === action.trackId
-              ? { ...c, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType }
-              : c
-          ),
+          clips: state.project.clips.map((c) => {
+            if (c.trackId !== action.trackId) return c;
+            if (!action.compensateLength || c.id === lastId) {
+              return { ...c, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
+            }
+            // Ripple-extend into unused source footage by exactly the overlap amount, so the
+            // clip's contribution to the sequential layout (duration - overlap) is unchanged and
+            // the overall timeline length stays put even as the transition duration changes.
+            const source = state.project.sources.find((s) => s.id === c.sourceId);
+            const maxOut = source?.durationSeconds ?? c.outPoint;
+            const deltaSeconds = (action.transitionOutSeconds - c.transitionOutSeconds) * c.speed;
+            const minOut = c.inPoint + MIN_CLIP_DURATION_SECONDS * c.speed;
+            const outPoint = Math.max(minOut, Math.min(maxOut, c.outPoint + deltaSeconds));
+            return { ...c, outPoint, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
+          }),
         },
       };
+    }
 
     case "SPLIT_CLIP": {
       const clip = state.project.clips.find((c) => c.id === action.clipId);

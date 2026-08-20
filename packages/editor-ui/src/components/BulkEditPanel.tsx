@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { ClipFilter, Transform, TransitionType } from "@reel-studio/shared-types";
-import { applyFilterPreset, getTracksByKind, type FilterPresetName } from "@reel-studio/timeline-core";
+import {
+  applyFilterPreset,
+  getSequenceDuration,
+  getTracksByKind,
+  layoutSequentialClips,
+  type FilterPresetName,
+} from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 
@@ -18,9 +24,11 @@ export function BulkEditPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [trackId, setTrackId] = useState<string>(VIDEO_TRACK_ID);
+  const [compensateLength, setCompensateLength] = useState(true);
   const audioTracks = getTracksByKind(state.project, "audio");
   const isVideoTrack = trackId === VIDEO_TRACK_ID;
   const clips = state.project.clips.filter((c) => c.trackId === trackId);
+  const totalSeconds = getSequenceDuration(layoutSequentialClips(clips));
 
   function applyFade(fadeInSeconds: number, fadeOutSeconds: number) {
     dispatch({ type: "BULK_SET_FADE", trackId, fadeInSeconds, fadeOutSeconds });
@@ -57,7 +65,7 @@ export function BulkEditPanel() {
     clips.length && clips.every((c) => c.transitionOutType === clips[0].transitionOutType) ? clips[0].transitionOutType : null;
 
   function applyTransition(transitionOutSeconds: number, transitionOutType: TransitionType) {
-    dispatch({ type: "BULK_SET_TRANSITION", trackId, transitionOutSeconds, transitionOutType });
+    dispatch({ type: "BULK_SET_TRANSITION", trackId, transitionOutSeconds, transitionOutType, compensateLength });
   }
 
   return (
@@ -280,7 +288,7 @@ export function BulkEditPanel() {
           </label>
 
           <div className="field">
-            <span>Transition to next clip (all)</span>
+            <span>Transition to next clip (all) — {totalSeconds.toFixed(1)}s total</span>
             <div className="inline-fields inline-fields-wrap">
               <button
                 type="button"
@@ -303,6 +311,13 @@ export function BulkEditPanel() {
               ))}
             </div>
           </div>
+
+          <label className="field checkbox-field">
+            <input type="checkbox" checked={compensateLength} onChange={(e) => setCompensateLength(e.target.checked)} />
+            <span title="Extends each clip into its unused footage by the overlap amount, so adding a transition doesn't shorten the total. Falls short only if a clip has no spare footage left to extend into.">
+              Keep total length
+            </span>
+          </label>
 
           {anyHasTransition && (
             <label className="field">
