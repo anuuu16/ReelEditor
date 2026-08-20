@@ -1,5 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import { callLlmJson } from "./llm.js";
 import type { StudioAccountGroup, StudioScene } from "./studioProjects.js";
 
 // Generation is a convenience, not the only way in — a Studio project's poem/prompts can equally be
@@ -148,86 +147,14 @@ Concept: ${concept}
 Write scene ${i} of ${params.numScenes}. It should advance the piece logically and stay visually consistent with the master prompt.`;
 }
 
-function extractJson<T>(text: string): T {
-  const stripped = text.replace(/```json/gi, "```").replace(/```/g, "");
-  const start = stripped.indexOf("{");
-  const end = stripped.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("No JSON object found in model output");
-  }
-  return JSON.parse(stripped.slice(start, end + 1)) as T;
-}
-
-// Which LLM actually answers /studio/:id/generate — "openai" (default, since an Anthropic key
-// isn't always on hand) or "anthropic" (switch LLM_PROVIDER back to this the moment one is).
-// Both implementations stay in this file so switching back is a one-line env change, not a rewrite.
-function currentProvider(): "openai" | "anthropic" {
-  return (process.env.LLM_PROVIDER || "openai").toLowerCase() === "anthropic" ? "anthropic" : "openai";
-}
-
-let anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set (LLM_PROVIDER=anthropic)");
-    anthropicClient = new Anthropic({ apiKey });
-  }
-  return anthropicClient;
-}
-
-async function callAnthropicJson<T>(system: string, userMessage: string): Promise<T> {
-  const response = await getAnthropicClient().messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
-    max_tokens: 2048,
-    system,
-    messages: [{ role: "user", content: userMessage }],
-  });
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-  return extractJson<T>(text);
-}
-
-let openaiClient: OpenAI | null = null;
-function getOpenAiClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set (LLM_PROVIDER=openai)");
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
-
-async function callOpenAiJson<T>(system: string, userMessage: string): Promise<T> {
-  const response = await getOpenAiClient().chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4o",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userMessage },
-    ],
-  });
-  const text = response.choices[0]?.message?.content ?? "";
-  return extractJson<T>(text);
-}
-
-async function callLlmJson<T>(system: string, userMessage: string, attempts = 3): Promise<T> {
-  const call = currentProvider() === "anthropic" ? callAnthropicJson<T> : callOpenAiJson<T>;
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      return await call(system, userMessage);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
-}
-
 export async function runBaseCall(params: GenerateParams): Promise<BaseResult> {
   const { aspect, formatDesc } = aspectAndFormat(params.videoType);
   const system = buildBaseSystemPrompt({ aspect, formatDesc, audioLine: audioLine(params.ownAudio), numScenes: params.numScenes });
-  return callLlmJson<BaseResult>(system, buildBaseUserMessage(params));
+  return callLlmJson<BaseResult>(
+    system,
+    buildBaseUserMessage(params),
+    (o): o is BaseResult => !!(o && typeof (o as BaseResult).master_prompt === "string")
+  );
 }
 
 function blankScene(n: number): SceneResult {
@@ -239,7 +166,11 @@ export async function runSceneCall(params: GenerateParams, i: number, masterProm
   const system = buildSceneSystemPrompt({ aspect, audioLine: audioLine(params.ownAudio) });
   const userMessage = buildSceneUserMessage(params, i, masterPrompt, concept);
   try {
-    return await callLlmJson<SceneResult>(system, userMessage);
+    return await callLlmJson<SceneResult>(
+      system,
+      userMessage,
+      (o): o is SceneResult => !!(o && typeof (o as SceneResult).prompt === "string")
+    );
   } catch {
     // A single scene failing after all retries must not sink the whole generation — the person
     // gets a numbered, empty, still-editable slot instead of a fatal error mid-stream.

@@ -23,13 +23,14 @@ function isKnownModel(model: string): model is StudioGenerateModel {
 export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: PromptGeneratorProps) {
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState(project.platform ?? "");
-  const [numScenes, setNumScenes] = useState(project.scenes.length || 8);
+  // Kept as text while editing (not a number) so clearing the field to type a new value doesn't
+  // get force-clamped back to a boundary on every keystroke — clamping only happens on blur.
+  const [numScenesText, setNumScenesText] = useState(String(project.scenes.length || 8));
   const [style, setStyle] = useState(project.style ?? "");
   const [lang, setLang] = useState(project.languages[0] ?? "en");
   const [ownAudio, setOwnAudio] = useState(false);
   const [extra, setExtra] = useState("");
   const [model, setModel] = useState<StudioGenerateModel>(isKnownModel(project.model) ? project.model : "Veo 3.1 Lite");
-  const [creditsPerAccount, setCreditsPerAccount] = useState(project.creditsPerAccount);
 
   const [masterPrompt, setMasterPrompt] = useState(project.masterPrompt);
   const [concept, setConcept] = useState(project.concept ?? "");
@@ -58,6 +59,13 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
       .filter(Boolean);
   }
 
+  function commitNumScenes() {
+    const parsed = Math.round(Number(numScenesText));
+    const clamped = Number.isFinite(parsed) ? Math.max(1, Math.min(30, parsed)) : Number(numScenesText) || 8;
+    setNumScenesText(String(clamped));
+    return clamped;
+  }
+
   async function handleGenerate() {
     if (!topic.trim() || isGenerating) return;
     setError(null);
@@ -69,13 +77,13 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
       topic: topic.trim(),
       videoType: project.videoType,
       platform: platform || project.platform || "",
-      numScenes,
+      numScenes: commitNumScenes(),
       style: style || project.style || "",
       lang,
       ownAudio,
       extra,
       model,
-      creditsPerAccount,
+      creditsPerAccount: project.creditsPerAccount,
     };
 
     try {
@@ -139,13 +147,17 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
         </label>
 
         <label className="field">
-          <span>Number of scenes</span>
+          <span>
+            Number of scenes <span className="prompt-studio-char-count">(~{(Number(numScenesText) || 0) * 8}s total)</span>
+          </span>
           <input
             type="number"
             min={1}
             max={30}
-            value={numScenes}
-            onChange={(e) => setNumScenes(Math.max(1, Math.min(30, Number(e.target.value))))}
+            inputMode="numeric"
+            value={numScenesText}
+            onChange={(e) => setNumScenesText(e.target.value)}
+            onBlur={commitNumScenes}
           />
         </label>
       </div>
@@ -178,10 +190,12 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
           </select>
         </label>
 
-        <label className="field">
+        <div className="field">
           <span>Credits per account</span>
-          <input type="number" min={0} value={creditsPerAccount} onChange={(e) => setCreditsPerAccount(Number(e.target.value))} />
-        </label>
+          <p className="prompt-studio-derived-value" title="Set in the project settings above">
+            {project.creditsPerAccount}
+          </p>
+        </div>
       </div>
 
       <label className="field checkbox-field">

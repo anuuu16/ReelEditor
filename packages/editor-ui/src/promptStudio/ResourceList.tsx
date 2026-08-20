@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { deleteStudioResource, patchStudioResource, studioResourceUrl } from "./api.js";
-import type { MetadataVariant, StudioProject, StudioResource } from "./types.js";
+import { RESOURCE_KINDS } from "./resourceKinds.js";
+import type { MetadataVariant, StudioProject, StudioResource, StudioResourceKind } from "./types.js";
 
 interface ResourceListProps {
   project: StudioProject;
   onChanged: (resources: StudioResource[]) => void;
+  /** Restricts which kind groups render, e.g. a wizard step that only wants "Scene audio". */
+  allowedKinds?: StudioResourceKind[];
 }
 
 function ResourcePreview({ studioId, resource }: { studioId: string; resource: StudioResource }) {
@@ -41,6 +44,9 @@ function ResourceCard({
   onUpdated: (resource: StudioResource) => void;
 }) {
   const [variants, setVariants] = useState<MetadataVariant[]>(resource.metadata.length ? resource.metadata : []);
+  // Collapsed by default so a resource grid with many uploads doesn't turn into a wall of forms —
+  // the title/description/hashtag editor only matters once you actually need it.
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     setVariants(resource.metadata);
@@ -56,6 +62,7 @@ function ResourceCard({
   }
 
   function handleAddVariant() {
+    setIsExpanded(true);
     const next = [...variants, emptyVariant()];
     setVariants(next);
     flush(next).catch(() => undefined);
@@ -77,87 +84,95 @@ function ResourceCard({
     <div className="prompt-studio-resource-card">
       <ResourcePreview studioId={studioId} resource={resource} />
       <div className="prompt-studio-resource-meta">
-        <span className="prompt-studio-resource-kind">{resource.kind}</span>
         {resource.language && <span className="prompt-studio-resource-tag">{resource.language}</span>}
         {resource.sceneN !== null && <span className="prompt-studio-resource-tag">scene {resource.sceneN}</span>}
+        {variants.length > 0 && <span className="prompt-studio-resource-tag">{variants.length} variant{variants.length === 1 ? "" : "s"}</span>}
       </div>
-      <p className="hint">{resource.filename}</p>
-
-      {variants.map((variant, index) => (
-        <div className="prompt-studio-variant" key={index}>
-          <div className="inline-fields prompt-studio-header-row">
-            <label className="field">
-              <span>Label</span>
-              <input
-                type="text"
-                value={variant.label ?? ""}
-                onChange={(e) => updateVariant(index, { label: e.target.value })}
-                onBlur={() => flush(variants)}
-              />
-            </label>
-            <label className="field">
-              <span>Language</span>
-              <input
-                type="text"
-                value={variant.language ?? ""}
-                onChange={(e) => updateVariant(index, { language: e.target.value })}
-                onBlur={() => flush(variants)}
-              />
-            </label>
-          </div>
-          <label className="field">
-            <span>Title</span>
-            <input
-              type="text"
-              value={variant.title ?? ""}
-              onChange={(e) => updateVariant(index, { title: e.target.value })}
-              onBlur={() => flush(variants)}
-            />
-          </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              rows={2}
-              value={variant.description ?? ""}
-              onChange={(e) => updateVariant(index, { description: e.target.value })}
-              onBlur={() => flush(variants)}
-            />
-          </label>
-          <label className="field">
-            <span>Hashtags (comma separated)</span>
-            <input
-              type="text"
-              value={(variant.hashtags ?? []).join(", ")}
-              onChange={(e) =>
-                updateVariant(index, {
-                  hashtags: e.target.value
-                    .split(",")
-                    .map((h) => h.trim())
-                    .filter(Boolean),
-                })
-              }
-              onBlur={() => flush(variants)}
-            />
-          </label>
-          <button type="button" className="project-delete-button" onClick={() => handleRemoveVariant(index)}>
-            Remove variant
-          </button>
-        </div>
-      ))}
+      <p className="hint prompt-studio-resource-filename">{resource.filename}</p>
 
       <div className="inline-fields">
-        <button type="button" onClick={handleAddVariant}>
-          + Add another variant
+        <button type="button" onClick={() => setIsExpanded((v) => !v)}>
+          {isExpanded ? "Hide details" : "Details"}
         </button>
         <button type="button" className="project-delete-button" onClick={handleDelete}>
-          Delete resource
+          Delete
         </button>
       </div>
+
+      {isExpanded && (
+        <>
+          {variants.map((variant, index) => (
+            <div className="prompt-studio-variant" key={index}>
+              <div className="inline-fields prompt-studio-header-row">
+                <label className="field">
+                  <span>Label</span>
+                  <input
+                    type="text"
+                    value={variant.label ?? ""}
+                    onChange={(e) => updateVariant(index, { label: e.target.value })}
+                    onBlur={() => flush(variants)}
+                  />
+                </label>
+                <label className="field">
+                  <span>Language</span>
+                  <input
+                    type="text"
+                    value={variant.language ?? ""}
+                    onChange={(e) => updateVariant(index, { language: e.target.value })}
+                    onBlur={() => flush(variants)}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                <span>Title</span>
+                <input
+                  type="text"
+                  value={variant.title ?? ""}
+                  onChange={(e) => updateVariant(index, { title: e.target.value })}
+                  onBlur={() => flush(variants)}
+                />
+              </label>
+              <label className="field">
+                <span>Description</span>
+                <textarea
+                  rows={2}
+                  value={variant.description ?? ""}
+                  onChange={(e) => updateVariant(index, { description: e.target.value })}
+                  onBlur={() => flush(variants)}
+                />
+              </label>
+              <label className="field">
+                <span>Hashtags (comma separated)</span>
+                <input
+                  type="text"
+                  value={(variant.hashtags ?? []).join(", ")}
+                  onChange={(e) =>
+                    updateVariant(index, {
+                      hashtags: e.target.value
+                        .split(",")
+                        .map((h) => h.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  onBlur={() => flush(variants)}
+                />
+              </label>
+              <button type="button" className="project-delete-button" onClick={() => handleRemoveVariant(index)}>
+                Remove variant
+              </button>
+            </div>
+          ))}
+
+          <button type="button" onClick={handleAddVariant}>
+            + Add another variant
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
-export function ResourceList({ project, onChanged }: ResourceListProps) {
+export function ResourceList({ project, onChanged, allowedKinds }: ResourceListProps) {
   function handleDeleted(resourceId: string) {
     onChanged(project.resources.filter((r) => r.id !== resourceId));
   }
@@ -166,15 +181,40 @@ export function ResourceList({ project, onChanged }: ResourceListProps) {
     onChanged(project.resources.map((r) => (r.id === updated.id ? updated : r)));
   }
 
-  if (project.resources.length === 0) {
+  const kindSections = allowedKinds ? RESOURCE_KINDS.filter((k) => allowedKinds.includes(k.kind)) : RESOURCE_KINDS;
+  const visibleResources = allowedKinds ? project.resources.filter((r) => allowedKinds.includes(r.kind)) : project.resources;
+
+  if (visibleResources.length === 0) {
     return <p className="hint">No resources uploaded yet.</p>;
   }
 
   return (
-    <div className="prompt-studio-resource-grid">
-      {project.resources.map((resource) => (
-        <ResourceCard key={resource.id} studioId={project.id} resource={resource} onDeleted={handleDeleted} onUpdated={handleUpdated} />
-      ))}
+    <div className="prompt-studio-resource-groups">
+      {kindSections.map((section) => {
+        const items = project.resources
+          .filter((r) => r.kind === section.kind)
+          .sort((a, b) => (section.needsSceneN ? (a.sceneN ?? 0) - (b.sceneN ?? 0) : a.uploadedAt - b.uploadedAt));
+        if (items.length === 0) return null;
+
+        return (
+          <div key={section.kind} className="prompt-studio-resource-group">
+            <h3 className="prompt-studio-resource-group-title">
+              {section.label} <span className="prompt-studio-char-count">({items.length})</span>
+            </h3>
+            <div className="prompt-studio-resource-grid">
+              {items.map((resource) => (
+                <ResourceCard
+                  key={resource.id}
+                  studioId={project.id}
+                  resource={resource}
+                  onDeleted={handleDeleted}
+                  onUpdated={handleUpdated}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

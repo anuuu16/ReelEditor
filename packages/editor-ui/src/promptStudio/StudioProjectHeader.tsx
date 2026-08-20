@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ASPECT_RATIO_PRESETS } from "@reel-studio/timeline-core";
+import { creditsPerClipForModel } from "./creditMath.js";
 import type { StudioProject } from "./types.js";
 
 interface StudioProjectHeaderProps {
@@ -17,18 +18,43 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
   const [platform, setPlatform] = useState(project.platform ?? "");
   const [style, setStyle] = useState(project.style ?? "");
   const [model, setModel] = useState(project.model);
-  const [creditsPerClip, setCreditsPerClip] = useState(project.creditsPerClip);
-  const [creditsPerAccount, setCreditsPerAccount] = useState(project.creditsPerAccount);
+  // Kept as text while a field is being edited so clearing it to type a new value doesn't force
+  // it to "0" mid-edit — only parsed to a number when it's actually saved (on blur).
+  const [creditsPerClipText, setCreditsPerClipText] = useState(String(project.creditsPerClip));
+  const [creditsPerAccountText, setCreditsPerAccountText] = useState(String(project.creditsPerAccount));
 
   useEffect(() => {
     setTitle(project.title);
     setPlatform(project.platform ?? "");
     setStyle(project.style ?? "");
     setModel(project.model);
-    setCreditsPerClip(project.creditsPerClip);
-    setCreditsPerAccount(project.creditsPerAccount);
+    setCreditsPerClipText(String(project.creditsPerClip));
+    setCreditsPerAccountText(String(project.creditsPerAccount));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
+
+  function commitCreditsPerClip() {
+    const parsed = Number(creditsPerClipText);
+    const next = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : project.creditsPerClip;
+    setCreditsPerClipText(String(next));
+    if (next !== project.creditsPerClip) onPatch({ creditsPerClip: next });
+  }
+
+  function commitCreditsPerAccount() {
+    const parsed = Number(creditsPerAccountText);
+    const next = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : project.creditsPerAccount;
+    setCreditsPerAccountText(String(next));
+    if (next !== project.creditsPerAccount) onPatch({ creditsPerAccount: next });
+  }
+
+  // Changing the model still fills in its usual credits-per-clip as a sensible default, but the
+  // field stays freely editable afterward for accounts that price differently.
+  function handleModelChange(nextModel: string) {
+    setModel(nextModel);
+    const defaultCredits = creditsPerClipForModel(nextModel);
+    setCreditsPerClipText(String(defaultCredits));
+    onPatch({ model: nextModel, creditsPerClip: defaultCredits });
+  }
 
   return (
     <header className="prompt-studio-header">
@@ -92,7 +118,7 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
       <div className="inline-fields prompt-studio-header-row">
         <label className="field">
           <span>Model</span>
-          <select value={model} onChange={(e) => { setModel(e.target.value); onPatch({ model: e.target.value }); }}>
+          <select value={model} onChange={(e) => handleModelChange(e.target.value)}>
             <option value="Veo 3.1 Lite">Veo 3.1 Lite</option>
             <option value="Veo 3.1 Fast">Veo 3.1 Fast</option>
             <option value="Veo 3.1 Quality">Veo 3.1 Quality</option>
@@ -103,10 +129,11 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
           <span>Credits per clip</span>
           <input
             type="number"
-            min={0}
-            value={creditsPerClip}
-            onChange={(e) => setCreditsPerClip(Number(e.target.value))}
-            onBlur={() => onPatch({ creditsPerClip })}
+            min={1}
+            inputMode="numeric"
+            value={creditsPerClipText}
+            onChange={(e) => setCreditsPerClipText(e.target.value)}
+            onBlur={commitCreditsPerClip}
           />
         </label>
 
@@ -114,10 +141,11 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
           <span>Credits per account</span>
           <input
             type="number"
-            min={0}
-            value={creditsPerAccount}
-            onChange={(e) => setCreditsPerAccount(Number(e.target.value))}
-            onBlur={() => onPatch({ creditsPerAccount })}
+            min={1}
+            inputMode="numeric"
+            value={creditsPerAccountText}
+            onChange={(e) => setCreditsPerAccountText(e.target.value)}
+            onBlur={commitCreditsPerAccount}
           />
         </label>
       </div>

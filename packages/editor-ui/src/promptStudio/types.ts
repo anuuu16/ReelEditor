@@ -2,6 +2,8 @@
 // studioGenerate.ts. editor-ui does not depend on render-service as a package, so these are kept
 // as a hand-maintained single source of truth for the rest of this feature to import from.
 
+import type { RhymePoemSlot } from "./rhymeTypes.js";
+
 export type StudioResourceKind =
   | "cover"
   | "logo"
@@ -83,6 +85,7 @@ export interface StudioProject {
   resources: StudioResource[];
   editorProjects: StudioEditorProjectLink[];
   metadata: MetadataVariant[];
+  poems?: RhymePoemSlot[];
 }
 
 export interface StudioProjectSummary {

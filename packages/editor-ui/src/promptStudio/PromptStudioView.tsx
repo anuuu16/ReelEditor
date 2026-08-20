@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { createStudioProject, deleteStudioProject, getStudioProject, listStudioProjects, patchStudioProject } from "./api.js";
+import { JsonImportExport } from "./JsonImportExport.js";
 import { LaunchEditorPanel } from "./LaunchEditorPanel.js";
 import { PoemEditor } from "./PoemEditor.js";
 import { PromptGenerator } from "./PromptGenerator.js";
 import { ResourceList } from "./ResourceList.js";
 import { ResourceUploader } from "./ResourceUploader.js";
+import { RhymeStudioView } from "./RhymeStudioView.js";
 import { ScenePromptsList } from "./ScenePromptsList.js";
+import { StudioOverview } from "./StudioOverview.js";
 import { StudioProjectHeader } from "./StudioProjectHeader.js";
 import type { StudioEditorProjectLink, StudioProject, StudioProjectSummary, StudioResource } from "./types.js";
 
@@ -14,6 +17,19 @@ interface PromptStudioViewProps {
   onBack: () => void;
   onOpenProject: (project: ProjectModel) => void;
 }
+
+type DetailTab = "overview" | "settings" | "content" | "prompts" | "rhyme" | "scenes" | "resources" | "editors";
+
+const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "settings", label: "Settings" },
+  { id: "content", label: "Written content" },
+  { id: "prompts", label: "AI prompts" },
+  { id: "rhyme", label: "Rhyme Studio" },
+  { id: "scenes", label: "Scenes" },
+  { id: "resources", label: "Resources" },
+  { id: "editors", label: "Editor projects" },
+];
 
 function formatSummaryMeta(s: StudioProjectSummary): string {
   const languages = s.languages.length ? s.languages.join(", ") : "no languages yet";
@@ -30,6 +46,7 @@ export function PromptStudioView({ onBack, onOpenProject }: PromptStudioViewProp
   const [project, setProject] = useState<StudioProject | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
 
   const refreshList = useCallback(() => {
     listStudioProjects()
@@ -47,6 +64,7 @@ export function PromptStudioView({ onBack, onOpenProject }: PromptStudioViewProp
     try {
       const full = await getStudioProject(id);
       setProject(full);
+      setActiveTab("overview");
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -60,6 +78,7 @@ export function PromptStudioView({ onBack, onOpenProject }: PromptStudioViewProp
     try {
       const created = await createStudioProject({});
       setProject(created);
+      setActiveTab("overview");
     } catch (err) {
       setListError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -180,22 +199,53 @@ export function PromptStudioView({ onBack, onOpenProject }: PromptStudioViewProp
         </div>
       </header>
 
-      <div className="prompt-studio-body">
-        {detailError && <p className="export-error">{detailError}</p>}
+      <div className="prompt-studio-layout">
+        <nav className="prompt-studio-sidenav">
+          {DETAIL_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={activeTab === tab.id ? "active" : ""}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-        <StudioProjectHeader project={project} onPatch={patchProject} />
-        <PoemEditor project={project} onPatch={patchProject} />
-        <PromptGenerator project={project} onPatch={patchProject} onLocalUpdate={applyLocalUpdate} onRefresh={refreshProject} />
-        <ScenePromptsList project={project} onPatch={patchProject} />
+        <div className="prompt-studio-main">
+          {detailError && <p className="export-error">{detailError}</p>}
 
-        <section className="prompt-studio-section">
-          <h2>Resources</h2>
-          <p className="hint">Cover, logo, banner, character references, generated scene clips/audio, and finished exports.</p>
-          <ResourceUploader project={project} onUploaded={handleResourceUploaded} />
-          <ResourceList project={project} onChanged={handleResourcesChanged} />
-        </section>
+          {activeTab === "overview" && <StudioOverview project={project} onNavigate={setActiveTab} />}
 
-        <LaunchEditorPanel project={project} onLinkAdded={handleLinkAdded} onOpenProject={onOpenProject} />
+          {activeTab === "settings" && <StudioProjectHeader project={project} onPatch={patchProject} />}
+
+          {activeTab === "content" && <PoemEditor project={project} onPatch={patchProject} />}
+
+          {activeTab === "prompts" && (
+            <>
+              <PromptGenerator project={project} onPatch={patchProject} onLocalUpdate={applyLocalUpdate} onRefresh={refreshProject} />
+              <JsonImportExport project={project} onPatch={patchProject} />
+            </>
+          )}
+
+          {activeTab === "rhyme" && <RhymeStudioView project={project} onPatch={patchProject} onOpenProject={onOpenProject} />}
+
+          {activeTab === "scenes" && <ScenePromptsList project={project} onPatch={patchProject} />}
+
+          {activeTab === "resources" && (
+            <section className="prompt-studio-section">
+              <h2>Resources</h2>
+              <p className="hint">Cover, logo, banner, character references, generated scene clips/audio, and finished exports.</p>
+              <ResourceUploader project={project} onUploaded={handleResourceUploaded} />
+              <ResourceList project={project} onChanged={handleResourcesChanged} />
+            </section>
+          )}
+
+          {activeTab === "editors" && (
+            <LaunchEditorPanel project={project} onLinkAdded={handleLinkAdded} onOpenProject={onOpenProject} />
+          )}
+        </div>
       </div>
     </div>
   );

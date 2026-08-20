@@ -16,6 +16,7 @@ import {
   saveProjectFile,
 } from "./projects.js";
 import { startRenderJob } from "./render.js";
+import { createRhymeRouter } from "./rhymeRoutes.js";
 import { aspectAndFormat, creditsPerClipForModel, generateStudioProject, type GenerateParams } from "./studioGenerate.js";
 import {
   deleteStudioDir,
@@ -50,7 +51,7 @@ app.use(express.json());
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin;
   if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -517,6 +518,8 @@ app.post("/studio/:studioId/generate", requireValidStudioId, async (req: Request
   }
   res.end();
 });
+
+app.use("/rhyme", createRhymeRouter());
 
 app.listen(PORT, () => {
   console.log(`render-service listening on http://localhost:${PORT}`);

@@ -105,6 +105,12 @@ export interface StudioProject {
   resources: StudioResource[];
   editorProjects: StudioEditorProjectLink[];
   metadata: MetadataVariant[];
+  /**
+   * Rhyme Studio's poem slots (generation params, every version ever produced, and each version's
+   * built reel). Opaque here on purpose, this store has no reason to know their shape, it just
+   * round-trips whatever the client PATCHes in, the same way every other project field does.
+   */
+  poems?: unknown[];
 }
 
 export interface StudioProjectSummary {
