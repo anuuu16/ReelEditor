@@ -247,7 +247,10 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       const laidOut = trackClips.find((c) => c.id === clip.id);
       if (!laidOut) return state;
 
-      const splitSourceTime = clip.inPoint + (action.atTime - laidOut.timelineStart) * clip.speed;
+      // effectiveSpeed, not the raw clip.speed: laidOut.timelineStart reflects the transition-
+      // compensated layout, so converting a timeline position back to source time must use the
+      // same rate that produced that layout, or the split point drifts on any clip with a transition.
+      const splitSourceTime = clip.inPoint + (action.atTime - laidOut.timelineStart) * laidOut.effectiveSpeed;
       if (
         splitSourceTime <= clip.inPoint + MIN_CLIP_DURATION_SECONDS ||
         splitSourceTime >= clip.outPoint - MIN_CLIP_DURATION_SECONDS

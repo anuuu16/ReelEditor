@@ -3,6 +3,7 @@ import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { trackKindAccepts } from "../media/trackAccepts.js";
 import { ClipBlock } from "./ClipBlock.js";
+import { MediaPickerModal } from "./MediaPickerModal.js";
 
 interface TrackRowProps {
   trackId: string;
@@ -103,21 +104,11 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
           title={`Add a ${accept} clip at the start`}
           onClick={(e) => {
             e.stopPropagation();
-            setAddMenuSide(addMenuSide === "start" ? null : "start");
+            setAddMenuSide("start");
           }}
         >
           +
         </button>
-        {addMenuSide === "start" && (
-          <div className="track-add-menu" style={{ left: 0 }} onClick={(e) => e.stopPropagation()}>
-            {candidateSources.length === 0 && <span className="hint">Import {accept} first</span>}
-            {candidateSources.map((s) => (
-              <button key={s.id} type="button" onClick={() => handleAddClip(s.id, 0)}>
-                {s.name}
-              </button>
-            ))}
-          </div>
-        )}
 
         {clips.map((clip, i) => (
           <ClipBlock key={clip.id} clip={clip} index={i} pixelsPerSecond={pixelsPerSecond} />
@@ -131,23 +122,21 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
             title={`Add a ${accept} clip at the end`}
             onClick={(e) => {
               e.stopPropagation();
-              setAddMenuSide(addMenuSide === "end" ? null : "end");
+              setAddMenuSide("end");
             }}
           >
             +
           </button>
         )}
-        {addMenuSide === "end" && (
-          <div className="track-add-menu" style={{ left: endX }} onClick={(e) => e.stopPropagation()}>
-            {candidateSources.length === 0 && <span className="hint">Import {accept} first</span>}
-            {candidateSources.map((s) => (
-              <button key={s.id} type="button" onClick={() => handleAddClip(s.id, clips.length)}>
-                {s.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
+      {addMenuSide && (
+        <MediaPickerModal
+          title={`Add a ${accept} clip at the ${addMenuSide}`}
+          candidates={candidateSources}
+          onChoose={(sourceId) => handleAddClip(sourceId, addMenuSide === "start" ? 0 : clips.length)}
+          onClose={() => setAddMenuSide(null)}
+        />
+      )}
     </div>
   );
 }

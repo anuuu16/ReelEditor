@@ -2,33 +2,49 @@ import type { Clip } from "@reel-studio/shared-types";
 
 export interface LaidOutClip extends Clip {
   timelineStart: number;
+  /** Full slot length, including half of each adjacent transition's overlap — see effectiveSpeed. */
   duration: number;
+  /**
+   * The playback rate to actually use when mapping timeline time to source time — equal to
+   * `clip.speed` whenever this clip has no transitions touching it, but nudged slightly slower
+   * when it does. A transition borrows a shared window from both clips' slots, which would
+   * normally shrink the total sequence by the transition's length; instead, each clip's slot is
+   * stretched by half of each adjacent transition and its *effective* speed is reduced by the same
+   * proportion, so the same trimmed footage spreads across the slightly longer slot. Net effect:
+   * total sequence duration is exactly the sum of every clip's own (speed-adjusted) length,
+   * regardless of how many transitions are in the chain. `clip.speed` itself is left untouched —
+   * this is a layout-time compensation, not a change to the person's chosen speed.
+   */
+  effectiveSpeed: number;
 }
 
 // A clip's transitionOutSeconds pulls the next clip's start earlier, creating an overlap window
-// between them — clamped to at most half of either clip's own duration so a transition can never
-// consume a whole clip or cross past its midpoint.
+// between them — clamped to at most half of either clip's own (nominal, pre-compensation) duration
+// so a transition can never consume a whole clip or cross past its midpoint.
 function clampedOverlap(duration: number, nextDuration: number, requested: number): number {
   return Math.max(0, Math.min(requested, duration / 2, nextDuration / 2));
 }
 
 export function layoutSequentialClips(clips: Clip[]): LaidOutClip[] {
-  let cursor = 0;
   const laidOut: LaidOutClip[] = [];
+  let cursor = 0;
+  let incomingOverlap = 0; // carried over from the previous iteration's outgoingOverlap
+
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
-    const duration = (clip.outPoint - clip.inPoint) / clip.speed;
-    laidOut.push({ ...clip, timelineStart: cursor, duration });
-
+    const nominalDuration = (clip.outPoint - clip.inPoint) / clip.speed;
     const next = clips[i + 1];
-    if (next) {
-      const nextDuration = (next.outPoint - next.inPoint) / next.speed;
-      // `?? 0`: projects saved before transitions existed have no transitionOutSeconds field at
-      // all, and Math.min(undefined, ...) is NaN — which would corrupt every later clip's layout.
-      cursor += duration - clampedOverlap(duration, nextDuration, clip.transitionOutSeconds ?? 0);
-    } else {
-      cursor += duration;
-    }
+    const nextNominalDuration = next ? (next.outPoint - next.inPoint) / next.speed : 0;
+    // `?? 0`: projects saved before transitions existed have no transitionOutSeconds field at all,
+    // and Math.min(undefined, ...) is NaN — which would corrupt every later clip's layout.
+    const outgoingOverlap = next ? clampedOverlap(nominalDuration, nextNominalDuration, clip.transitionOutSeconds ?? 0) : 0;
+
+    const duration = nominalDuration + incomingOverlap / 2 + outgoingOverlap / 2;
+    const effectiveSpeed = duration > 0 ? (clip.speed * nominalDuration) / duration : clip.speed;
+
+    laidOut.push({ ...clip, timelineStart: cursor, duration, effectiveSpeed });
+    cursor += duration - outgoingOverlap;
+    incomingOverlap = outgoingOverlap;
   }
   return laidOut;
 }
@@ -44,7 +60,7 @@ export function findActiveClip(laidOutClips: LaidOutClip[], time: number): Activ
     const clip = laidOutClips[index];
     const end = clip.timelineStart + clip.duration;
     if (time >= clip.timelineStart && time < end) {
-      const localTime = clip.inPoint + (time - clip.timelineStart) * clip.speed;
+      const localTime = clip.inPoint + (time - clip.timelineStart) * clip.effectiveSpeed;
       return { clip, localTime, index };
     }
   }
@@ -82,8 +98,8 @@ export function findTransitionAt(laidOutClips: LaidOutClip[], time: number): Act
     if (overlapEnd <= overlapStart) continue;
     if (time >= overlapStart && time < overlapEnd) {
       return {
-        outgoing: { clip: a, localTime: a.inPoint + (time - a.timelineStart) * a.speed, index: i },
-        incoming: { clip: b, localTime: b.inPoint + (time - b.timelineStart) * b.speed, index: i + 1 },
+        outgoing: { clip: a, localTime: a.inPoint + (time - a.timelineStart) * a.effectiveSpeed, index: i },
+        incoming: { clip: b, localTime: b.inPoint + (time - b.timelineStart) * b.effectiveSpeed, index: i + 1 },
         progress: (time - overlapStart) / (overlapEnd - overlapStart),
       };
     }

@@ -218,13 +218,15 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return prevLabel;
   }
 
-  function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
+  function buildAudioChain(clip: LaidOutClip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
     if (clip.muted || forceSilent) {
       return `anullsrc=r=48000:cl=stereo,atrim=duration=${duration.toFixed(3)}[${label}]`;
     }
     return (
       `[${inputIdx}:a]atrim=start=${clip.inPoint}:end=${clip.outPoint},asetpts=PTS-STARTPTS` +
-      `${buildAtempoChain(clip.speed)},volume=${clip.volume}${buildFadeSuffix(clip, duration)}[${label}]`
+      // effectiveSpeed (not the person's raw clip.speed) so a transitioned clip's audio is stretched
+      // by the same tiny amount as its video, keeping the total sequence duration unchanged.
+      `${buildAtempoChain(clip.effectiveSpeed)},volume=${clip.volume}${buildFadeSuffix(clip, duration)}[${label}]`
     );
   }
 
@@ -242,7 +244,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const inputIdx = isImageClip ? addImageInput(clip.sourceId, clip.duration) : inputIndexFor(clip.sourceId);
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
-    const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},`;
+    const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.effectiveSpeed},`;
     filterChains.push(
       `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
     );

@@ -48,18 +48,18 @@ export function Timeline() {
           <Playhead pixelsPerSecond={pixelsPerSecond} totalDuration={totalDuration} />
         </div>
       </div>
-      <div className="timeline-add-track">
-        <button type="button" onClick={() => dispatch({ type: "ADD_TRACK", kind: "audio" })}>
+      <div className="timeline-footer">
+        <button type="button" className="timeline-add-track" onClick={() => dispatch({ type: "ADD_TRACK", kind: "audio" })}>
           + Add audio track
         </button>
-      </div>
-      <div className="timeline-toolbar">
-        <button type="button" onClick={zoomOut} title="Zoom out">
-          <MagnifierIcon variant="out" />
-        </button>
-        <button type="button" onClick={zoomIn} title="Zoom in">
-          <MagnifierIcon variant="in" />
-        </button>
+        <div className="timeline-toolbar">
+          <button type="button" onClick={zoomOut} title="Zoom out">
+            <MagnifierIcon variant="out" />
+          </button>
+          <button type="button" onClick={zoomIn} title="Zoom in">
+            <MagnifierIcon variant="in" />
+          </button>
+        </div>
       </div>
     </div>
   );

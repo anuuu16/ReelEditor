@@ -363,12 +363,20 @@ body {
   min-height: 0;
 }
 
+.timeline-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 8px 0 0 60px;
+}
+
 .timeline-toolbar {
   display: flex;
   flex-shrink: 0;
-  justify-content: flex-end;
   gap: 6px;
-  padding-top: 6px;
 }
 
 .timeline-toolbar button {
@@ -390,16 +398,20 @@ body {
 }
 
 .timeline-scroll {
-  /* Grow to fill the panel when there's room to scroll many tracks, but shrink below content
-     height (rather than stretch past it) when there are only a couple of short tracks — flex-grow
-     alone left dead space between the last track and the toolbar when content was short. */
-  flex: 0 1 auto;
+  /* Grows to fill the panel so leftover vertical space renders as more of this same dark canvas
+     instead of the page background showing through as a stray blank gap. The add-track/zoom
+     controls live in `.timeline-footer` (a sibling, pinned via margin-top: auto), so growing this
+     no longer displaces them the way it once did when they were packed inside the same flow. */
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  background: #14151a;
+  border-radius: 8px;
 }
 
 .timeline-content {
   position: relative;
+  min-height: 100%;
 }
 
 .time-ruler {
@@ -473,10 +485,6 @@ body {
 
 .timeline-add-track {
   flex-shrink: 0;
-  padding: 2px 0 10px 60px;
-}
-
-.timeline-add-track button {
   background: #23242b;
   color: #b7b8c2;
   border: 1px dashed #34353d;
@@ -486,7 +494,7 @@ body {
   cursor: pointer;
 }
 
-.timeline-add-track button:hover {
+.timeline-add-track:hover {
   color: #e6e6e9;
   border-color: #5b7cff;
 }
@@ -548,43 +556,66 @@ body {
   transform: translateY(-50%);
 }
 
-.track-add-menu {
-  position: absolute;
-  top: 100%;
-  z-index: 5;
-  margin-top: 4px;
-  background: #1e1f26;
-  border: 1px solid #2a2b31;
-  border-radius: 6px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 140px;
-  max-height: 160px;
+.media-picker-panel {
+  width: 420px;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
-.track-add-menu button {
-  background: transparent;
-  border: none;
-  color: #e6e6e9;
-  text-align: left;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 12px;
+.media-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.media-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #23242b;
+  border: 1px solid #34353d;
+  border-radius: 8px;
+  padding: 8px;
   cursor: pointer;
+  color: #e6e6e9;
+}
+
+.media-picker-item:hover {
+  border-color: #5b7cff;
+  background: #262835;
+}
+
+.media-picker-thumb {
+  width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1b20;
+  border-radius: 4px;
+  overflow: hidden;
+  color: #9294a1;
+}
+
+.media-picker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-picker-thumb svg {
+  width: 22px;
+  height: 22px;
+}
+
+.media-picker-name {
+  font-size: 11px;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.track-add-menu button:hover {
-  background: #2a2b31;
-}
-
-.track-add-menu .hint {
-  padding: 4px 6px;
+  max-width: 100%;
 }
 
 .clip-block {
@@ -697,29 +728,44 @@ body {
   right: 0;
 }
 
-.clip-mute-toggle {
-  font-size: 9px;
-  font-weight: 700;
+.clip-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   color: #b7b8c2;
   background: transparent;
   border: 1px solid #4a4b55;
-  border-radius: 3px;
-  padding: 0 3px;
-  flex-shrink: 0;
+  border-radius: 4px;
+  padding: 0;
   cursor: pointer;
 }
 
-.clip-mute-toggle.muted {
+.clip-icon-button:hover {
+  color: #e6e6e9;
+  border-color: #5b7cff;
+}
+
+.clip-icon-button.muted {
   color: #ff9d9d;
   border-color: #ff9d9d;
 }
 
 .clip-name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 11px;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.clip-more-button {
+  margin-left: auto;
+  z-index: 3;
 }
 
 .clip-remove {
@@ -731,6 +777,76 @@ body {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
+}
+
+.clip-context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+
+.clip-context-menu {
+  position: fixed;
+  z-index: 21;
+  min-width: 200px;
+  max-width: 240px;
+  background: #1e1f26;
+  border: 1px solid #2a2b31;
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.clip-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #e6e6e9;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-context-item:hover:not(:disabled) {
+  background: #2a2b31;
+}
+
+.clip-context-item:disabled {
+  color: #5a5b64;
+  cursor: not-allowed;
+}
+
+.clip-context-item.destructive {
+  color: #ff9d9d;
+}
+
+.clip-context-item.destructive:hover:not(:disabled) {
+  background: rgba(255, 157, 157, 0.12);
+}
+
+.clip-context-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.clip-context-divider {
+  height: 1px;
+  margin: 3px 4px;
+  background: #2a2b31;
 }
 
 .clip-inspector {
@@ -939,10 +1055,17 @@ body {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: #b7b8c2;
   font-size: 15px;
-  padding: 2px 6px;
+  padding: 4px;
+}
+
+.export-panel button.export-close:hover {
+  color: #e6e6e9;
 }
 
 .export-progress-track {
