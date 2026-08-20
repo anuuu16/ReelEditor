@@ -51,7 +51,7 @@ export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProjec
         <button type="button" onClick={onExit}>
           ← Back to poems
         </button>
-        <h3>{slot.versions[slot.activeVersionIndex].poem.title || "Untitled poem"}</h3>
+        <h3>{Object.values(slot.versions[slot.activeVersionIndex].poem.titles)[0] || "Untitled poem"}</h3>
       </div>
 
       <div className="rhyme-wizard-steps">

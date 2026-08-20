@@ -34,14 +34,18 @@ export function createRhymeRouter(): Router {
       res.status(400).json({ error: "topic is required" });
       return;
     }
+    const languages = Array.isArray(body.languages) ? body.languages.filter(isNonEmptyString) : [];
+    if (languages.length === 0) {
+      res.status(400).json({ error: "languages must be a non-empty array" });
+      return;
+    }
     const params: PoemParams = {
       topic: body.topic,
       age: body.age ?? "Preschool (4-6)",
       style: body.style ?? "Rhyme",
-      lines: Number(body.lines) || 10,
+      lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(3, Math.min(6, Number(body.scenes) || 4)),
-      lang: body.lang ?? "English",
-      lang2: body.lang2,
+      languages,
       extra: body.extra,
       avoidTitles: Array.isArray(body.avoidTitles) ? body.avoidTitles.filter(isNonEmptyString) : undefined,
     };
@@ -54,8 +58,9 @@ export function createRhymeRouter(): Router {
 
   router.post("/poem/rework", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReworkParams>;
-    if (!isNonEmptyString(body.topic) || !body.current || !isNonEmptyString(body.current.title)) {
-      res.status(400).json({ error: "topic and current poem are required" });
+    const languages = Array.isArray(body.languages) ? body.languages.filter(isNonEmptyString) : [];
+    if (!isNonEmptyString(body.topic) || !body.current || languages.length === 0) {
+      res.status(400).json({ error: "topic, languages, and current poem are required" });
       return;
     }
     if (body.kind !== "regenerate" && body.kind !== "optimize" && body.kind !== "enhance") {
@@ -66,10 +71,9 @@ export function createRhymeRouter(): Router {
       topic: body.topic,
       age: body.age ?? "Preschool (4-6)",
       style: body.style ?? "Rhyme",
-      lines: Number(body.lines) || 10,
+      lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(3, Math.min(6, Number(body.scenes) || 4)),
-      lang: body.lang ?? "English",
-      lang2: body.lang2,
+      languages,
       extra: body.extra,
       avoidTitles: Array.isArray(body.avoidTitles) ? body.avoidTitles.filter(isNonEmptyString) : undefined,
       kind: body.kind,
@@ -98,17 +102,16 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/scene", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelSceneParams>;
-    if (!isNonEmptyString(body.master) || !body.seg || !isNonEmptyString(body.seg.lines)) {
+    if (!isNonEmptyString(body.master) || !body.seg || !body.seg.lines || typeof body.seg.lines !== "object") {
       res.status(400).json({ error: "master and seg.lines are required" });
       return;
     }
     const params: ReelSceneParams = {
       master: body.master,
-      seg: { lines: body.seg.lines, lines2: body.seg.lines2, dur: Number(body.seg.dur) || 8 },
+      seg: { lines: body.seg.lines, dur: Number(body.seg.dur) || 8 },
       idx: Number(body.idx) || 0,
       total: Number(body.total) || 1,
-      lang: body.lang ?? "English",
-      lang2: body.lang2,
+      primaryLanguage: body.primaryLanguage ?? Object.keys(body.seg.lines)[0] ?? "English",
     };
     try {
       res.json(await generateReelScene(params));

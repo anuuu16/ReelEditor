@@ -2144,6 +2144,18 @@ body {
   margin: -6px 0 14px;
 }
 
+.rhyme-language-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.rhyme-poem-card-reel-controls {
+  align-items: flex-end;
+  margin: 10px 0;
+}
+
 .rhyme-preset-chip {
   background: #23242b;
   color: #9294a1;
