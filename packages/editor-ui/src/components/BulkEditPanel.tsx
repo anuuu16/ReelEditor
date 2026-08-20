@@ -314,7 +314,7 @@ export function BulkEditPanel() {
 
           <label className="field checkbox-field">
             <input type="checkbox" checked={compensateLength} onChange={(e) => setCompensateLength(e.target.checked)} />
-            <span title="Extends each clip into its unused footage by the overlap amount, so adding a transition doesn't shorten the total. Falls short only if a clip has no spare footage left to extend into.">
+            <span title="Compensates each clip for the overlap so adding a transition doesn't shorten the total — extends into unused source footage first, then nudges playback speed down slightly for whatever footage can't cover (most imported clips use their full source length, so speed does most of the work).">
               Keep total length
             </span>
           </label>

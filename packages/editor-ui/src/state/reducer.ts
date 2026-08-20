@@ -274,15 +274,29 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
             if (!action.compensateLength || c.id === lastId) {
               return { ...c, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
             }
-            // Ripple-extend into unused source footage by exactly the overlap amount, so the
-            // clip's contribution to the sequential layout (duration - overlap) is unchanged and
-            // the overall timeline length stays put even as the transition duration changes.
+            // Keep "duration = baseDuration + transitionOutSeconds" true for this clip, so its
+            // contribution to the sequential layout (duration - overlap) is unchanged and the
+            // overall timeline length stays put as the transition duration changes. Most clips
+            // start out using their entire source (no spare footage past outPoint) — extending
+            // outPoint alone can't add duration there, so once spare footage runs out this also
+            // nudges speed down just enough to make up the rest. targetDuration is exact by
+            // construction (speed is solved for it), so this invariant never drifts across repeated
+            // dispatches even when footage-clamped.
+            const currentDuration = (c.outPoint - c.inPoint) / c.speed;
+            const baseDuration = currentDuration - c.transitionOutSeconds;
+            const targetDuration = Math.max(MIN_CLIP_DURATION_SECONDS, baseDuration + action.transitionOutSeconds);
+
             const source = state.project.sources.find((s) => s.id === c.sourceId);
             const maxOut = source?.durationSeconds ?? c.outPoint;
-            const deltaSeconds = (action.transitionOutSeconds - c.transitionOutSeconds) * c.speed;
-            const minOut = c.inPoint + MIN_CLIP_DURATION_SECONDS * c.speed;
-            const outPoint = Math.max(minOut, Math.min(maxOut, c.outPoint + deltaSeconds));
-            return { ...c, outPoint, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
+            const minOut = c.inPoint + MIN_CLIP_DURATION_SECONDS;
+            // Reference speed 1 here (not c.speed) so the footage/speed split is a pure function of
+            // (inPoint, targetDuration, maxOut) rather than of whatever speed a previous compensation
+            // pass left behind — otherwise reducing the transition back down doesn't cleanly recover
+            // the original outPoint/speed even though the total duration math stays correct either way.
+            const outPoint = Math.max(minOut, Math.min(maxOut, c.inPoint + targetDuration));
+            const speed = (outPoint - c.inPoint) / targetDuration;
+
+            return { ...c, outPoint, speed, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
           }),
         },
       };
