@@ -1,11 +1,18 @@
 import { useState } from "react";
-import type { ClipFilter, Transform } from "@reel-studio/shared-types";
+import type { ClipFilter, Transform, TransitionType } from "@reel-studio/shared-types";
 import { applyFilterPreset, getTracksByKind, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 
 const MAX_BULK_FADE_SECONDS = 5;
 const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
+const TRANSITION_TYPE_NAMES: TransitionType[] = ["dissolve", "slide", "wipe", "zoom"];
+const TRANSITION_TYPE_LABELS: Record<TransitionType, string> = {
+  dissolve: "Dissolve",
+  slide: "Slide",
+  wipe: "Wipe",
+  zoom: "Zoom",
+};
 
 export function BulkEditPanel() {
   const state = useEditorState();
@@ -43,6 +50,15 @@ export function BulkEditPanel() {
     clips.length && clips.every((c) => (c.filter.preset ?? "none") === (clips[0].filter.preset ?? "none"))
       ? clips[0].filter.preset ?? "none"
       : null;
+  const avgTransitionSeconds = clips.length ? clips.reduce((sum, c) => sum + c.transitionOutSeconds, 0) / clips.length : 0;
+  const allNoTransition = clips.length > 0 && clips.every((c) => c.transitionOutSeconds === 0);
+  const anyHasTransition = clips.some((c) => c.transitionOutSeconds > 0);
+  const commonTransitionType =
+    clips.length && clips.every((c) => c.transitionOutType === clips[0].transitionOutType) ? clips[0].transitionOutType : null;
+
+  function applyTransition(transitionOutSeconds: number, transitionOutType: TransitionType) {
+    dispatch({ type: "BULK_SET_TRANSITION", trackId, transitionOutSeconds, transitionOutType });
+  }
 
   return (
     <div className="clip-inspector">
@@ -262,6 +278,49 @@ export function BulkEditPanel() {
               onChange={(e) => applyFilterPatch({ preset: null, hue: Number(e.target.value) })}
             />
           </label>
+
+          <div className="field">
+            <span>Transition to next clip (all)</span>
+            <div className="inline-fields inline-fields-wrap">
+              <button
+                type="button"
+                className={allNoTransition ? "active" : ""}
+                disabled={clips.length === 0}
+                onClick={() => applyTransition(0, commonTransitionType ?? "dissolve")}
+              >
+                None (cut)
+              </button>
+              {TRANSITION_TYPE_NAMES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={anyHasTransition && commonTransitionType === type ? "active" : ""}
+                  disabled={clips.length === 0}
+                  onClick={() => applyTransition(avgTransitionSeconds > 0 ? avgTransitionSeconds : 0.5, type)}
+                >
+                  {TRANSITION_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {anyHasTransition && (
+            <label className="field">
+              <span>
+                {commonTransitionType ? TRANSITION_TYPE_LABELS[commonTransitionType] : "Transition"} duration (all) —{" "}
+                {avgTransitionSeconds.toFixed(1)}s
+              </span>
+              <input
+                type="range"
+                min={0.1}
+                max={2}
+                step={0.1}
+                value={avgTransitionSeconds}
+                disabled={clips.length === 0}
+                onChange={(e) => applyTransition(Number(e.target.value), commonTransitionType ?? "dissolve")}
+              />
+            </label>
+          )}
         </>
       )}
     </div>

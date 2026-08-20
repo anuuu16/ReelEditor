@@ -1,4 +1,15 @@
-import type { AspectRatioPreset, Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel, Track, Transform } from "@reel-studio/shared-types";
+import type {
+  AspectRatioPreset,
+  Clip,
+  ClipFilter,
+  FitMode,
+  MediaSource,
+  Overlay,
+  ProjectModel,
+  Track,
+  Transform,
+  TransitionType,
+} from "@reel-studio/shared-types";
 import { getTracksByKind, layoutSequentialClips } from "@reel-studio/timeline-core";
 import { DEFAULT_IMAGE_CLIP_DURATION_SECONDS } from "../media/trackAccepts.js";
 
@@ -34,6 +45,7 @@ export type Action =
   | { type: "BULK_SET_FIT_MODE"; trackId: string; fitMode: FitMode }
   | { type: "BULK_SET_FILTER"; trackId: string; patch: Partial<ClipFilter> }
   | { type: "BULK_SET_TRANSFORM"; trackId: string; patch: Partial<Transform> }
+  | { type: "BULK_SET_TRANSITION"; trackId: string; transitionOutSeconds: number; transitionOutType: TransitionType }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "ADD_TRACK"; kind: "audio" }
   | { type: "REMOVE_TRACK"; trackId: string }
@@ -236,6 +248,19 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
           ...state.project,
           clips: state.project.clips.map((c) =>
             c.trackId === action.trackId ? { ...c, transform: { ...c.transform, ...action.patch } } : c
+          ),
+        },
+      };
+
+    case "BULK_SET_TRANSITION":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) =>
+            c.trackId === action.trackId
+              ? { ...c, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType }
+              : c
           ),
         },
       };
