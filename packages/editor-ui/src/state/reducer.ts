@@ -34,6 +34,7 @@ export type Action =
   | { type: "BULK_SET_FIT_MODE"; trackId: string; fitMode: FitMode }
   | { type: "BULK_SET_FILTER"; trackId: string; patch: Partial<ClipFilter> }
   | { type: "BULK_SET_TRANSFORM"; trackId: string; patch: Partial<Transform> }
+  | { type: "BULK_SET_TRANSITION"; trackId: string; patch: Partial<Pick<Clip, "transitionOutSeconds" | "transitionOutType">> }
   | { type: "SELECT_CLIP"; clipId: string | null }
   | { type: "ADD_TRACK"; kind: "audio" }
   | { type: "REMOVE_TRACK"; trackId: string }
@@ -237,6 +238,15 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
           clips: state.project.clips.map((c) =>
             c.trackId === action.trackId ? { ...c, transform: { ...c.transform, ...action.patch } } : c
           ),
+        },
+      };
+
+    case "BULK_SET_TRANSITION":
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          clips: state.project.clips.map((c) => (c.trackId === action.trackId ? { ...c, ...action.patch } : c)),
         },
       };
 

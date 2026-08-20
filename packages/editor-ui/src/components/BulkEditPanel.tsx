@@ -1,11 +1,18 @@
 import { useState } from "react";
-import type { ClipFilter, Transform } from "@reel-studio/shared-types";
+import type { Clip, ClipFilter, Transform, TransitionType } from "@reel-studio/shared-types";
 import { applyFilterPreset, getTracksByKind, type FilterPresetName } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 
 const MAX_BULK_FADE_SECONDS = 5;
 const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
+const TRANSITION_TYPE_NAMES: TransitionType[] = ["dissolve", "slide", "wipe", "zoom"];
+const TRANSITION_TYPE_LABELS: Record<TransitionType, string> = {
+  dissolve: "Dissolve",
+  slide: "Slide",
+  wipe: "Wipe",
+  zoom: "Zoom",
+};
 
 export function BulkEditPanel() {
   const state = useEditorState();
@@ -27,6 +34,10 @@ export function BulkEditPanel() {
     dispatch({ type: "BULK_SET_TRANSFORM", trackId, patch });
   }
 
+  function applyTransitionPatch(patch: Partial<Pick<Clip, "transitionOutSeconds" | "transitionOutType">>) {
+    dispatch({ type: "BULK_SET_TRANSITION", trackId, patch });
+  }
+
   const avgFadeIn = clips.length ? clips.reduce((sum, c) => sum + c.fadeInSeconds, 0) / clips.length : 0;
   const avgFadeOut = clips.length ? clips.reduce((sum, c) => sum + c.fadeOutSeconds, 0) / clips.length : 0;
   const avgVolume = clips.length ? clips.reduce((sum, c) => sum + c.volume, 0) / clips.length : 1;
@@ -42,6 +53,17 @@ export function BulkEditPanel() {
   const commonPreset =
     clips.length && clips.every((c) => (c.filter.preset ?? "none") === (clips[0].filter.preset ?? "none"))
       ? clips[0].filter.preset ?? "none"
+      : null;
+
+  // A track's last clip has no next clip to transition into, so it's excluded from this average/common
+  // calculation the same way ClipInspector hides the field entirely for a single last clip.
+  const transitionClips = clips.slice(0, -1);
+  const avgTransitionOutSeconds = transitionClips.length
+    ? transitionClips.reduce((sum, c) => sum + c.transitionOutSeconds, 0) / transitionClips.length
+    : 0;
+  const commonTransitionType =
+    transitionClips.length && transitionClips.every((c) => c.transitionOutType === transitionClips[0].transitionOutType)
+      ? transitionClips[0].transitionOutType
       : null;
 
   return (
@@ -262,6 +284,51 @@ export function BulkEditPanel() {
               onChange={(e) => applyFilterPatch({ preset: null, hue: Number(e.target.value) })}
             />
           </label>
+
+          <div className="field">
+            <span>Transition to next clip (all)</span>
+            <div className="inline-fields inline-fields-wrap">
+              <button
+                type="button"
+                className={avgTransitionOutSeconds === 0 ? "active" : ""}
+                disabled={transitionClips.length === 0}
+                onClick={() => applyTransitionPatch({ transitionOutSeconds: 0 })}
+              >
+                None (cut)
+              </button>
+              {TRANSITION_TYPE_NAMES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={avgTransitionOutSeconds > 0 && commonTransitionType === type ? "active" : ""}
+                  disabled={transitionClips.length === 0}
+                  onClick={() =>
+                    applyTransitionPatch({
+                      transitionOutSeconds: avgTransitionOutSeconds > 0 ? avgTransitionOutSeconds : 0.5,
+                      transitionOutType: type,
+                    })
+                  }
+                >
+                  {TRANSITION_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {avgTransitionOutSeconds > 0 && (
+            <label className="field">
+              <span>Transition duration (all) — {avgTransitionOutSeconds.toFixed(1)}s</span>
+              <input
+                type="range"
+                min={0.1}
+                max={2}
+                step={0.1}
+                value={avgTransitionOutSeconds}
+                disabled={transitionClips.length === 0}
+                onChange={(e) => applyTransitionPatch({ transitionOutSeconds: Number(e.target.value) })}
+              />
+            </label>
+          )}
         </>
       )}
     </div>
