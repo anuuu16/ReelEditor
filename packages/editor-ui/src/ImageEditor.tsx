@@ -8,6 +8,7 @@ import {
 } from "@reel-studio/timeline-core";
 import { saveImageToGallery } from "./persistence/db.js";
 import { CropStage, FULL_CROP } from "./imageEditor/CropStage.js";
+import { SliderField } from "./imageEditor/SliderField.js";
 import {
   renderImage,
   type BackgroundMode,
@@ -81,12 +82,17 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
   const [fitMode, setFitMode] = useState<FitMode>("fit");
 
   const [crop, setCrop] = useState<CropRect>(FULL_CROP);
+  const [customRatioW, setCustomRatioW] = useState(1);
+  const [customRatioH, setCustomRatioH] = useState(1);
+  const [activeCropAspect, setActiveCropAspect] = useState<string>("Free");
+
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("solid");
   const [backgroundColor, setBackgroundColor] = useState("#000000");
   const [backgroundBlur, setBackgroundBlur] = useState(24);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
 
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [fineRotationDeg, setFineRotationDeg] = useState(0);
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
 
@@ -113,7 +119,6 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
 
-  const sourceLongEdge = imageEl ? Math.max(imageEl.naturalWidth, imageEl.naturalHeight) : 0;
   const croppedLongEdge = imageEl
     ? Math.max(imageEl.naturalWidth * crop.width, imageEl.naturalHeight * crop.height)
     : 0;
@@ -138,6 +143,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
       setImageEl(img);
       setImageSrc(url);
       setCrop(FULL_CROP);
+      setActiveCropAspect("Free");
       setFileBaseName(file.name.replace(/\.[^./]+$/, "") || "image");
     };
     img.src = url;
@@ -182,6 +188,18 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
     setHeight(Math.max(1, Math.round(imageEl.naturalHeight * crop.height)));
   }
 
+  function applyCropAspect(label: string, ratio: number | null) {
+    setActiveCropAspect(label);
+    if (!imageEl) return;
+    setCrop(ratio == null ? FULL_CROP : cropForAspect(imageEl.naturalWidth, imageEl.naturalHeight, ratio));
+  }
+
+  function applyCustomCropRatio() {
+    if (!imageEl || customRatioW <= 0 || customRatioH <= 0) return;
+    setActiveCropAspect("custom");
+    setCrop(cropForAspect(imageEl.naturalWidth, imageEl.naturalHeight, customRatioW / customRatioH));
+  }
+
   function updateFilter(patch: Partial<ClipFilter>) {
     setFilter((f) => ({ ...f, preset: null, ...patch }));
   }
@@ -192,7 +210,9 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
 
   function resetEverything() {
     setCrop(FULL_CROP);
+    setActiveCropAspect("Free");
     setRotation(0);
+    setFineRotationDeg(0);
     setFlipH(false);
     setFlipV(false);
     setFilter(NEUTRAL_FILTER);
@@ -215,6 +235,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
       fitMode,
       crop,
       rotation,
+      fineRotationDeg,
       flipH,
       flipV,
       filter,
@@ -237,6 +258,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
     fitMode,
     crop,
     rotation,
+    fineRotationDeg,
     flipH,
     flipV,
     filter,
@@ -276,6 +298,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
     fitMode,
     crop,
     rotation,
+    fineRotationDeg,
     flipH,
     flipV,
     filter,
@@ -401,13 +424,35 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
                   <button
                     key={option.label}
                     type="button"
-                    onClick={() =>
-                      setCrop(option.ratio == null ? FULL_CROP : cropForAspect(imageEl.naturalWidth, imageEl.naturalHeight, option.ratio))
-                    }
+                    className={activeCropAspect === option.label ? "active" : ""}
+                    onClick={() => applyCropAspect(option.label, option.ratio)}
                   >
                     {option.label}
                   </button>
                 ))}
+              </div>
+              <div className="field">
+                <span>Custom ratio</span>
+                <div className="inline-fields">
+                  <input
+                    type="number"
+                    min={1}
+                    className="ie-ratio-input"
+                    value={customRatioW}
+                    onChange={(e) => setCustomRatioW(Math.max(1, Number(e.target.value)))}
+                  />
+                  <span>:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className="ie-ratio-input"
+                    value={customRatioH}
+                    onChange={(e) => setCustomRatioH(Math.max(1, Number(e.target.value)))}
+                  />
+                  <button type="button" className={activeCropAspect === "custom" ? "active" : ""} onClick={applyCustomCropRatio}>
+                    Apply
+                  </button>
+                </div>
               </div>
               <div className="inline-fields inline-fields-wrap">
                 <button type="button" onClick={matchCanvasToCrop}>
@@ -490,6 +535,47 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
             </div>
           </Section>
 
+          <Section title="Transform">
+            <div className="inline-fields inline-fields-wrap">
+              <button type="button" onClick={() => setRotation((r) => ((r + 270) % 360) as 0 | 90 | 180 | 270)}>
+                ↺ Left 90°
+              </button>
+              <button type="button" onClick={() => setRotation((r) => ((r + 90) % 360) as 0 | 90 | 180 | 270)}>
+                ↻ Right 90°
+              </button>
+              <button type="button" className={flipH ? "active" : ""} onClick={() => setFlipH((v) => !v)}>
+                ⇋ Flip H
+              </button>
+              <button type="button" className={flipV ? "active" : ""} onClick={() => setFlipV((v) => !v)}>
+                ⇵ Flip V
+              </button>
+            </div>
+            <SliderField
+              label="Straighten"
+              value={fineRotationDeg}
+              min={-45}
+              max={45}
+              step={0.5}
+              onChange={setFineRotationDeg}
+              format={(v) => `${v.toFixed(1)}°`}
+            />
+          </Section>
+        </div>
+
+        <div
+          className={`ie-preview${isDragOver ? " drag-over" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+        >
+          {!imageEl && <p className="hint">Choose, drop, or paste an image to start editing.</p>}
+          <canvas ref={canvasRef} className="ie-canvas" style={{ display: imageEl ? "block" : "none" }} />
+        </div>
+
+        <div className="ie-controls">
           <Section title="Background fill">
             <p className="hint">Shows wherever the image doesn't fill the frame (Fit mode, or any transparent area).</p>
             <div className="inline-fields">
@@ -510,10 +596,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
             </label>
 
             {backgroundMode === "blur" && (
-              <label className="field">
-                <span>Blur amount — {backgroundBlur}px</span>
-                <input type="range" min={0} max={80} step={1} value={backgroundBlur} onChange={(e) => setBackgroundBlur(Number(e.target.value))} />
-              </label>
+              <SliderField label="Blur amount" value={backgroundBlur} min={0} max={80} step={1} onChange={setBackgroundBlur} format={(v) => `${v}px`} />
             )}
 
             {backgroundMode === "image" && (
@@ -531,23 +614,6 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
             )}
           </Section>
 
-          <Section title="Transform">
-            <div className="inline-fields inline-fields-wrap">
-              <button type="button" onClick={() => setRotation((r) => ((r + 270) % 360) as 0 | 90 | 180 | 270)}>
-                ↺ Left
-              </button>
-              <button type="button" onClick={() => setRotation((r) => ((r + 90) % 360) as 0 | 90 | 180 | 270)}>
-                ↻ Right
-              </button>
-              <button type="button" className={flipH ? "active" : ""} onClick={() => setFlipH((v) => !v)}>
-                ⇋ Flip H
-              </button>
-              <button type="button" className={flipV ? "active" : ""} onClick={() => setFlipV((v) => !v)}>
-                ⇵ Flip V
-              </button>
-            </div>
-          </Section>
-
           <Section title="Adjustments">
             <div className="inline-fields inline-fields-wrap">
               {FILTER_PRESET_NAMES.map((name) => (
@@ -562,95 +628,80 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
               ))}
             </div>
 
-            <label className="field">
-              <span>
-                Brightness — {filter.brightness > 0 ? "+" : ""}
-                {Math.round(filter.brightness * 100)}
-              </span>
-              <input
-                type="range"
-                min={-0.5}
-                max={0.5}
-                step={0.01}
-                value={filter.brightness}
-                onChange={(e) => updateFilter({ brightness: Number(e.target.value) })}
-              />
-            </label>
-            <label className="field">
-              <span>Contrast — {Math.round(filter.contrast * 100)}%</span>
-              <input
-                type="range"
-                min={0.5}
-                max={1.5}
-                step={0.01}
-                value={filter.contrast}
-                onChange={(e) => updateFilter({ contrast: Number(e.target.value) })}
-              />
-            </label>
-            <label className="field">
-              <span>Saturation — {Math.round(filter.saturation * 100)}%</span>
-              <input
-                type="range"
-                min={0}
-                max={2}
-                step={0.01}
-                value={filter.saturation}
-                onChange={(e) => updateFilter({ saturation: Number(e.target.value) })}
-              />
-            </label>
-            <label className="field">
-              <span>Hue — {filter.hue}°</span>
-              <input type="range" min={-180} max={180} step={1} value={filter.hue} onChange={(e) => updateFilter({ hue: Number(e.target.value) })} />
-            </label>
-            <label className="field">
-              <span>Blur — {extras.blur}px</span>
-              <input type="range" min={0} max={20} step={0.5} value={extras.blur} onChange={(e) => updateExtras({ blur: Number(e.target.value) })} />
-            </label>
-            <label className="field">
-              <span>Sepia — {Math.round(extras.sepia * 100)}%</span>
-              <input type="range" min={0} max={1} step={0.01} value={extras.sepia} onChange={(e) => updateExtras({ sepia: Number(e.target.value) })} />
-            </label>
-            <label className="field">
-              <span>Grayscale — {Math.round(extras.grayscale * 100)}%</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={extras.grayscale}
-                onChange={(e) => updateExtras({ grayscale: Number(e.target.value) })}
-              />
-            </label>
-            <label className="field">
-              <span>Invert — {Math.round(extras.invert * 100)}%</span>
-              <input type="range" min={0} max={1} step={0.01} value={extras.invert} onChange={(e) => updateExtras({ invert: Number(e.target.value) })} />
-            </label>
-            <label className="field">
-              <span>Opacity — {Math.round(extras.opacity * 100)}%</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={extras.opacity}
-                onChange={(e) => updateExtras({ opacity: Number(e.target.value) })}
-              />
-            </label>
+            <SliderField
+              label="Brightness"
+              value={filter.brightness}
+              min={-0.5}
+              max={0.5}
+              step={0.01}
+              onChange={(v) => updateFilter({ brightness: v })}
+              format={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`}
+            />
+            <SliderField
+              label="Contrast"
+              value={filter.contrast}
+              min={0.5}
+              max={1.5}
+              step={0.01}
+              onChange={(v) => updateFilter({ contrast: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <SliderField
+              label="Saturation"
+              value={filter.saturation}
+              min={0}
+              max={2}
+              step={0.01}
+              onChange={(v) => updateFilter({ saturation: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <SliderField label="Hue" value={filter.hue} min={-180} max={180} step={1} onChange={(v) => updateFilter({ hue: v })} format={(v) => `${v}°`} />
+            <SliderField label="Blur" value={extras.blur} min={0} max={20} step={0.5} onChange={(v) => updateExtras({ blur: v })} format={(v) => `${v}px`} />
+            <SliderField
+              label="Sepia"
+              value={extras.sepia}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateExtras({ sepia: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <SliderField
+              label="Grayscale"
+              value={extras.grayscale}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateExtras({ grayscale: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <SliderField
+              label="Invert"
+              value={extras.invert}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateExtras({ invert: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <SliderField
+              label="Opacity"
+              value={extras.opacity}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => updateExtras({ opacity: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
           </Section>
 
           <Section title="Frame">
-            <label className="field">
-              <span>Border width — {borderWidth}px</span>
-              <input type="range" min={0} max={80} step={1} value={borderWidth} onChange={(e) => setBorderWidth(Number(e.target.value))} />
-            </label>
+            <SliderField label="Border width" value={borderWidth} min={0} max={80} step={1} onChange={setBorderWidth} format={(v) => `${v}px`} />
             <label className="field">
               <span>Border color</span>
               <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)} />
             </label>
-            <label className="field">
-              <span>Corner radius — {cornerRadius}%</span>
-              <input type="range" min={0} max={100} step={1} value={cornerRadius} onChange={(e) => setCornerRadius(Number(e.target.value))} />
-            </label>
+            <SliderField label="Corner radius" value={cornerRadius} min={0} max={100} step={1} onChange={setCornerRadius} format={(v) => `${v}%`} />
           </Section>
 
           <Section title="Watermark">
@@ -675,32 +726,28 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
                     ))}
                   </div>
                 </div>
-                <label className="field">
-                  <span>Size — {Math.round(watermarkSize * 100)}% of width</span>
-                  <input
-                    type="range"
-                    min={0.02}
-                    max={0.2}
-                    step={0.005}
-                    value={watermarkSize}
-                    onChange={(e) => setWatermarkSize(Number(e.target.value))}
-                  />
-                </label>
+                <SliderField
+                  label="Size"
+                  value={watermarkSize}
+                  min={0.02}
+                  max={0.2}
+                  step={0.005}
+                  onChange={setWatermarkSize}
+                  format={(v) => `${Math.round(v * 100)}% of width`}
+                />
                 <label className="field">
                   <span>Color</span>
                   <input type="color" value={watermarkColor} onChange={(e) => setWatermarkColor(e.target.value)} />
                 </label>
-                <label className="field">
-                  <span>Opacity — {Math.round(watermarkOpacity * 100)}%</span>
-                  <input
-                    type="range"
-                    min={0.05}
-                    max={1}
-                    step={0.05}
-                    value={watermarkOpacity}
-                    onChange={(e) => setWatermarkOpacity(Number(e.target.value))}
-                  />
-                </label>
+                <SliderField
+                  label="Opacity"
+                  value={watermarkOpacity}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  onChange={setWatermarkOpacity}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                />
               </>
             )}
           </Section>
@@ -714,10 +761,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
               ))}
             </div>
             {FORMAT_INFO[format].lossy && (
-              <label className="field">
-                <span>Quality — {Math.round(quality * 100)}%</span>
-                <input type="range" min={0.1} max={1} step={0.01} value={quality} onChange={(e) => setQuality(Number(e.target.value))} />
-              </label>
+              <SliderField label="Quality" value={quality} min={0.1} max={1} step={0.01} onChange={setQuality} format={(v) => `${Math.round(v * 100)}%`} />
             )}
             <p className="hint">
               Output: {width}×{height} {FORMAT_INFO[format].label}
@@ -729,19 +773,6 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
               </button>
             </div>
           </Section>
-        </div>
-
-        <div
-          className={`ie-preview${isDragOver ? " drag-over" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={handleDrop}
-        >
-          {!imageEl && <p className="hint">Choose, drop, or paste an image to start editing.</p>}
-          <canvas ref={canvasRef} className="ie-canvas" style={{ display: imageEl ? "block" : "none" }} />
         </div>
       </div>
     </div>

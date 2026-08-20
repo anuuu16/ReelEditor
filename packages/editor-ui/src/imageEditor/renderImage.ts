@@ -36,6 +36,10 @@ export interface RenderImageOptions {
   fitMode: FitMode;
   crop: CropRect | null;
   rotation: 0 | 90 | 180 | 270;
+  /** Fine "straighten" tilt in degrees, layered on top of `rotation` — does not affect the fit
+   * bounding box (which is quantized to `rotation` only), so extreme tilts can reveal background
+   * at the corners. That's expected: it's the same trade-off a straighten tool always makes. */
+  fineRotationDeg: number;
   flipH: boolean;
   flipV: boolean;
   filter: ClipFilter;
@@ -132,6 +136,7 @@ export function renderImage(options: RenderImageOptions): void {
     fitMode,
     crop,
     rotation,
+    fineRotationDeg,
     flipH,
     flipV,
     filter,
@@ -188,7 +193,7 @@ export function renderImage(options: RenderImageOptions): void {
   ctx.filter = buildImageFilterString(filter, extras);
   ctx.globalAlpha = extras.opacity;
   ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.rotate(((rotation + fineRotationDeg) * Math.PI) / 180);
   ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
   ctx.drawImage(image, sx, sy, sw, sh, -drawW / 2, -drawH / 2, drawW, drawH);
   ctx.restore();

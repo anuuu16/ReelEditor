@@ -1514,6 +1514,34 @@ body {
   border-radius: 4px;
 }
 
+.slider-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-field-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.slider-field-number {
+  width: 60px;
+  flex-shrink: 0;
+  background: #1e1f26;
+  border: 1px solid #34353d;
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  color: #e6e6e9;
+}
+
+.ie-ratio-input {
+  width: 48px;
+  flex-shrink: 0;
+}
+
 /* Interactive crop overlay */
 
 .crop-stage {
