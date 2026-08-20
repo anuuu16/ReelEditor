@@ -227,3 +227,31 @@ export async function* generateStudioProject(params: GenerateParams): AsyncGener
 
   yield { type: "done", data: { base, scenes, accounts } };
 }
+
+export interface SocialMetadataParams {
+  title: string;
+  topic: string;
+  language: string;
+}
+
+export interface SocialMetadataResult {
+  title: string;
+  description: string;
+  hashtags: string[];
+}
+
+function isSocialMetadataResult(o: unknown): o is SocialMetadataResult {
+  const r = o as SocialMetadataResult | null;
+  return !!r && typeof r.title === "string" && typeof r.description === "string" && Array.isArray(r.hashtags);
+}
+
+// A per-language title/description/hashtag set for one project — called once per language a
+// project targets, never assumed to be the same words translated, just the same subject.
+export async function generateSocialMetadata(params: SocialMetadataParams): Promise<SocialMetadataResult> {
+  const system = "Follow the instructions exactly. Return only valid JSON, no markdown, no code fences, no commentary.";
+  const userMessage = `Write a short, catchy social media title, a one to two sentence description, and 8 to 12 relevant hashtags, in ${params.language}, for a video titled "${params.title}" about "${params.topic}". Friendly and engaging, no em dashes.
+
+Return ONLY valid JSON, no markdown:
+{"title":"...","description":"...","hashtags":["tag1","tag2"]}`;
+  return callLlmJson<SocialMetadataResult>(system, userMessage, isSocialMetadataResult);
+}

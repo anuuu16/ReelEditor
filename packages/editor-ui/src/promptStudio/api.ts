@@ -92,3 +92,15 @@ export async function deleteStudioResource(studioId: string, resourceId: string)
   const response = await fetch(`${RENDER_SERVICE_URL}/studio/${studioId}/resources/${resourceId}`, { method: "DELETE" });
   return readJson(response, "Failed to delete resource");
 }
+
+export async function generateStudioMetadata(
+  studioId: string,
+  body: { language: string; topic?: string; title?: string }
+): Promise<StudioProject> {
+  const response = await fetch(`${RENDER_SERVICE_URL}/studio/${studioId}/metadata`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson(response, "Metadata generation failed");
+}

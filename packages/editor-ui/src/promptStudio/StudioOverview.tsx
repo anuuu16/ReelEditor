@@ -1,11 +1,13 @@
 import { studioResourceUrl } from "./api.js";
 import { accountsNeeded } from "./creditMath.js";
+import { MetadataGenerator } from "./MetadataGenerator.js";
 import { RESOURCE_KINDS } from "./resourceKinds.js";
 import type { StudioProject, StudioResource } from "./types.js";
 
 interface StudioOverviewProps {
   project: StudioProject;
   onNavigate: (tab: "content" | "prompts" | "scenes" | "resources" | "editors") => void;
+  onProjectUpdated: (project: StudioProject) => void;
 }
 
 function ResourceThumb({ studioId, resource }: { studioId: string; resource: StudioResource }) {
@@ -19,7 +21,7 @@ function ResourceThumb({ studioId, resource }: { studioId: string; resource: Stu
   return <img className="prompt-studio-overview-thumb" src={url} alt={resource.filename} />;
 }
 
-export function StudioOverview({ project, onNavigate }: StudioOverviewProps) {
+export function StudioOverview({ project, onNavigate, onProjectUpdated }: StudioOverviewProps) {
   const cover = project.resources.find((r) => r.kind === "cover");
   const writtenScenes = project.scenes.filter((s) => s.prompt.trim().length > 0).length;
   const languagesWithPoem = project.languages.filter((l) => (project.poem[l] ?? "").trim().length > 0).length;
@@ -145,6 +147,11 @@ export function StudioOverview({ project, onNavigate }: StudioOverviewProps) {
             );
           })
         )}
+      </div>
+
+      <div className="prompt-studio-overview-block">
+        <h3>Title, description, hashtags</h3>
+        <MetadataGenerator project={project} onProjectUpdated={onProjectUpdated} />
       </div>
 
       {project.languages.length > 0 && (

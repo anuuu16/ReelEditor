@@ -17,7 +17,13 @@ import {
 } from "./projects.js";
 import { startRenderJob } from "./render.js";
 import { createRhymeRouter } from "./rhymeRoutes.js";
-import { aspectAndFormat, creditsPerClipForModel, generateStudioProject, type GenerateParams } from "./studioGenerate.js";
+import {
+  aspectAndFormat,
+  creditsPerClipForModel,
+  generateSocialMetadata,
+  generateStudioProject,
+  type GenerateParams,
+} from "./studioGenerate.js";
 import {
   deleteStudioDir,
   findStudioResourceFilePath,
@@ -344,6 +350,37 @@ app.patch("/studio/:studioId", requireValidStudioId, async (req: Request, res: R
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// One title/description/hashtag set per language a project targets. Not a translation of any
+// other language's version, just the same subject asked for fresh in that language.
+app.post("/studio/:studioId/metadata", requireValidStudioId, async (req: Request, res: Response) => {
+  const studioId = paramString(req.params.studioId);
+  const body = req.body as { language?: string; topic?: string; title?: string };
+  if (!body.language || typeof body.language !== "string") {
+    res.status(400).json({ error: "language is required" });
+    return;
+  }
+  try {
+    const project = await readStudioProjectFile(studioId);
+    const title = body.title || project.title;
+    const topic = body.topic || project.concept || project.title;
+    const result = await generateSocialMetadata({ title, topic, language: body.language });
+    const variant = {
+      label: body.language,
+      language: body.language,
+      title: result.title,
+      description: result.description,
+      hashtags: result.hashtags,
+    };
+    project.metadata = [...project.metadata.filter((m) => m.language !== body.language), variant];
+    project.updatedAt = Date.now();
+    await saveStudioProjectFile(studioId, project);
+    res.json(project);
+  } catch (err) {
+    console.error("Metadata generation failed:", err);
+    res.status(502).json({ error: "Metadata generation failed, please try again." });
   }
 });
 

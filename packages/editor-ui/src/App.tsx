@@ -1,38 +1,19 @@
-import { useState } from "react";
-import type { ProjectModel } from "@reel-studio/shared-types";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./Dashboard.js";
-import { Editor } from "./Editor.js";
-import { ImageEditor } from "./ImageEditor.js";
-import { PromptStudioView } from "./promptStudio/PromptStudioView.js";
-
-type View = "dashboard" | "editor" | "imageEditor" | "promptStudio";
+import { EditorRoute } from "./EditorRoute.js";
+import { ImageEditorRoute } from "./ImageEditorRoute.js";
+import { PromptStudioRoute } from "./promptStudio/PromptStudioRoute.js";
 
 export function App() {
-  const [view, setView] = useState<View>("dashboard");
-  const [activeProject, setActiveProject] = useState<ProjectModel | null>(null);
-
-  function openProject(project: ProjectModel) {
-    setActiveProject(project);
-    setView("editor");
-  }
-
-  if (view === "imageEditor") {
-    return <ImageEditor onBack={() => setView("dashboard")} />;
-  }
-
-  if (view === "promptStudio") {
-    return <PromptStudioView onBack={() => setView("dashboard")} onOpenProject={openProject} />;
-  }
-
-  if (view === "editor") {
-    return <Editor initialProject={activeProject} onBackToDashboard={() => setView("dashboard")} />;
-  }
-
   return (
-    <Dashboard
-      onOpenProject={openProject}
-      onOpenImageEditor={() => setView("imageEditor")}
-      onOpenPromptStudio={() => setView("promptStudio")}
-    />
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/image-editor" element={<ImageEditorRoute />} />
+      <Route path="/editor" element={<EditorRoute />} />
+      <Route path="/editor/:projectId" element={<EditorRoute />} />
+      <Route path="/prompt-studio/:studioId" element={<PromptStudioRoute />} />
+      <Route path="/prompt-studio/:studioId/:tab" element={<PromptStudioRoute />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
