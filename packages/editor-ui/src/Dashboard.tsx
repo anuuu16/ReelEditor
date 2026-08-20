@@ -7,13 +7,14 @@ import { deleteSavedImage, listSavedImages, type SavedImage } from "./persistenc
 interface DashboardProps {
   onOpenProject: (project: ProjectModel) => void;
   onOpenImageEditor: () => void;
+  onOpenPromptStudio: () => void;
 }
 
 interface GalleryEntry extends SavedImage {
   url: string;
 }
 
-export function Dashboard({ onOpenProject, onOpenImageEditor }: DashboardProps) {
+export function Dashboard({ onOpenProject, onOpenImageEditor, onOpenPromptStudio }: DashboardProps) {
   const { realProjects, templates, refresh, errorMessage, busyProjectId, openProject, useAsTemplate, deleteProject } = useProjectBrowser();
   const [savedImages, setSavedImages] = useState<GalleryEntry[]>([]);
 
@@ -68,6 +69,9 @@ export function Dashboard({ onOpenProject, onOpenImageEditor }: DashboardProps) 
         <div className="inline-fields">
           <button type="button" onClick={onOpenImageEditor}>
             Image Editor
+          </button>
+          <button type="button" onClick={onOpenPromptStudio}>
+            Prompt Studio
           </button>
         </div>
       </header>

@@ -12,10 +12,12 @@
     "lint": "echo \"no lint config yet\" && exit 0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@reel-studio/shared-types": "workspace:*",
     "@reel-studio/timeline-core": "workspace:*",
     "express": "^5.2.1",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "openai": "^4.68.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

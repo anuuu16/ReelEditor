@@ -16,6 +16,27 @@ import {
   saveProjectFile,
 } from "./projects.js";
 import { startRenderJob } from "./render.js";
+import { aspectAndFormat, creditsPerClipForModel, generateStudioProject, type GenerateParams } from "./studioGenerate.js";
+import {
+  deleteStudioDir,
+  findStudioResourceFilePath,
+  isValidStudioId,
+  listStudioProjects,
+  readStudioProjectFile,
+  saveStudioProjectFile,
+  studioResourcesDir,
+  type MetadataVariant,
+  type StudioProject,
+  type StudioResource,
+  type StudioResourceKind,
+} from "./studioProjects.js";
+
+try {
+  // Only /studio/:id/generate needs ANTHROPIC_API_KEY — everything else works with no .env at all.
+  process.loadEnvFile();
+} catch {
+  // No .env file, or an old Node without loadEnvFile — fine, that endpoint just isn't usable yet.
+}
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4310;
 const TMP_ROOT = path.join(os.tmpdir(), "reel-studio-render");
@@ -23,6 +44,8 @@ const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_JOB_AGE_MS = 60 * 60 * 1000;
 
 const app = express();
+
+app.use(express.json());
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin;
@@ -243,6 +266,256 @@ app.delete("/projects/:projectId", requireValidProjectId, async (req: Request, r
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// --- Studio projects: the "one folder holds everything" home for a Prompt/Rhyme Studio project —
+// its poem, master/scene prompts, and every resource (cover, logo, banner, character ref,
+// generated scene clip/audio, final export) it owns. The language-specific editor timelines it
+// launches live as ordinary entries under PROJECTS_ROOT (see projects.ts) so the existing
+// Dashboard/Editor already knows how to open, edit, and re-save them — this project just tracks
+// which ones belong to it, so nothing about a video/audio file is ever stored twice.
+
+function requireValidStudioId(req: Request, res: Response, next: NextFunction) {
+  if (!isValidStudioId(paramString(req.params.studioId))) {
+    res.status(400).json({ error: "Invalid studio project id" });
+    return;
+  }
+  next();
+}
+
+app.get("/studio", async (_req: Request, res: Response) => {
+  try {
+    res.json(await listStudioProjects());
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/studio", async (req: Request, res: Response) => {
+  const id = randomUUID();
+  const now = Date.now();
+  const body = req.body ?? {};
+  const videoType = body.videoType === "reel" ? "reel" : "full_video";
+  const project: StudioProject = {
+    id,
+    title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Untitled project",
+    createdAt: now,
+    updatedAt: now,
+    languages: Array.isArray(body.languages) && body.languages.length ? body.languages : ["en"],
+    poem: {},
+    videoType,
+    aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio : videoType === "reel" ? "9:16" : "16:9",
+    platform: body.platform,
+    style: body.style,
+    model: typeof body.model === "string" ? body.model : "Veo 3.1 Lite",
+    creditsPerClip: typeof body.creditsPerClip === "number" ? body.creditsPerClip : 10,
+    creditsPerAccount: typeof body.creditsPerAccount === "number" ? body.creditsPerAccount : 50,
+    masterPrompt: "",
+    accounts: [],
+    scenes: [],
+    resources: [],
+    editorProjects: [],
+    metadata: [],
+  };
+  try {
+    await saveStudioProjectFile(id, project);
+    res.status(201).json(project);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get("/studio/:studioId", requireValidStudioId, async (req: Request, res: Response) => {
+  try {
+    res.json(await readStudioProjectFile(paramString(req.params.studioId)));
+  } catch {
+    res.status(404).json({ error: "Studio project not found" });
+  }
+});
+
+app.patch("/studio/:studioId", requireValidStudioId, async (req: Request, res: Response) => {
+  const studioId = paramString(req.params.studioId);
+  try {
+    const existing = await readStudioProjectFile(studioId);
+    const patch = (req.body ?? {}) as Partial<StudioProject>;
+    const updated: StudioProject = { ...existing, ...patch, id: existing.id, updatedAt: Date.now() };
+    await saveStudioProjectFile(studioId, updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/studio/:studioId", requireValidStudioId, async (req: Request, res: Response) => {
+  try {
+    await deleteStudioDir(paramString(req.params.studioId));
+    res.json({ status: "deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+function assignResourceId(req: Request, _res: Response, next: NextFunction) {
+  req.resourceId = randomUUID();
+  next();
+}
+
+const studioResourceStorage = multer.diskStorage({
+  destination: (req: Request, _file, cb) => {
+    const studioId = paramString(req.params.studioId);
+    if (!isValidStudioId(studioId)) {
+      cb(new Error("Invalid studio project id"), "");
+      return;
+    }
+    const dir = studioResourcesDir(studioId);
+    mkdir(dir, { recursive: true })
+      .then(() => cb(null, dir))
+      .catch((err) => cb(err as Error, dir));
+  },
+  filename: (req: Request, file, cb) => {
+    cb(null, `${req.resourceId}${path.extname(file.originalname) || ""}`);
+  },
+});
+const studioResourceUpload = multer({ storage: studioResourceStorage });
+
+app.post(
+  "/studio/:studioId/resources",
+  requireValidStudioId,
+  assignResourceId,
+  studioResourceUpload.single("file"),
+  async (req: Request, res: Response) => {
+    const studioId = paramString(req.params.studioId);
+    if (!req.file) {
+      res.status(400).json({ error: "Missing file" });
+      return;
+    }
+    try {
+      const project = await readStudioProjectFile(studioId);
+      const sceneNRaw = req.body.sceneN;
+      const sceneN = sceneNRaw !== undefined && sceneNRaw !== "" ? Number(sceneNRaw) : null;
+      const resource: StudioResource = {
+        id: req.resourceId as string,
+        kind: (paramString(req.body.kind ?? "other") as StudioResourceKind) || "other",
+        language: req.body.language ? paramString(req.body.language) : null,
+        sceneN: sceneN !== null && Number.isFinite(sceneN) ? sceneN : null,
+        filename: req.file.filename,
+        metadata: [],
+        uploadedAt: Date.now(),
+      };
+      project.resources.push(resource);
+      project.updatedAt = Date.now();
+      await saveStudioProjectFile(studioId, project);
+      res.status(201).json(resource);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+);
+
+app.get("/studio/:studioId/resources/:resourceId", requireValidStudioId, async (req: Request, res: Response) => {
+  const filePath = await findStudioResourceFilePath(paramString(req.params.studioId), paramString(req.params.resourceId));
+  if (!filePath) {
+    res.status(404).end();
+    return;
+  }
+  res.sendFile(filePath);
+});
+
+app.patch("/studio/:studioId/resources/:resourceId", requireValidStudioId, async (req: Request, res: Response) => {
+  const studioId = paramString(req.params.studioId);
+  const resourceId = paramString(req.params.resourceId);
+  try {
+    const project = await readStudioProjectFile(studioId);
+    const resource = project.resources.find((r) => r.id === resourceId);
+    if (!resource) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    const patch = (req.body ?? {}) as Partial<StudioResource> & { metadata?: MetadataVariant[] };
+    if (Array.isArray(patch.metadata)) resource.metadata = patch.metadata;
+    if (patch.kind) resource.kind = patch.kind;
+    if ("language" in patch) resource.language = patch.language ?? null;
+    if ("sceneN" in patch) resource.sceneN = patch.sceneN ?? null;
+    project.updatedAt = Date.now();
+    await saveStudioProjectFile(studioId, project);
+    res.json(resource);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/studio/:studioId/resources/:resourceId", requireValidStudioId, async (req: Request, res: Response) => {
+  const studioId = paramString(req.params.studioId);
+  const resourceId = paramString(req.params.resourceId);
+  try {
+    const project = await readStudioProjectFile(studioId);
+    project.resources = project.resources.filter((r) => r.id !== resourceId);
+    project.updatedAt = Date.now();
+    await saveStudioProjectFile(studioId, project);
+    res.json({ status: "deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Generation is one way to fill in a Studio project's poem/prompts — pasting them in by hand from
+// any chat UI works exactly as well, so this route is a convenience, never a required step.
+app.post("/studio/:studioId/generate", requireValidStudioId, async (req: Request, res: Response) => {
+  const studioId = paramString(req.params.studioId);
+  const params = req.body as GenerateParams;
+
+  // Validate before writing any SSE headers, so a bad model/videoType is a normal 400 JSON
+  // response instead of a 200 stream carrying only an `error` event.
+  try {
+    aspectAndFormat(params.videoType);
+    creditsPerClipForModel(params.model);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+  if (!params.topic || typeof params.topic !== "string") {
+    res.status(400).json({ error: "Missing topic" });
+    return;
+  }
+  if (!Number.isInteger(params.numScenes) || params.numScenes < 1 || params.numScenes > 30) {
+    res.status(400).json({ error: "numScenes must be an integer between 1 and 30" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  function send(event: string, data: unknown) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  try {
+    for await (const event of generateStudioProject(params)) {
+      send(event.type, event.data);
+      if (event.type === "done") {
+        try {
+          const project = await readStudioProjectFile(studioId);
+          project.concept = event.data.base.concept;
+          project.hook = event.data.base.hook;
+          project.masterPrompt = event.data.base.master_prompt;
+          project.caption = event.data.base.caption;
+          project.hashtags = event.data.base.hashtags;
+          project.scenes = event.data.scenes;
+          project.accounts = event.data.accounts;
+          project.namingConvention = `scene_01 to scene_${String(params.numScenes).padStart(2, "0")}`;
+          project.updatedAt = Date.now();
+          await saveStudioProjectFile(studioId, project);
+        } catch (err) {
+          send("error", { message: `Generated, but failed to save: ${err instanceof Error ? err.message : String(err)}` });
+        }
+      }
+    }
+  } catch (err) {
+    send("error", { message: err instanceof Error ? err.message : String(err) });
+  }
+  res.end();
 });
 
 app.listen(PORT, () => {

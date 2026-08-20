@@ -95,6 +95,15 @@ export interface MediaSource {
   kind: "video" | "audio" | "image";
   /** A template's placeholder slot — has no real file, waiting for the person to assign their own footage. */
   isPlaceholder: boolean;
+  /**
+   * Set when this source is a reference to a Studio project's shared resource pool rather than a
+   * file this project owns a private copy of (e.g. a video-prompt-generated scene clip reused
+   * across several language edits of the same Studio project). `previewUrl` already points at the
+   * Studio resource's serving URL, so save/load must never copy or re-upload the underlying file
+   * for a source with `origin` set — the whole point is exactly one copy on disk, shared by every
+   * project that references it.
+   */
+  origin?: { kind: "studio"; studioProjectId: string; resourceId: string };
 }
 
 export interface ProjectMetadata {

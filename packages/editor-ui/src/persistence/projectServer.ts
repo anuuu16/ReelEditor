@@ -88,7 +88,11 @@ export async function loadProjectFromServer(projectId: string): Promise<ProjectM
 
   const hydratedSources = await Promise.all(
     project.sources.map(async (source) => {
-      if (source.isPlaceholder) return source;
+      // A placeholder has no file at all, and a `origin`-tagged source's previewUrl already points
+      // straight at its Studio project's resource URL — it was never uploaded into *this* project's
+      // own media folder (that's the point: one shared copy, not one per project), so there is
+      // nothing to fetch from this project's `/media/:sourceId` endpoint for either case.
+      if (source.isPlaceholder || source.origin) return source;
       try {
         const mediaResponse = await fetch(`${RENDER_SERVICE_URL}/projects/${projectId}/media/${source.id}`);
         if (!mediaResponse.ok) throw new Error("missing media");
