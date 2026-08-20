@@ -5,8 +5,7 @@ import { JsonImportExport } from "./JsonImportExport.js";
 import { LaunchEditorPanel } from "./LaunchEditorPanel.js";
 import { PoemEditor } from "./PoemEditor.js";
 import { PromptGenerator } from "./PromptGenerator.js";
-import { ResourceList } from "./ResourceList.js";
-import { ResourceUploader } from "./ResourceUploader.js";
+import { ResourcesPanel } from "./ResourcesPanel.js";
 import { RhymeStudioView } from "./RhymeStudioView.js";
 import { ScenePromptsList } from "./ScenePromptsList.js";
 import { StudioOverview } from "./StudioOverview.js";
@@ -156,12 +155,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
           {activeTab === "scenes" && <ScenePromptsList project={project} onPatch={patchProject} />}
 
           {activeTab === "resources" && (
-            <section className="prompt-studio-section">
-              <h2>Resources</h2>
-              <p className="hint">Cover, logo, banner, character references, generated scene clips/audio, and finished exports.</p>
-              <ResourceUploader project={project} onUploaded={handleResourceUploaded} />
-              <ResourceList project={project} onChanged={handleResourcesChanged} />
-            </section>
+            <ResourcesPanel project={project} onUploaded={handleResourceUploaded} onChanged={handleResourcesChanged} />
           )}
 
           {activeTab === "editors" && (

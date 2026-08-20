@@ -2402,3 +2402,43 @@ body {
   color: #e6e6e9;
   white-space: pre-wrap;
 }
+
+.prompt-studio-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #2a2b31;
+  padding-bottom: 12px;
+}
+
+.prompt-studio-subtab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #23242b;
+  color: #9294a1;
+  border: 1px solid #34353d;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.prompt-studio-subtab:hover {
+  color: #e6e6e9;
+  border-color: #5b7cff;
+}
+
+.prompt-studio-subtab.active {
+  background: #5b7cff;
+  color: white;
+  border-color: #5b7cff;
+}
+
+.prompt-studio-subtab-count {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 10px;
+}
