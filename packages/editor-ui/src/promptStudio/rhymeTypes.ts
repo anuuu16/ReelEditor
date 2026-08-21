@@ -54,6 +54,8 @@ export interface RhymeReelMasterParams {
   age: string;
   /** The actual lyrics, so the style bible reflects specific story beats/imagery, not just topic. */
   poemText?: string;
+  /** e.g. "9:16", "16:9", "1:1" — the project's actual canvas shape (Settings > Aspect ratio). */
+  aspectRatio?: string;
 }
 
 export interface RhymeReelSceneParams {
@@ -64,6 +66,7 @@ export interface RhymeReelSceneParams {
   /** Which language's lines are the spoken/sung audio; every other language present becomes an
    * on-screen subtitle line. */
   primaryLanguage: string;
+  aspectRatio?: string;
 }
 
 export interface RhymeReelCaptionParams {
@@ -79,6 +82,7 @@ export interface RhymeReelCharacterParams {
   age: string;
   poemText?: string;
   master?: string;
+  aspectRatio?: string;
 }
 
 export interface RhymeReelCoverParams {
@@ -87,6 +91,7 @@ export interface RhymeReelCoverParams {
   age: string;
   master?: string;
   poemText?: string;
+  aspectRatio?: string;
 }
 
 /** One saved version of a poem, appended never overwritten, so earlier drafts stay reachable. */

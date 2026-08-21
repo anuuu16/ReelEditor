@@ -63,7 +63,13 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     setError(null);
     try {
       const title = poem.titles[reelLanguage] ?? primaryTitle;
-      const base = { title, topic: slot.params.topic, age: slot.params.age, poemText: poem.poems[reelLanguage] ?? "" };
+      const base = {
+        title,
+        topic: slot.params.topic,
+        age: slot.params.age,
+        poemText: poem.poems[reelLanguage] ?? "",
+        aspectRatio: project.aspectRatio,
+      };
       let reel: RhymeReel = { master: "", characterPrompt: "", coverPrompt: "", scenePrompts: [], caption: "" };
 
       setReelProgress("Writing master style bible...");
@@ -91,6 +97,7 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
           idx: i,
           total: timed.length,
           primaryLanguage: reelLanguage,
+          aspectRatio: project.aspectRatio,
         });
         scenePrompts.push(prompt);
         reel = { ...reel, scenePrompts: [...scenePrompts] };
@@ -115,6 +122,7 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     age: slot.params.age,
     poemText: poem.poems[reelLanguage] ?? "",
     scenes: timed.map((seg) => ({ lines: seg.lines[reelLanguage] ?? "", seconds: seg.end - seg.start })),
+    aspectRatio: project.aspectRatio,
   });
 
   function handleImportReel() {

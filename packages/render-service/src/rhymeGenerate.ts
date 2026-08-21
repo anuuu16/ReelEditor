@@ -63,6 +63,9 @@ export interface ReelMasterParams {
   /** The actual lyrics, so the style bible reflects specific story beats/imagery, not just the
    * short topic phrase. Optional so a caller without it (or an older client) still works. */
   poemText?: string;
+  /** e.g. "9:16", "16:9", "1:1" — the project's actual canvas shape (Settings > Aspect ratio).
+   * Optional, defaults to 9:16 for backward compatibility with callers that don't send it yet. */
+  aspectRatio?: string;
 }
 
 export interface ReelSceneParams {
@@ -71,6 +74,7 @@ export interface ReelSceneParams {
   idx: number;
   total: number;
   primaryLanguage: string;
+  aspectRatio?: string;
 }
 
 export interface ReelCaptionParams {
@@ -88,6 +92,7 @@ export interface ReelCharacterParams {
   /** The already-generated master style bible, so this can actually match it (same as
    * ReelSceneParams already does) instead of just being told to "match" text it never sees. */
   master?: string;
+  aspectRatio?: string;
 }
 
 export interface ReelCoverParams {
@@ -96,6 +101,17 @@ export interface ReelCoverParams {
   age: string;
   master?: string;
   poemText?: string;
+  aspectRatio?: string;
+}
+
+// "9:16" -> "9:16 vertical", "16:9" -> "16:9 landscape", "1:1" -> "1:1 square", anything else
+// (e.g. "4:5") is passed through with no orientation word rather than guessing wrong.
+function aspectRatioLabel(aspectRatio?: string): string {
+  const ratio = aspectRatio || "9:16";
+  if (ratio === "9:16") return "9:16 vertical";
+  if (ratio === "16:9") return "16:9 landscape";
+  if (ratio === "1:1") return "1:1 square";
+  return ratio;
 }
 
 const RHYME_SYSTEM = "Follow the instructions exactly. Return only valid JSON, no markdown, no code fences, no commentary.";
@@ -189,7 +205,7 @@ function buildPoemPrompt(p: PoemParams): string {
       ? `Primary language: ${primary}${langNote(primary)}.`
       : `Write it in EVERY one of these languages at once, independently, not translations of each other: ${languages.map((l) => `${l}${langNote(l)}`).join(", ")}. Each language's version must read naturally on its own while keeping the same meaning, mood, and the SAME ${p.scenes} scenes, so every language lines up scene by scene.`;
 
-  return `You are ${CONTENT_TYPE_ROLE[contentType]} writing for short vertical video reels.
+  return `You are ${CONTENT_TYPE_ROLE[contentType]} writing for short-form video reels.
 
 Topic: ${p.topic}
 Audience: ${p.age}. Guidance: ${hint}
@@ -308,7 +324,7 @@ function titleTopicPhrase(title?: string, topic?: string): string {
 }
 
 function buildReelMasterPrompt(p: ReelMasterParams): string {
-  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
+  return `You are a prompt engineer for Google Flow (Veo 3.1) ${aspectRatioLabel(p.aspectRatio)} kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${poemContextBlock(p.poemText)}
 Write it as full sentences that explain, clearly enough that every later scene/character/cover prompt can copy it verbatim as their shared style anchor and stay consistent with each other:
 1. Animation style: 3D animated (Pixar/DreamWorks-style rendering — rounded, dimensional, soft-shaded characters and environments, NOT 2D/flat/vector). Describe the specific 3D look (e.g. soft claymation-like shading, smooth toy-like plastic finish, painterly 3D) and why it fits the audience.
@@ -332,7 +348,7 @@ export async function generateReelMaster(p: ReelMasterParams): Promise<{ master:
 
 function buildReelCharacterPrompt(p: ReelCharacterParams): string {
   const masterBlock = p.master ? `\nMaster style bible, keep the look 100% consistent with it:\n"""${p.master}"""\n` : "";
-  return `You are a character designer for Google Flow (Veo 3.1) vertical kids reels. Design the MAIN CHARACTER (or mascot) for a reel ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
+  return `You are a character designer for Google Flow (Veo 3.1) ${aspectRatioLabel(p.aspectRatio)} kids reels. Design the MAIN CHARACTER (or mascot) for a reel ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${masterBlock}${poemContextBlock(p.poemText)}
 Describe it in enough visual detail to regenerate this exact character identically across every scene:
 - Species/type and defining physical features (shape, size, colors, patterns)
@@ -358,7 +374,7 @@ function buildReelCoverPrompt(p: ReelCoverParams): string {
   const masterBlock = p.master ? `\nMaster style bible, keep the look 100% consistent with it:\n"""${p.master}"""\n` : "";
   return `You are a thumbnail/cover designer for a kids' YouTube Short / Instagram Reel ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${masterBlock}${poemContextBlock(p.poemText)}
-Write ONE Google Flow / image-gen prompt for an eye-catching 9:16 vertical COVER/THUMBNAIL image: the main character in an appealing pose (pick a moment/pose that reflects the poem's story), a bold readable title-text treatment (describe its placement and style, not the literal words), bright inviting colors, a clear focal point that still reads well shrunk down to thumbnail size, matching the master style bible above.
+Write ONE Google Flow / image-gen prompt for an eye-catching ${aspectRatioLabel(p.aspectRatio)} COVER/THUMBNAIL image: the main character in an appealing pose (pick a moment/pose that reflects the poem's story), a bold readable title-text treatment (describe its placement and style, not the literal words), bright inviting colors, a clear focal point that still reads well shrunk down to thumbnail size, matching the master style bible above.
 
 Return ONLY valid JSON, no markdown: {"prompt":"..."}`;
 }
@@ -381,7 +397,7 @@ function buildReelScenePrompt(p: ReelSceneParams): string {
   return `Using this master style bible, keep the look 100% consistent:
 """${p.master}"""
 
-Write ONE Google Flow (Veo 3.1) prompt for scene ${p.idx + 1} of ${p.total}, a ${p.seg.dur}-second 9:16 vertical clip.
+Write ONE Google Flow (Veo 3.1) prompt for scene ${p.idx + 1} of ${p.total}, a ${p.seg.dur}-second ${aspectRatioLabel(p.aspectRatio)} clip.
 Spoken/sung audio (${p.primaryLanguage}): "${primaryLines.replace(/\n/g, " / ")}"
 ${subtitleLines}
 

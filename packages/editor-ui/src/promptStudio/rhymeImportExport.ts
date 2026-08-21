@@ -13,7 +13,7 @@ export function buildRhymePoemPromptTemplate(p: RhymePoemParams): string {
   const poems = languages.map((l) => `"${l}":"line1\\nline2"`).join(",");
   const sceneLines = languages.map((l) => `"${l}":"line1"`).join(",");
 
-  return `You are a beloved children's poet writing for short vertical video reels.
+  return `You are a beloved children's poet writing for short-form video reels.
 
 Topic: ${p.topic}
 Audience: ${p.age}
@@ -22,7 +22,7 @@ Length: about ${p.lengthSeconds} seconds total when read aloud
 ${languageInstruction}
 ${p.extra ? `Extra direction: ${p.extra}` : ""}
 
-Write the poem with strong sing-song rhythm and clean rhyme in every language above. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point. The scenes joined must equal the full poem, in every language.
+Write the poem with strong sing-song rhythm and clean rhyme in every language above. Then split it into exactly ${p.scenes} timed scenes for a reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point. The scenes joined must equal the full poem, in every language.
 
 Return ONLY valid JSON, no markdown, with a "titles" object, a "poems" object, and a "scenes" array, each keyed by the exact language names above:
 {"titles":{${titles}},"poems":{${poems}},"scenes":[{"lines":{${sceneLines}},"seconds":7}]}
@@ -80,6 +80,19 @@ export interface RhymeReelPromptParams {
   /** The reel language's timed scenes, in order — the external AI writes one Flow prompt per
    * entry, same count and order, it doesn't invent its own split. */
   scenes: Array<{ lines: string; seconds: number }>;
+  /** e.g. "9:16", "16:9", "1:1" — the project's actual canvas shape (Settings > Aspect ratio). */
+  aspectRatio?: string;
+}
+
+// "9:16" -> "9:16 vertical", "16:9" -> "16:9 landscape", "1:1" -> "1:1 square", anything else
+// (e.g. "4:5") passed through with no orientation word rather than guessing wrong — mirrors
+// render-service's own aspectRatioLabel() in rhymeGenerate.ts.
+function aspectRatioLabel(aspectRatio?: string): string {
+  const ratio = aspectRatio || "9:16";
+  if (ratio === "9:16") return "9:16 vertical";
+  if (ratio === "16:9") return "16:9 landscape";
+  if (ratio === "1:1") return "1:1 square";
+  return ratio;
 }
 
 // Mirrors render-service's own master/character/cover/scene/caption prompts, but combined into
@@ -87,8 +100,9 @@ export interface RhymeReelPromptParams {
 // into an external chat AI actually wants.
 export function buildRhymeReelPromptTemplate(p: RhymeReelPromptParams): string {
   const sceneList = p.scenes.map((s, i) => `Scene ${i + 1} (${s.seconds}s): "${s.lines.replace(/\n/g, " / ")}"`).join("\n");
+  const aspect = aspectRatioLabel(p.aspectRatio);
 
-  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels, and a social caption writer.
+  return `You are a prompt engineer for Google Flow (Veo 3.1) ${aspect} kids reels, and a social caption writer.
 
 Title: ${p.title || "(untitled)"}
 Topic: ${p.topic || "(see lyrics below)"}
@@ -103,8 +117,8 @@ ${sceneList}
 Write:
 1. A MASTER SETUP PROMPT: a detailed, reusable style bible in full sentences, 3D animated (Pixar/DreamWorks-style rendering — rounded, dimensional, soft-shaded, NOT 2D/flat/vector), covering animation style, color palette + mood/lighting, the main character's design, recurring setting details, and on-screen text style. Every other prompt below must copy this verbatim as their shared anchor.
 2. A CHARACTER REFERENCE prompt: one self-contained Google Flow prompt for a clean turnaround/reference image of the main character alone on a plain background, matching the master exactly.
-3. A COVER/THUMBNAIL prompt: one Google Flow / image-gen prompt for an eye-catching 9:16 vertical cover (character in an appealing pose reflecting the story, bold title-text treatment described not literal words, bright colors, reads well as a small thumbnail), matching the master.
-4. One Google Flow prompt per scene listed above, same count and order, each describing the visual action/camera move/character for that scene's lines, consistent with the master — self-contained, ready to paste.
+3. A COVER/THUMBNAIL prompt: one Google Flow / image-gen prompt for an eye-catching ${aspect} cover (character in an appealing pose reflecting the story, bold title-text treatment described not literal words, bright colors, reads well as a small thumbnail), matching the master.
+4. One Google Flow prompt per scene listed above, same count and order, each a ${aspect} clip describing the visual action/camera move/character for that scene's lines, consistent with the master — self-contained, ready to paste.
 5. A short Instagram Reel / YouTube Short caption plus 8 to 12 hashtags.
 
 Return ONLY valid JSON, no markdown:
