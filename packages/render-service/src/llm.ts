@@ -31,10 +31,10 @@ function getOpenAiClient(): OpenAI {
 
 const DEFAULT_MAX_TOKENS = process.env.LLM_MAX_TOKENS ? Number(process.env.LLM_MAX_TOKENS) : 2000;
 
-async function callAnthropic(system: string, userMessage: string): Promise<string> {
+async function callAnthropic(system: string, userMessage: string, maxTokens: number): Promise<string> {
   const response = await getAnthropicClient().messages.create({
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
-    max_tokens: DEFAULT_MAX_TOKENS,
+    max_tokens: maxTokens,
     system,
     messages: [{ role: "user", content: userMessage }],
   });
@@ -44,10 +44,10 @@ async function callAnthropic(system: string, userMessage: string): Promise<strin
     .join("");
 }
 
-async function callOpenAi(system: string, userMessage: string): Promise<string> {
+async function callOpenAi(system: string, userMessage: string, maxTokens: number): Promise<string> {
   const response = await getOpenAiClient().chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o",
-    max_tokens: DEFAULT_MAX_TOKENS,
+    max_tokens: maxTokens,
     messages: [
       { role: "system", content: system },
       { role: "user", content: userMessage },
@@ -74,12 +74,24 @@ export function extractJson<T>(text: string): T {
 }
 
 // Calls the current provider, extracts and validates the JSON shape, and retries up to `attempts`
-// times (a fresh model call each time, not just a re-parse) before giving up.
-export async function callLlmJson<T>(system: string, userMessage: string, validate: (o: unknown) => boolean, attempts = 3): Promise<T> {
+// times (a fresh model call each time, not just a re-parse) before giving up. maxTokens is
+// per-call so a caller whose response naturally scales with request size (e.g. more scenes, more
+// languages) can size the budget accordingly instead of everyone sharing one flat default that's
+// too small for a large request and silently truncates/self-shortens the output.
+export async function callLlmJson<T>(
+  system: string,
+  userMessage: string,
+  validate: (o: unknown) => boolean,
+  attempts = 3,
+  maxTokens = DEFAULT_MAX_TOKENS
+): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const text = currentProvider() === "anthropic" ? await callAnthropic(system, userMessage) : await callOpenAi(system, userMessage);
+      const text =
+        currentProvider() === "anthropic"
+          ? await callAnthropic(system, userMessage, maxTokens)
+          : await callOpenAi(system, userMessage, maxTokens);
       const parsed = extractJson<T>(text);
       if (!validate(parsed)) throw new Error("Model output was missing expected fields");
       return parsed;

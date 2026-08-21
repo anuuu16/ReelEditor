@@ -78,9 +78,26 @@ function approximateLineCount(lengthSeconds: number): number {
   return Math.max(4, Math.round(lengthSeconds / 5));
 }
 
-function isPoem(o: unknown): o is Poem {
-  const p = o as Poem | null;
-  return !!p && typeof p.poems === "object" && p.poems !== null && Array.isArray(p.scenes);
+// Checks the model actually returned the requested number of scenes, not just *some* array of
+// scenes — without this, an under-length response (e.g. 6 scenes/52s when 15 scenes/120s were
+// asked for) still passed validation and was silently accepted as-is.
+function makeIsPoem(expectedScenes: number): (o: unknown) => o is Poem {
+  return (o: unknown): o is Poem => {
+    const p = o as Poem | null;
+    return !!p && typeof p.poems === "object" && p.poems !== null && Array.isArray(p.scenes) && p.scenes.length === expectedScenes;
+  };
+}
+
+// Flat 2000-token default (see llm.ts) is fine for a short single-language poem, but a large
+// request — many scenes, several languages, each with its own full poem text plus per-scene
+// lines — needs real headroom or the model runs out of budget and the response naturally ends up
+// shorter than asked for. Rough estimate: ~40 tokens per scene per language for the scenes array,
+// plus ~8 tokens/second of poem text per language for the full poems.
+function estimatePoemMaxTokens(p: PoemParams): number {
+  const languageCount = Math.max(1, p.languages.length);
+  const sceneTokens = p.scenes * languageCount * 40;
+  const poemTokens = p.lengthSeconds * languageCount * 8;
+  return Math.max(2000, sceneTokens + poemTokens + 500);
 }
 
 function languageJsonExample(languages: string[]): string {
@@ -172,11 +189,11 @@ Use \\n between lines within a poem string.`;
 }
 
 export async function generatePoem(p: PoemParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), isPoem);
+  return callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
 }
 
 export async function reworkPoem(p: ReworkParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), isPoem);
+  return callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
 }
 
 function buildReelMasterPrompt(p: ReelMasterParams): string {
