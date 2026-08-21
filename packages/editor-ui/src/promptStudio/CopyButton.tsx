@@ -3,6 +3,7 @@ import { useState } from "react";
 interface CopyButtonProps {
   text: string;
   label?: string;
+  title?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -29,7 +30,7 @@ function legacyCopy(text: string): boolean {
   return ok;
 }
 
-export function CopyButton({ text, label = "Copy", className, disabled }: CopyButtonProps) {
+export function CopyButton({ text, label = "Copy", title, className, disabled }: CopyButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   async function handleClick() {
@@ -57,7 +58,7 @@ export function CopyButton({ text, label = "Copy", className, disabled }: CopyBu
       className={className ? `${baseClass} ${className}` : baseClass}
       onClick={handleClick}
       disabled={disabled}
-      title={status === "failed" ? "Copy failed — select and copy the text manually" : undefined}
+      title={status === "failed" ? "Copy failed — select and copy the text manually" : title}
     >
       {status === "copied" ? "Copied" : status === "failed" ? "Copy failed" : label}
     </button>

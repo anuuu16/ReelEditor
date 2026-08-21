@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fixRhymeTimeline, reworkRhymePoem } from "./rhymeApi.js";
 import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.js";
 import type { RhymePoemSlot, RhymePoemVersion, RhymeScene } from "./rhymeTypes.js";
+import { CopyButton } from "./CopyButton.js";
 import { Button, Card, TextareaField } from "./ui/index.js";
 
 interface RhymeLyricsStepProps {
@@ -172,6 +173,20 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
         />
       ))}
 
+      {/* Whole-poem copy, for pasting into ElevenLabs (or any TTS) as one continuous narration —
+          separate from the per-scene copies below, which are for generating audio scene by scene
+          so each clip lines up with its matching video scene in the timeline. */}
+      <div className="mb-3.5 flex flex-wrap gap-1.5">
+        {languages.map((language) => (
+          <CopyButton
+            key={language}
+            text={poem.poems[language] ?? ""}
+            label={`Copy ${language} lyrics`}
+            disabled={!(poem.poems[language] ?? "").trim()}
+          />
+        ))}
+      </div>
+
       <div className="rhyme-timeline">
         <h4>Scenes ({formatMmSs(total)} total)</h4>
         {timed.map((seg, i) => (
@@ -181,9 +196,16 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
             </span>
             <div className="rhyme-timeline-lines">
               {languages.map((language, langIndex) => (
-                <span key={language} className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>
-                  {seg.lines[language] ?? ""}
-                </span>
+                <div key={language} className="flex items-center gap-1.5">
+                  <span className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>{seg.lines[language] ?? ""}</span>
+                  <CopyButton
+                    text={seg.lines[language] ?? ""}
+                    label="Copy"
+                    title={`Copy ${language} lines for scene ${i + 1} — paste into ElevenLabs to generate this scene's audio in sync with the timeline`}
+                    className="!px-1.5 !py-0.5 text-[10px]"
+                    disabled={!(seg.lines[language] ?? "").trim()}
+                  />
+                </div>
               ))}
             </div>
           </div>
