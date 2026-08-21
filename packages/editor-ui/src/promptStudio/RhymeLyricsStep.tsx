@@ -16,6 +16,24 @@ const REWORK_LABELS: Record<"regenerate" | "optimize" | "enhance", string> = {
   enhance: "Enhance",
 };
 
+// ElevenLabs (and most TTS) has no separate "instructions" channel — whatever text you paste gets
+// read aloud verbatim, so a plain sentence like "read this cheerfully" would just get spoken as
+// words. Their v3 model is the exception: bracketed tags like [playful] are recognized as delivery
+// direction and stripped before speaking rather than voiced — safe to prepend for that model, but
+// on any other TTS the brackets would just get read literally, so this is called out in the UI.
+const STYLE_TONE_TAGS: Record<string, string> = {
+  Rhyme: "playful, sing-song",
+  "Story poem": "warm, narrative",
+  Lullaby: "soft, soothing, gentle",
+  "Action song": "energetic, upbeat",
+  "Counting song": "cheerful, rhythmic",
+};
+
+function voicePromptText(lines: string, style: string): string {
+  const tone = STYLE_TONE_TAGS[style] ?? "warm, friendly";
+  return `[${tone}] ${lines}`;
+}
+
 // The lyrics half of what used to be RhymePoemCard — title, per-language poem text, rework
 // actions, and the timed scene breakdown those lines produce. Scene *prompt* generation (which
 // takes this text as input) is a separate step, RhymeScenesStep, further along the wizard.
@@ -175,8 +193,11 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
 
       {/* Whole-poem copy, for pasting into ElevenLabs (or any TTS) as one continuous narration —
           separate from the per-scene copies below, which are for generating audio scene by scene
-          so each clip lines up with its matching video scene in the timeline. */}
-      <div className="mb-3.5 flex flex-wrap gap-1.5">
+          so each clip lines up with its matching video scene in the timeline. "Copy prompt" adds an
+          [emotion] tag ElevenLabs' v3 model reads as delivery direction (not spoken aloud) — on any
+          other TTS those brackets would be read out literally, so "Copy lyrics" (plain text, no
+          tag) is the safe default and "Copy prompt" is opt-in for v3 specifically. */}
+      <div className="mb-1.5 flex flex-wrap gap-1.5">
         {languages.map((language) => (
           <CopyButton
             key={language}
@@ -185,7 +206,17 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
             disabled={!(poem.poems[language] ?? "").trim()}
           />
         ))}
+        {languages.map((language) => (
+          <CopyButton
+            key={`${language}-prompt`}
+            text={voicePromptText(poem.poems[language] ?? "", slot.params.style)}
+            label={`Copy ${language} prompt`}
+            title={`${language} lyrics with an ElevenLabs v3 [emotion] tag prepended (ElevenLabs v3 only — other TTS engines would read the brackets aloud)`}
+            disabled={!(poem.poems[language] ?? "").trim()}
+          />
+        ))}
       </div>
+      <p className="mb-3.5 text-xs text-ps-muted">"Prompt" adds an [emotion] tag for ElevenLabs v3 — use plain "lyrics" for any other TTS.</p>
 
       <div className="rhyme-timeline">
         <h4>Scenes ({formatMmSs(total)} total)</h4>
@@ -201,7 +232,14 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
                   <CopyButton
                     text={seg.lines[language] ?? ""}
                     label="Copy"
-                    title={`Copy ${language} lines for scene ${i + 1} — paste into ElevenLabs to generate this scene's audio in sync with the timeline`}
+                    title={`Copy ${language} lines for scene ${i + 1} (${formatMmSs(seg.start)}-${formatMmSs(seg.end)}, ~${(seg.end - seg.start).toFixed(1)}s) — paste into any TTS, pacing it to fill that time to stay in sync with the video timeline`}
+                    className="!px-1.5 !py-0.5 text-[10px]"
+                    disabled={!(seg.lines[language] ?? "").trim()}
+                  />
+                  <CopyButton
+                    text={voicePromptText(seg.lines[language] ?? "", slot.params.style)}
+                    label="Copy prompt"
+                    title={`Scene ${i + 1} (${formatMmSs(seg.start)}-${formatMmSs(seg.end)}, ~${(seg.end - seg.start).toFixed(1)}s) with an ElevenLabs v3 [emotion] tag prepended — v3 only, other TTS engines would read the brackets aloud`}
                     className="!px-1.5 !py-0.5 text-[10px]"
                     disabled={!(seg.lines[language] ?? "").trim()}
                   />
