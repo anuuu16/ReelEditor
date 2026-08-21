@@ -48,6 +48,17 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
     onChange({ ...slot, activeVersionIndex: index });
   }
 
+  // Regenerate/optimize/enhance only ever append a version, never replace one, so they can pile up
+  // with no way to prune the ones that didn't turn out well — this is that prune.
+  function deleteVersion(index: number) {
+    if (slot.versions.length <= 1) return;
+    const versions = slot.versions.filter((_, i) => i !== index);
+    let activeVersionIndex = slot.activeVersionIndex;
+    if (index < slot.activeVersionIndex) activeVersionIndex -= 1;
+    else if (index === slot.activeVersionIndex) activeVersionIndex = Math.min(index, versions.length - 1);
+    onChange({ ...slot, versions, activeVersionIndex });
+  }
+
   async function handleRework(kind: "regenerate" | "optimize" | "enhance") {
     setIsReworking(kind);
     setError(null);
@@ -102,6 +113,18 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
               onClick={() => setActiveVersionIndex(slot.activeVersionIndex + 1)}
             >
               ›
+            </Button>
+            <Button
+              variant="ghost"
+              className="!px-1.5 !py-1"
+              title="Delete this version"
+              onClick={() => {
+                if (window.confirm(`Delete the "${version.label}" version? This can't be undone.`)) {
+                  deleteVersion(slot.activeVersionIndex);
+                }
+              }}
+            >
+              Delete
             </Button>
           </div>
         )}

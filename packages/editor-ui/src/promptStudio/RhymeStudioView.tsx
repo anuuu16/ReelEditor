@@ -148,6 +148,10 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     persistSlots(slots.map((s) => (s.id === next.id ? next : s)));
   }
 
+  function deleteSlot(id: string) {
+    persistSlots(slots.filter((s) => s.id !== id));
+  }
+
   function currentParams(): RhymePoemParams {
     return {
       topic: topic.trim(),
@@ -411,7 +415,19 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
                     {slot.params.languages.join(", ")} · {slot.versions.length} version{slot.versions.length === 1 ? "" : "s"}
                   </p>
                 </div>
-                <Button onClick={() => setWizardSlotId(slot.id)}>Continue: lyrics, scenes, audio, assets, video, editor, final →</Button>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button onClick={() => setWizardSlotId(slot.id)}>Continue: lyrics, scenes, audio, assets, video, editor, final →</Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (window.confirm(`Delete "${title}"? This removes its lyrics and any scene prompts generated for it.`)) {
+                        deleteSlot(slot.id);
+                      }
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             );
           })}
