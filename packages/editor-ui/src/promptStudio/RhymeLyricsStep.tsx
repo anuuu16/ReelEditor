@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { parseElevenLabsAlignment, retimeScenesFromAlignment } from "./elevenLabsTiming.js";
 import { fixRhymeTimeline, reworkRhymePoem } from "./rhymeApi.js";
 import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.js";
 import type { RhymePoemSlot, RhymePoemVersion, RhymeScene } from "./rhymeTypes.js";
 import { CopyButton } from "./CopyButton.js";
-import { Button, Card, TextareaField } from "./ui/index.js";
+import { Button, Card, SelectField, TextareaField } from "./ui/index.js";
 
 interface RhymeLyricsStepProps {
   slot: RhymePoemSlot;
@@ -22,9 +23,9 @@ const REWORK_LABELS: Record<"regenerate" | "optimize" | "enhance", string> = {
 // timing — there's no TTS input for "land this at 8 seconds." Their v3 model is the one exception
 // to the instructions point: bracketed tags like [playful] are recognized as delivery direction and
 // stripped before speaking rather than voiced — safe to prepend for that model, but on any other
-// TTS the brackets would just get read literally, so this is called out in the UI. Real sync comes
-// from generating audio one scene at a time (the per-scene Copy buttons) and matching clips to
-// scenes by order when uploading them back, not from anything embedded in the prompt text.
+// TTS the brackets would just get read literally, so this is called out in the UI. Real sync (once
+// audio actually exists) comes from importing ElevenLabs' own with-timestamps response below, which
+// retimes scenes to the real generated audio instead of guessing from pause cues in the prompt.
 const STYLE_TONE_TAGS: Record<string, string> = {
   Rhyme: "playful, sing-song",
   "Story poem": "warm, narrative",
@@ -55,6 +56,10 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
   const [isReworking, setIsReworking] = useState<string | null>(null);
   const [isFixingTimeline, setIsFixingTimeline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timingLanguage, setTimingLanguage] = useState(slot.params.languages[0] ?? "English");
+  const [timingPasteText, setTimingPasteText] = useState("");
+  const [timingError, setTimingError] = useState<string | null>(null);
+  const [timingResult, setTimingResult] = useState<string | null>(null);
 
   const version = slot.versions[slot.activeVersionIndex];
   const poem = version.poem;
@@ -160,7 +165,33 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
     }
   }
 
+  // The real sync mechanism: once you've actually generated audio from the prompt above (in
+  // ElevenLabs or wherever) and called their with-timestamps endpoint, this finds each scene's
+  // text in the real spoken/aligned audio (in order, so a repeated chorus line matches its own
+  // occurrence) and sets that scene's duration to the real elapsed time instead of a guess.
+  function handleImportTiming() {
+    setTimingError(null);
+    setTimingResult(null);
+    try {
+      const alignment = parseElevenLabsAlignment(timingPasteText);
+      // timed (not poem.scenes directly) so this also works when poem.scenes started out empty and
+      // the displayed timeline is being derived on the fly from the poem text.
+      const baseScenes: RhymeScene[] = timed.map((seg) => ({ lines: seg.lines, seconds: seg.seconds }));
+      const { scenes, matchedCount, unmatchedCount } = retimeScenesFromAlignment(baseScenes, timingLanguage, alignment);
+      updateScenes(scenes);
+      setTimingResult(
+        unmatchedCount === 0
+          ? `Retimed all ${matchedCount} scenes from the real audio.`
+          : `Retimed ${matchedCount} scene${matchedCount === 1 ? "" : "s"}; ${unmatchedCount} couldn't be found in the audio (kept its existing timing) — likely the lyrics were edited after this audio was generated.`
+      );
+      setTimingPasteText("");
+    } catch (err) {
+      setTimingError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
+    <>
     <Card>
       <div className="rhyme-poem-card-header">
         <input
@@ -283,5 +314,34 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
 
       {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
     </Card>
+
+    <Card
+      title="Sync from real audio"
+      hint="Once you've generated audio from the prompt above and called ElevenLabs' with-timestamps endpoint, paste the response here to retime scenes to the real audio instead of a guess."
+    >
+      <div className="mb-3.5 flex flex-wrap items-end gap-3">
+        <SelectField
+          label="Language this audio is in"
+          value={timingLanguage}
+          onChange={setTimingLanguage}
+          options={languages.map((language) => ({ value: language, label: language }))}
+          className="min-w-[160px]"
+        />
+      </div>
+      <TextareaField
+        label="Paste ElevenLabs' with-timestamps response"
+        rows={6}
+        value={timingPasteText}
+        onChange={setTimingPasteText}
+        placeholder='{"alignment":{"characters":[...],"character_start_times_seconds":[...],"character_end_times_seconds":[...]}}'
+        className="mb-3.5"
+      />
+      <Button variant="primary" onClick={handleImportTiming} disabled={!timingPasteText.trim()}>
+        Retime scenes from this audio
+      </Button>
+      {timingResult && <p className="mt-3 text-xs text-ps-muted">{timingResult}</p>}
+      {timingError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{timingError}</p>}
+    </Card>
+    </>
   );
 }
