@@ -3,7 +3,7 @@ import type { ProjectModel } from "@reel-studio/shared-types";
 import { CopyButton } from "./CopyButton.js";
 import { buildRhymePoemPromptTemplate, parseRhymePoemJson } from "./rhymeImportExport.js";
 import { generateRhymePoem } from "./rhymeApi.js";
-import { RhymePoemCard } from "./RhymePoemCard.js";
+import { listTemplates, saveCustomTemplate, type RhymeTemplate } from "./rhymeTemplates.js";
 import { RhymeWizard } from "./RhymeWizard.js";
 import type { RhymeContentType, RhymePoemParams, RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
 import type { StudioProject } from "./types.js";
@@ -76,6 +76,43 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   const [progressLabel, setProgressLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [templates, setTemplates] = useState<RhymeTemplate[]>(listTemplates());
+  const [templateId, setTemplateId] = useState("");
+  const [newTemplateName, setNewTemplateName] = useState("");
+
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    setAge(template.age);
+    setStyle(template.style);
+    setLengthSeconds(template.lengthSeconds);
+    setLanguages(template.languages);
+    setContentType(template.contentType);
+    setExtra(template.extra);
+  }
+
+  // Saves everything a template pre-fills except the topic (every project's topic is different).
+  // Every field stays editable afterward — the template is only a starting point.
+  function handleSaveTemplate() {
+    const name = newTemplateName.trim();
+    if (!name) return;
+    const template: RhymeTemplate = {
+      id: crypto.randomUUID(),
+      name,
+      age,
+      style,
+      lengthSeconds,
+      languages,
+      contentType,
+      extra,
+    };
+    saveCustomTemplate(template);
+    setTemplates(listTemplates());
+    setTemplateId(template.id);
+    setNewTemplateName("");
+  }
+
   const availableLanguages = [...new Set([...LANGUAGE_OPTIONS, ...languages])];
   const scenes = scenesForLength(lengthSeconds);
 
@@ -130,6 +167,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
       const slot: RhymePoemSlot = { id: crypto.randomUUID(), params: currentParams(), versions: [version], activeVersionIndex: 0 };
       persistSlots([...slots, slot]);
       setPasteText("");
+      setWizardSlotId(slot.id);
     } catch (err) {
       setPasteError(err instanceof Error ? err.message : String(err));
     }
@@ -162,6 +200,10 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
 
     setIsGenerating(false);
     setProgressLabel("");
+    // Jump straight into the step-by-step flow for the first poem just written — concept (this
+    // screen) flows forward into lyrics (the wizard's first step) rather than leaving the user on
+    // a list they'd have to click back into.
+    if (created.length > 0) setWizardSlotId(created[0].id);
   }
 
   const wizardSlot = wizardSlotId ? slots.find((s) => s.id === wizardSlotId) : undefined;
@@ -182,6 +224,33 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
 
   return (
     <div className="rhyme-studio">
+      <Card
+        title="Template"
+        hint="Pre-fills age, style, length, languages, and extra direction below. Everything stays editable after — a template is just a starting point."
+      >
+        <div className="mb-3.5 flex flex-wrap items-end gap-3">
+          <SelectField
+            label="Start from a template"
+            value={templateId}
+            onChange={applyTemplate}
+            options={[{ value: "", label: "Custom (no template)" }, ...templates.map((t) => ({ value: t.id, label: t.name }))]}
+            className="min-w-[220px] flex-1"
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <TextField
+            label="Save current settings as a new template"
+            value={newTemplateName}
+            onChange={setNewTemplateName}
+            placeholder="e.g. YouTube poem"
+            className="min-w-[220px] flex-1"
+          />
+          <Button onClick={handleSaveTemplate} disabled={!newTemplateName.trim()}>
+            Save template
+          </Button>
+        </div>
+      </Card>
+
       <Card
         title="Generate content"
         hint="Kids' poems, stories, or scripts, pre-timed into reel scenes, in as many languages at once as you pick below."
@@ -329,14 +398,23 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
       {slots.length === 0 ? (
         <p className="text-xs text-ps-muted">No poems yet. Fill in a topic above and click Generate, or paste one in.</p>
       ) : (
-        slots.map((slot) => (
-          <div key={slot.id} className="rhyme-poem-card-wrapper">
-            <div className="mb-1.5">
-              <Button onClick={() => setWizardSlotId(slot.id)}>Step-by-step: audio, assets, video, editor, final →</Button>
-            </div>
-            <RhymePoemCard slot={slot} onChange={updateSlot} />
-          </div>
-        ))
+        <Card title="Your poems">
+          {slots.map((slot) => {
+            const version = slot.versions[slot.activeVersionIndex];
+            const title = Object.values(version.poem.titles)[0] || "Untitled poem";
+            return (
+              <div key={slot.id} className="mb-1.5 flex flex-wrap items-center justify-between gap-3 rounded-ps border border-ps-border px-3 py-2">
+                <div>
+                  <p className="font-semibold text-ps-text">{title}</p>
+                  <p className="text-xs text-ps-muted">
+                    {slot.params.languages.join(", ")} · {slot.versions.length} version{slot.versions.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Button onClick={() => setWizardSlotId(slot.id)}>Continue: lyrics, scenes, audio, assets, video, editor, final →</Button>
+              </div>
+            );
+          })}
+        </Card>
       )}
     </div>
   );
