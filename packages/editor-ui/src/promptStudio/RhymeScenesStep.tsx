@@ -40,14 +40,19 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
   // settings — not stored, so it never drifts from Settings the way a saved copy could.
   const accounts = buildAccounts(timed.length, project.creditsPerAccount, project.creditsPerClip);
 
-  function updateReel(patch: Partial<RhymeReel>) {
-    const base: RhymeReel = version.reels?.[reelLanguage] ?? { master: "", scenePrompts: [], caption: "" };
-    const next: RhymeReel = { ...base, ...patch };
+  // Writes a full RhymeReel (not a patch) into the slot. handleMakeReel accumulates the growing
+  // reel in a local variable and passes the whole thing here each step — deriving "base" from
+  // `slot`/`version` instead (as an earlier version of this function did) reads a stale closure
+  // mid-generation: onChange triggers a re-render with new props, but the already-running async
+  // handleMakeReel keeps using the slot/version values from when it started, so every field set
+  // earlier in the same run (master, characterPrompt, ...) would get silently reverted back to
+  // whatever existed *before generation began* on each subsequent update — exactly the "generates
+  // some, then removes it" symptom.
+  function applyReel(reel: RhymeReel) {
     const versions = slot.versions.map((v, idx) =>
-      idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: next } } : v
+      idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: reel } } : v
     );
     onChange({ ...slot, versions });
-    return next;
   }
 
   async function handleMakeReel() {
@@ -56,18 +61,22 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     try {
       const title = poem.titles[reelLanguage] ?? primaryTitle;
       const base = { title, topic: slot.params.topic, age: slot.params.age };
+      let reel: RhymeReel = { master: "", characterPrompt: "", coverPrompt: "", scenePrompts: [], caption: "" };
 
       setReelProgress("Writing master style bible...");
       const { master } = await generateRhymeReelMaster(base);
-      updateReel({ master, characterPrompt: "", coverPrompt: "", scenePrompts: [], caption: "" });
+      reel = { ...reel, master };
+      applyReel(reel);
 
       setReelProgress("Writing character reference prompt...");
       const { prompt: characterPrompt } = await generateRhymeReelCharacter(base);
-      updateReel({ characterPrompt });
+      reel = { ...reel, characterPrompt };
+      applyReel(reel);
 
       setReelProgress("Writing cover/thumbnail prompt...");
       const { prompt: coverPrompt } = await generateRhymeReelCover(base);
-      updateReel({ coverPrompt });
+      reel = { ...reel, coverPrompt };
+      applyReel(reel);
 
       const scenePrompts: string[] = [];
       for (let i = 0; i < timed.length; i++) {
@@ -81,12 +90,14 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
           primaryLanguage: reelLanguage,
         });
         scenePrompts.push(prompt);
-        updateReel({ scenePrompts: [...scenePrompts] });
+        reel = { ...reel, scenePrompts: [...scenePrompts] };
+        applyReel(reel);
       }
 
       setReelProgress("Writing caption...");
       const { caption } = await generateRhymeReelCaption(base);
-      updateReel({ caption });
+      reel = { ...reel, caption };
+      applyReel(reel);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -111,10 +122,24 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
       </div>
 
       {accounts.length > 0 && (
-        <p className="mb-3.5 text-xs text-ps-muted">
-          {timed.length} scene{timed.length === 1 ? "" : "s"} across {accounts.length} Flow account{accounts.length === 1 ? "" : "s"}:{" "}
-          {accounts.map((a) => `Account ${a.account}: scenes ${a.sceneRange[0]}-${a.sceneRange[1]} (${a.clips})`).join(", ")}
-        </p>
+        <div className="mb-3.5 flex flex-col gap-1.5">
+          <p className="text-xs text-ps-muted">
+            {timed.length} scene{timed.length === 1 ? "" : "s"} across {accounts.length} Flow account{accounts.length === 1 ? "" : "s"}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {accounts.map((a) => {
+              const accountPrompts = currentReel?.scenePrompts.slice(a.sceneRange[0] - 1, a.sceneRange[1]) ?? [];
+              return (
+                <div key={a.account} className="flex items-center gap-1.5 rounded-ps border border-ps-border px-2 py-1 text-xs text-ps-muted">
+                  <span>
+                    Account {a.account}: scenes {a.sceneRange[0]}-{a.sceneRange[1]} ({a.clips})
+                  </span>
+                  <CopyButton text={accountPrompts.join("\n\n")} label="Copy" disabled={accountPrompts.length === 0} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}

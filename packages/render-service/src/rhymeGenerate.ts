@@ -280,7 +280,7 @@ function buildReelMasterPrompt(p: ReelMasterParams): string {
   return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem titled "${p.title}" about "${p.topic}", for ${p.age}.
 
 Write it as full sentences that explain, clearly enough that every later scene/character/cover prompt can copy it verbatim as their shared style anchor and stay consistent with each other:
-1. Animation style and rendering (e.g. 2D flat vector, 3D claymation, watercolor) and why it fits the audience.
+1. Animation style: 3D animated (Pixar/DreamWorks-style rendering — rounded, dimensional, soft-shaded characters and environments, NOT 2D/flat/vector). Describe the specific 3D look (e.g. soft claymation-like shading, smooth toy-like plastic finish, painterly 3D) and why it fits the audience.
 2. Color palette (name the actual colors) and overall mood/lighting.
 3. The main character/mascot's design in enough detail to redraw it identically every time.
 4. Setting/world details that recur across scenes.

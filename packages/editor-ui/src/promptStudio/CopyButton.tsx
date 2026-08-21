@@ -4,9 +4,10 @@ interface CopyButtonProps {
   text: string;
   label?: string;
   className?: string;
+  disabled?: boolean;
 }
 
-export function CopyButton({ text, label = "Copy", className }: CopyButtonProps) {
+export function CopyButton({ text, label = "Copy", className, disabled }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleClick() {
@@ -24,7 +25,12 @@ export function CopyButton({ text, label = "Copy", className }: CopyButtonProps)
     "rounded-ps border border-ps-border-strong bg-ps-elevated px-3 py-1.5 text-xs font-medium text-ps-text hover:border-ps-accent disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <button type="button" className={className ? `${baseClass} ${className}` : baseClass} onClick={handleClick}>
+    <button
+      type="button"
+      className={className ? `${baseClass} ${className}` : baseClass}
+      onClick={handleClick}
+      disabled={disabled}
+    >
       {copied ? "Copied" : label}
     </button>
   );
