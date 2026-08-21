@@ -170,8 +170,22 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     setPasteError(null);
     try {
       const poem = parseRhymePoemJson(pasteText);
+      // Use whatever languages the pasted JSON actually contains, not whichever chips happen to be
+      // selected on the concept form above — those two can easily disagree (e.g. only "English"
+      // selected while the paste has English+Hindi), and every later step (RhymeLyricsStep,
+      // RhymeScenesStep) only renders/generates for slot.params.languages, silently dropping any
+      // language present in the poem but missing from that list.
+      const importedLanguages = Object.keys(poem.poems);
+      const params = {
+        ...currentParams(),
+        languages: importedLanguages.length ? importedLanguages : currentParams().languages,
+        // Same reasoning as languages above — a later Regenerate/Fix timeline call targets
+        // slot.params.scenes, which should match what was actually pasted, not the concept form's
+        // current scene count (computed from Settings' total/clip length at paste time).
+        scenes: poem.scenes.length || currentParams().scenes,
+      };
       const version: RhymePoemVersion = { id: crypto.randomUUID(), label: "Pasted", poem, createdAt: Date.now() };
-      const slot: RhymePoemSlot = { id: crypto.randomUUID(), params: currentParams(), versions: [version], activeVersionIndex: 0 };
+      const slot: RhymePoemSlot = { id: crypto.randomUUID(), params, versions: [version], activeVersionIndex: 0 };
       persistSlots([...slots, slot]);
       setPasteText("");
       setWizardSlotId(slot.id);
