@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { accountForScene, buildAccounts } from "./creditMath.js";
+import { buildRhymeReelPromptTemplate, parseRhymeReelJson } from "./rhymeImportExport.js";
 import {
   generateRhymeReelCaption,
   generateRhymeReelCharacter,
@@ -11,7 +12,7 @@ import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.
 import type { RhymePoemSlot, RhymeReel } from "./rhymeTypes.js";
 import type { StudioProject } from "./types.js";
 import { CopyButton } from "./CopyButton.js";
-import { Button, Card, SelectField } from "./ui/index.js";
+import { Button, Card, SelectField, TextareaField } from "./ui/index.js";
 
 interface RhymeScenesStepProps {
   project: StudioProject;
@@ -29,6 +30,8 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
   const [reelProgress, setReelProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [reelLanguage, setReelLanguage] = useState(slot.params.languages[0] ?? "English");
+  const [pasteText, setPasteText] = useState("");
+  const [pasteError, setPasteError] = useState<string | null>(null);
 
   const version = slot.versions[slot.activeVersionIndex];
   const poem = version.poem;
@@ -106,7 +109,26 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     }
   }
 
+  const reelPromptTemplate = buildRhymeReelPromptTemplate({
+    title: poem.titles[reelLanguage] ?? primaryTitle,
+    topic: slot.params.topic,
+    age: slot.params.age,
+    poemText: poem.poems[reelLanguage] ?? "",
+    scenes: timed.map((seg) => ({ lines: seg.lines[reelLanguage] ?? "", seconds: seg.end - seg.start })),
+  });
+
+  function handleImportReel() {
+    setPasteError(null);
+    try {
+      applyReel(parseRhymeReelJson(pasteText));
+      setPasteText("");
+    } catch (err) {
+      setPasteError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
+    <>
     <Card>
       <div className="mb-3.5 flex flex-wrap items-end gap-3">
         <SelectField
@@ -209,5 +231,28 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
         <p className="text-xs text-ps-muted">No scene prompts yet for {reelLanguage} — generate them from the lyrics above.</p>
       )}
     </Card>
+
+    <Card
+      title="Use any AI chat"
+      hint="Copy this prompt into Claude, ChatGPT, or anywhere else, then paste back the JSON it gives you as the reel for this language."
+    >
+      <TextareaField label="Prompt to copy into any AI chat" rows={6} readOnly value={reelPromptTemplate} onChange={() => {}} className="mb-2" />
+      <div className="mb-3.5">
+        <CopyButton text={reelPromptTemplate} label="Copy prompt" />
+      </div>
+      <TextareaField
+        label="Paste the JSON it gives you back"
+        rows={6}
+        value={pasteText}
+        onChange={setPasteText}
+        placeholder='{"master":"...","characterPrompt":"...","coverPrompt":"...","scenePrompts":["...", ...],"caption":"..."}'
+        className="mb-3.5"
+      />
+      <Button variant="primary" onClick={handleImportReel} disabled={!pasteText.trim()}>
+        Import reel
+      </Button>
+      {pasteError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{pasteError}</p>}
+    </Card>
+    </>
   );
 }

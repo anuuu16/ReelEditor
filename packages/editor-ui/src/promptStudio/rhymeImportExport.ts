@@ -1,4 +1,4 @@
-import type { RhymePoem, RhymePoemParams } from "./rhymeTypes.js";
+import type { RhymePoem, RhymePoemParams, RhymeReel } from "./rhymeTypes.js";
 
 // A copy-paste-ready prompt for any AI chat, mirroring render-service's own poem prompt, so
 // whatever comes back matches the Poem JSON shape this app already knows how to import.
@@ -33,7 +33,7 @@ function stripCodeFences(text: string): string {
   return text.replace(/```json/gi, "```").replace(/```/g, "");
 }
 
-export function parseRhymePoemJson(raw: string): RhymePoem {
+function extractJsonObject(raw: string): unknown {
   const stripped = stripCodeFences(raw).trim();
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");
@@ -41,14 +41,16 @@ export function parseRhymePoemJson(raw: string): RhymePoem {
     throw new Error("No JSON object found in the pasted text");
   }
   const slice = stripped.slice(start, end + 1);
-  let data: unknown;
   try {
-    data = JSON.parse(slice);
+    return JSON.parse(slice);
   } catch {
-    data = JSON.parse(slice.replace(/\r/g, ""));
+    return JSON.parse(slice.replace(/\r/g, ""));
   }
+}
+
+export function parseRhymePoemJson(raw: string): RhymePoem {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const d = data as any;
+  const d = extractJsonObject(raw) as any;
   if (!d || typeof d.poems !== "object" || d.poems === null || !Array.isArray(d.scenes)) {
     throw new Error('Pasted JSON must have a "poems" object and a "scenes" array');
   }
@@ -67,5 +69,59 @@ export function parseRhymePoemJson(raw: string): RhymePoem {
         seconds: Number.isFinite(scene?.seconds) ? Number(scene.seconds) : 8,
       };
     }),
+  };
+}
+
+export interface RhymeReelPromptParams {
+  title: string;
+  topic: string;
+  age: string;
+  poemText: string;
+  /** The reel language's timed scenes, in order — the external AI writes one Flow prompt per
+   * entry, same count and order, it doesn't invent its own split. */
+  scenes: Array<{ lines: string; seconds: number }>;
+}
+
+// Mirrors render-service's own master/character/cover/scene/caption prompts, but combined into
+// one request (rather than five separate round trips) since that's what a copy-paste workflow
+// into an external chat AI actually wants.
+export function buildRhymeReelPromptTemplate(p: RhymeReelPromptParams): string {
+  const sceneList = p.scenes.map((s, i) => `Scene ${i + 1} (${s.seconds}s): "${s.lines.replace(/\n/g, " / ")}"`).join("\n");
+
+  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels, and a social caption writer.
+
+Title: ${p.title || "(untitled)"}
+Topic: ${p.topic || "(see lyrics below)"}
+Audience: ${p.age}
+
+Full lyrics, for context on the story/imagery:
+"""${p.poemText}"""
+
+Scenes (already timed — write exactly one prompt per scene below, same order, do not add, remove, or reorder scenes):
+${sceneList}
+
+Write:
+1. A MASTER SETUP PROMPT: a detailed, reusable style bible in full sentences, 3D animated (Pixar/DreamWorks-style rendering — rounded, dimensional, soft-shaded, NOT 2D/flat/vector), covering animation style, color palette + mood/lighting, the main character's design, recurring setting details, and on-screen text style. Every other prompt below must copy this verbatim as their shared anchor.
+2. A CHARACTER REFERENCE prompt: one self-contained Google Flow prompt for a clean turnaround/reference image of the main character alone on a plain background, matching the master exactly.
+3. A COVER/THUMBNAIL prompt: one Google Flow / image-gen prompt for an eye-catching 9:16 vertical cover (character in an appealing pose reflecting the story, bold title-text treatment described not literal words, bright colors, reads well as a small thumbnail), matching the master.
+4. One Google Flow prompt per scene listed above, same count and order, each describing the visual action/camera move/character for that scene's lines, consistent with the master — self-contained, ready to paste.
+5. A short Instagram Reel / YouTube Short caption plus 8 to 12 hashtags.
+
+Return ONLY valid JSON, no markdown:
+{"master":"...","characterPrompt":"...","coverPrompt":"...","scenePrompts":["...","..."],"caption":"..."}`;
+}
+
+export function parseRhymeReelJson(raw: string): RhymeReel {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = extractJsonObject(raw) as any;
+  if (!d || typeof d.master !== "string" || !Array.isArray(d.scenePrompts)) {
+    throw new Error('Pasted JSON must have a "master" string and a "scenePrompts" array');
+  }
+  return {
+    master: d.master,
+    characterPrompt: typeof d.characterPrompt === "string" ? d.characterPrompt : undefined,
+    coverPrompt: typeof d.coverPrompt === "string" ? d.coverPrompt : undefined,
+    scenePrompts: d.scenePrompts.map((s: unknown) => String(s)),
+    caption: typeof d.caption === "string" ? d.caption : "",
   };
 }
