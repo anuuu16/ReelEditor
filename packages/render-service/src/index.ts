@@ -320,6 +320,8 @@ app.post("/studio", async (req: Request, res: Response) => {
     creditsPerClip: typeof body.creditsPerClip === "number" ? body.creditsPerClip : 10,
     creditsPerAccount: typeof body.creditsPerAccount === "number" ? body.creditsPerAccount : 50,
     masterPrompt: "",
+    totalLengthSeconds: typeof body.totalLengthSeconds === "number" ? body.totalLengthSeconds : 32,
+    clipLengthSeconds: typeof body.clipLengthSeconds === "number" ? body.clipLengthSeconds : 8,
     accounts: [],
     scenes: [],
     resources: [],

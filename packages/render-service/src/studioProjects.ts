@@ -98,6 +98,12 @@ export interface StudioProject {
   concept?: string;
   hook?: string;
   masterPrompt: string;
+  /** Target total video duration in seconds. No upper bound — Rhyme Studio splits it into
+   * clipLengthSeconds-sized scenes, however many that takes. */
+  totalLengthSeconds?: number;
+  /** Seconds per generated clip (matches the video-gen model's own clip length, e.g. Veo). Drives
+   * how many scenes totalLengthSeconds gets split into. */
+  clipLengthSeconds?: number;
   caption?: string;
   hashtags?: string[];
   accounts: StudioAccountGroup[];

@@ -8,7 +8,7 @@ import { Button } from "./ui/index.js";
 
 interface StudioOverviewProps {
   project: StudioProject;
-  onNavigate: (tab: "rhyme" | "resources" | "editors") => void;
+  onNavigate: (tab: "settings" | "rhyme" | "resources" | "editors") => void;
   onProjectUpdated: (project: StudioProject) => void;
 }
 
@@ -54,6 +54,9 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
   const cover = project.resources.find((r) => r.kind === "cover");
   const { slots, totalScenes, scenesWithPrompts, languagesWithContent, firstMaster } = poemSummary(project);
   const needed = totalScenes > 0 ? accountsNeeded(totalScenes, project.creditsPerAccount, project.creditsPerClip) : 0;
+  const totalLengthSeconds = project.totalLengthSeconds ?? 32;
+  const clipLengthSeconds = project.clipLengthSeconds ?? 8;
+  const targetClipCount = Math.max(1, Math.round(totalLengthSeconds / clipLengthSeconds));
 
   return (
     <div className="prompt-studio-overview">
@@ -73,6 +76,15 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
         </div>
 
         <div className="prompt-studio-overview-stats">
+          <button
+            type="button"
+            className="prompt-studio-stat cursor-pointer border-none bg-transparent p-0 text-left"
+            onClick={() => onNavigate("settings")}
+            title="Set in Settings"
+          >
+            <span className="prompt-studio-stat-value">{totalLengthSeconds}s</span>
+            <span className="prompt-studio-stat-label">target length ({clipLengthSeconds}s/clip → {targetClipCount} clips)</span>
+          </button>
           <div className="prompt-studio-stat">
             <span className="prompt-studio-stat-value">{slots.length}</span>
             <span className="prompt-studio-stat-label">poem{slots.length === 1 ? "" : "s"}</span>
@@ -106,6 +118,7 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
         <Button variant="primary" onClick={() => onNavigate("rhyme")}>
           Continue in Rhyme Studio →
         </Button>
+        <Button onClick={() => onNavigate("settings")}>Settings</Button>
         <Button onClick={() => onNavigate("resources")}>Upload resources</Button>
         <Button onClick={() => onNavigate("editors")}>Launch / open an editor project</Button>
       </div>

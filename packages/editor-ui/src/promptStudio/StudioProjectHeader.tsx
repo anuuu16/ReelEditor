@@ -30,6 +30,10 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
   const [creditsPerClipText, setCreditsPerClipText] = useState(String(project.creditsPerClip));
   const [creditsPerAccountText, setCreditsPerAccountText] = useState(String(project.creditsPerAccount));
 
+  const totalLengthSeconds = project.totalLengthSeconds ?? 32;
+  const clipLengthSeconds = project.clipLengthSeconds ?? 8;
+  const clipCount = Math.max(1, Math.round(totalLengthSeconds / clipLengthSeconds));
+
   useEffect(() => {
     setTitle(project.title);
     setPlatform(project.platform ?? "");
@@ -96,6 +100,26 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
           placeholder="cinematic, warm film grade"
           className="min-w-[180px] flex-1"
         />
+      </div>
+
+      <div className="mb-3.5 flex flex-wrap items-end gap-3">
+        <NumberField
+          label="Total video length (seconds)"
+          value={totalLengthSeconds}
+          onChange={(n) => onPatch({ totalLengthSeconds: n })}
+          min={1}
+          className="min-w-[180px] flex-1"
+        />
+
+        <NumberField
+          label="Clip length (seconds, Veo model)"
+          value={clipLengthSeconds}
+          onChange={(n) => onPatch({ clipLengthSeconds: n })}
+          min={1}
+          className="min-w-[180px] flex-1"
+        />
+
+        <p className="text-xs text-ps-muted">≈ {clipCount} clip{clipCount === 1 ? "" : "s"}</p>
       </div>
 
       <div className="mb-3.5 flex flex-wrap gap-3">
