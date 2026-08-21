@@ -2,13 +2,41 @@ import { studioResourceUrl } from "./api.js";
 import { accountsNeeded } from "./creditMath.js";
 import { MetadataGenerator } from "./MetadataGenerator.js";
 import { RESOURCE_KINDS } from "./resourceKinds.js";
+import { computeTiming, deriveScenesFromPoems } from "./rhymeTiming.js";
 import type { StudioProject, StudioResource } from "./types.js";
 import { Button } from "./ui/index.js";
 
 interface StudioOverviewProps {
   project: StudioProject;
-  onNavigate: (tab: "content" | "prompts" | "scenes" | "resources" | "editors") => void;
+  onNavigate: (tab: "rhyme" | "resources" | "editors") => void;
   onProjectUpdated: (project: StudioProject) => void;
+}
+
+// Reads Rhyme Studio's poems (RhymePoemSlot[]) rather than the older flat project.poem/scenes/
+// masterPrompt fields — those stay populated only for projects created before Rhyme Studio existed.
+function poemSummary(project: StudioProject) {
+  const slots = project.poems ?? [];
+  let totalScenes = 0;
+  let scenesWithPrompts = 0;
+  const languagesWithContent = new Set<string>();
+  let firstMaster: string | null = null;
+
+  for (const slot of slots) {
+    const version = slot.versions[slot.activeVersionIndex];
+    const poem = version.poem;
+    const sceneCount = computeTiming(poem.scenes.length ? poem.scenes : deriveScenesFromPoems(poem.poems, slot.params.scenes)).timed.length;
+    totalScenes += sceneCount;
+
+    const reels = Object.values(version.reels ?? {});
+    if (reels.some((r) => r.scenePrompts.length > 0)) scenesWithPrompts += sceneCount;
+    if (!firstMaster) firstMaster = reels.find((r) => r.master)?.master ?? null;
+
+    for (const language of slot.params.languages) {
+      if ((poem.poems[language] ?? "").trim()) languagesWithContent.add(language);
+    }
+  }
+
+  return { slots, totalScenes, scenesWithPrompts, languagesWithContent, firstMaster };
 }
 
 function ResourceThumb({ studioId, resource }: { studioId: string; resource: StudioResource }) {
@@ -24,10 +52,8 @@ function ResourceThumb({ studioId, resource }: { studioId: string; resource: Stu
 
 export function StudioOverview({ project, onNavigate, onProjectUpdated }: StudioOverviewProps) {
   const cover = project.resources.find((r) => r.kind === "cover");
-  const writtenScenes = project.scenes.filter((s) => s.prompt.trim().length > 0).length;
-  const languagesWithPoem = project.languages.filter((l) => (project.poem[l] ?? "").trim().length > 0).length;
-  const needed = project.scenes.length > 0 ? accountsNeeded(project.scenes.length, project.creditsPerAccount, project.creditsPerClip) : 0;
-  const previewScenes = [...project.scenes].sort((a, b) => a.n - b.n).slice(0, 5);
+  const { slots, totalScenes, scenesWithPrompts, languagesWithContent, firstMaster } = poemSummary(project);
+  const needed = totalScenes > 0 ? accountsNeeded(totalScenes, project.creditsPerAccount, project.creditsPerClip) : 0;
 
   return (
     <div className="prompt-studio-overview">
@@ -48,12 +74,16 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
 
         <div className="prompt-studio-overview-stats">
           <div className="prompt-studio-stat">
-            <span className="prompt-studio-stat-value">{project.scenes.length}</span>
-            <span className="prompt-studio-stat-label">scenes ({writtenScenes} written)</span>
+            <span className="prompt-studio-stat-value">{slots.length}</span>
+            <span className="prompt-studio-stat-label">poem{slots.length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="prompt-studio-stat">
+            <span className="prompt-studio-stat-value">{totalScenes}</span>
+            <span className="prompt-studio-stat-label">scenes ({scenesWithPrompts} with prompts)</span>
           </div>
           <div className="prompt-studio-stat">
             <span className="prompt-studio-stat-value">{project.languages.length}</span>
-            <span className="prompt-studio-stat-label">languages ({languagesWithPoem} with content)</span>
+            <span className="prompt-studio-stat-label">languages ({languagesWithContent.size} with content)</span>
           </div>
           <div className="prompt-studio-stat">
             <span className="prompt-studio-stat-value">{project.resources.length}</span>
@@ -73,46 +103,49 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
       </div>
 
       <div className="prompt-studio-overview-actions">
-        <Button onClick={() => onNavigate("content")}>Write / edit poem</Button>
-        <Button onClick={() => onNavigate("prompts")}>Generate or paste prompts</Button>
-        <Button onClick={() => onNavigate("scenes")}>Edit scenes</Button>
+        <Button variant="primary" onClick={() => onNavigate("rhyme")}>
+          Continue in Rhyme Studio →
+        </Button>
         <Button onClick={() => onNavigate("resources")}>Upload resources</Button>
         <Button onClick={() => onNavigate("editors")}>Launch / open an editor project</Button>
       </div>
 
-      {project.masterPrompt && (
+      {firstMaster && (
         <div className="prompt-studio-overview-block">
           <h3>Master prompt</h3>
-          <p className="prompt-studio-overview-excerpt">
-            {project.masterPrompt.length > 320 ? `${project.masterPrompt.slice(0, 320)}...` : project.masterPrompt}
-          </p>
+          <p className="prompt-studio-overview-excerpt">{firstMaster.length > 320 ? `${firstMaster.slice(0, 320)}...` : firstMaster}</p>
         </div>
       )}
 
       <div className="prompt-studio-overview-block">
         <div className="prompt-studio-overview-block-header">
-          <h3>Scenes</h3>
-          {project.scenes.length > 0 && (
+          <h3>Poems</h3>
+          {slots.length > 0 && (
             <button
               type="button"
               className="cursor-pointer border-none bg-transparent p-0 text-xs text-ps-accent hover:underline"
-              onClick={() => onNavigate("scenes")}
+              onClick={() => onNavigate("rhyme")}
             >
-              See all {project.scenes.length}
+              Open Rhyme Studio
             </button>
           )}
         </div>
-        {previewScenes.length === 0 ? (
-          <p className="text-xs text-ps-muted">No scenes yet. Generate, paste JSON, or add one by hand.</p>
+        {slots.length === 0 ? (
+          <p className="text-xs text-ps-muted">No poems yet. Head to Rhyme Studio to set a concept and generate one.</p>
         ) : (
           <ul className="prompt-studio-overview-scene-list">
-            {previewScenes.map((scene) => (
-              <li key={scene.n}>
-                <span className="prompt-studio-overview-scene-n">{scene.clipName}</span>
-                <span className="prompt-studio-overview-scene-title">{scene.title || "(untitled)"}</span>
-                <span className="prompt-studio-overview-scene-status">{scene.prompt.trim() ? "written" : "empty"}</span>
-              </li>
-            ))}
+            {slots.map((slot) => {
+              const version = slot.versions[slot.activeVersionIndex];
+              const title = Object.values(version.poem.titles)[0] || "Untitled poem";
+              const hasScenePrompts = Object.values(version.reels ?? {}).some((r) => r.scenePrompts.length > 0);
+              return (
+                <li key={slot.id}>
+                  <span className="prompt-studio-overview-scene-n">{slot.params.languages.join(", ")}</span>
+                  <span className="prompt-studio-overview-scene-title">{title}</span>
+                  <span className="prompt-studio-overview-scene-status">{hasScenePrompts ? "scenes written" : "no scenes yet"}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

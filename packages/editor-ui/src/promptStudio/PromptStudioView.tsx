@@ -1,27 +1,20 @@
 import { useEffect, useState } from "react";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { getStudioProject, patchStudioProject } from "./api.js";
-import { JsonImportExport } from "./JsonImportExport.js";
 import { LaunchEditorPanel } from "./LaunchEditorPanel.js";
-import { PoemEditor } from "./PoemEditor.js";
-import { PromptGenerator } from "./PromptGenerator.js";
 import { ResourcesPanel } from "./ResourcesPanel.js";
 import { RhymeStudioView } from "./RhymeStudioView.js";
-import { ScenePromptsList } from "./ScenePromptsList.js";
 import { StudioOverview } from "./StudioOverview.js";
 import { StudioProjectHeader } from "./StudioProjectHeader.js";
 import type { StudioEditorProjectLink, StudioProject, StudioResource } from "./types.js";
 import { ThemeToggle, usePromptStudioTheme } from "./ui/index.js";
 
-export type DetailTab = "overview" | "settings" | "content" | "prompts" | "rhyme" | "scenes" | "resources" | "editors";
+export type DetailTab = "overview" | "settings" | "rhyme" | "resources" | "editors";
 
 export const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "settings", label: "Settings" },
-  { id: "content", label: "Written content" },
-  { id: "prompts", label: "AI prompts" },
   { id: "rhyme", label: "Rhyme Studio" },
-  { id: "scenes", label: "Scenes" },
   { id: "resources", label: "Resources" },
   { id: "editors", label: "Editor projects" },
 ];
@@ -66,16 +59,6 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : String(err));
     }
-  }
-
-  function applyLocalUpdate(patch: Partial<StudioProject>) {
-    setProject((prev) => (prev ? { ...prev, ...patch } : prev));
-  }
-
-  async function refreshProject() {
-    if (!project) return;
-    const fresh = await getStudioProject(project.id);
-    setProject(fresh);
   }
 
   function handleResourceUploaded(resource: StudioResource) {
@@ -144,18 +127,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
 
           {activeTab === "settings" && <StudioProjectHeader project={project} onPatch={patchProject} />}
 
-          {activeTab === "content" && <PoemEditor project={project} onPatch={patchProject} />}
-
-          {activeTab === "prompts" && (
-            <>
-              <PromptGenerator project={project} onPatch={patchProject} onLocalUpdate={applyLocalUpdate} onRefresh={refreshProject} />
-              <JsonImportExport project={project} onPatch={patchProject} />
-            </>
-          )}
-
           {activeTab === "rhyme" && <RhymeStudioView project={project} onPatch={patchProject} onOpenProject={onOpenProject} />}
-
-          {activeTab === "scenes" && <ScenePromptsList project={project} onPatch={patchProject} />}
 
           {activeTab === "resources" && (
             <ResourcesPanel project={project} onUploaded={handleResourceUploaded} onChanged={handleResourcesChanged} />

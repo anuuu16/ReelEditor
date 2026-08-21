@@ -15,11 +15,15 @@ export function MetadataGenerator({ project, onProjectUpdated }: MetadataGenerat
   const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // The server falls back to the project title if no topic is given — better to ground metadata
+  // in the actual poem/story/script topic from Rhyme Studio when one exists.
+  const topic = project.poems?.[0]?.params.topic;
+
   async function handleGenerate(language: string) {
     setPendingLanguage(language);
     setError(null);
     try {
-      const updated = await generateStudioMetadata(project.id, { language });
+      const updated = await generateStudioMetadata(project.id, { language, topic });
       onProjectUpdated(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
