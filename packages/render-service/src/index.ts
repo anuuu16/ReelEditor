@@ -40,7 +40,9 @@ import {
 
 try {
   // Only /studio/:id/generate needs ANTHROPIC_API_KEY — everything else works with no .env at all.
-  process.loadEnvFile();
+  // Loaded from the repo root (not this package's own directory, and not CWD) so there's a single
+  // .env to manage for the whole monorepo regardless of how this process was launched.
+  process.loadEnvFile(path.resolve(import.meta.dirname, "../../../.env"));
 } catch {
   // No .env file, or an old Node without loadEnvFile — fine, that endpoint just isn't usable yet.
 }
