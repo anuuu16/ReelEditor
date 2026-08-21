@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CopyButton } from "./CopyButton.js";
 import { buildExternalPromptTemplate, parseAndNormalizeImport, type WrittenContentKind } from "./importExport.js";
 import type { StudioProject } from "./types.js";
+import { Button, Card, NumberField, SelectField, TextField, TextareaField } from "./ui/index.js";
 
 interface JsonImportExportProps {
   project: StudioProject;
@@ -19,7 +20,7 @@ const CONTENT_KINDS: Array<{ id: WrittenContentKind; label: string }> = [
 // in — this never depends on this app's own generate endpoint or a particular LLM provider.
 export function JsonImportExport({ project, onPatch }: JsonImportExportProps) {
   const [topic, setTopic] = useState("");
-  const [numScenesText, setNumScenesText] = useState(String(project.scenes.length || 8));
+  const [numScenes, setNumScenes] = useState(project.scenes.length || 8);
   const [style, setStyle] = useState(project.style ?? "");
   const [lang, setLang] = useState(project.languages[0] ?? "en");
   const [ownAudio, setOwnAudio] = useState(false);
@@ -30,16 +31,9 @@ export function JsonImportExport({ project, onPatch }: JsonImportExportProps) {
   const [importError, setImportError] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState<number | null>(null);
 
-  function commitNumScenes() {
-    const parsed = Math.round(Number(numScenesText));
-    const clamped = Number.isFinite(parsed) && parsed > 0 ? Math.max(1, Math.min(30, parsed)) : 8;
-    setNumScenesText(String(clamped));
-    return clamped;
-  }
-
   const template = buildExternalPromptTemplate({
     topic,
-    numScenes: Number(numScenesText) || 8,
+    numScenes,
     style,
     lang,
     ownAudio,
@@ -75,93 +69,73 @@ export function JsonImportExport({ project, onPatch }: JsonImportExportProps) {
   }
 
   return (
-    <section className="prompt-studio-section">
-      <h2>Use any AI chat</h2>
-      <p className="hint">
-        Copy a ready made prompt into Claude, ChatGPT, or any other chat, then paste back whatever JSON it gives you — it
-        fills in the written content, master prompt, and every scene in one go. Works just as well with a JSON blob you
-        already have from anywhere else.
-      </p>
-
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field prompt-studio-topic-field">
-          <span>Topic</span>
-          <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What is this video about?" />
-        </label>
-        <label className="field">
-          <span>Number of scenes</span>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            inputMode="numeric"
-            value={numScenesText}
-            onChange={(e) => setNumScenesText(e.target.value)}
-            onBlur={commitNumScenes}
-          />
-        </label>
-        <label className="field">
-          <span>Language</span>
-          <select value={lang} onChange={(e) => setLang(e.target.value)}>
-            {project.languages.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
+    <Card
+      title="Use any AI chat"
+      hint="Copy a ready made prompt into Claude, ChatGPT, or any other chat, then paste back whatever JSON it gives you — it fills in the written content, master prompt, and every scene in one go. Works just as well with a JSON blob you already have from anywhere else."
+    >
+      <div className="mb-3.5 flex flex-wrap gap-3">
+        <TextField
+          label="Topic"
+          value={topic}
+          onChange={setTopic}
+          placeholder="What is this video about?"
+          className="min-w-[220px] flex-[2]"
+        />
+        <NumberField label="Number of scenes" value={numScenes} onChange={setNumScenes} min={1} max={30} className="min-w-[160px] flex-1" />
+        <SelectField
+          label="Language"
+          value={lang}
+          onChange={setLang}
+          options={project.languages.map((l) => ({ value: l, label: l }))}
+          className="min-w-[160px] flex-1"
+        />
       </div>
 
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field">
-          <span>Style</span>
-          <input type="text" value={style} onChange={(e) => setStyle(e.target.value)} placeholder="cinematic, warm film grade" />
-        </label>
-        <label className="field">
-          <span>Written content</span>
-          <select value={contentKind} onChange={(e) => setContentKind(e.target.value as WrittenContentKind)}>
-            {CONTENT_KINDS.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field checkbox-field">
-          <span>Generate its own audio</span>
+      <div className="mb-3.5 flex flex-wrap items-end gap-3">
+        <TextField label="Style" value={style} onChange={setStyle} placeholder="cinematic, warm film grade" className="min-w-[180px] flex-1" />
+        <SelectField
+          label="Written content"
+          value={contentKind}
+          onChange={(value) => setContentKind(value as WrittenContentKind)}
+          options={CONTENT_KINDS.map((k) => ({ value: k.id, label: k.label }))}
+          className="min-w-[180px] flex-1"
+        />
+        <label className="flex min-w-[160px] flex-1 flex-row items-center gap-2 text-xs text-ps-muted">
           <input type="checkbox" checked={!ownAudio} onChange={(e) => setOwnAudio(!e.target.checked)} />
+          <span>Generate its own audio</span>
         </label>
       </div>
 
-      <label className="field">
-        <span>Extra direction (optional)</span>
-        <textarea rows={2} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Anything else the AI should know" />
-      </label>
+      <TextareaField
+        label="Extra direction (optional)"
+        rows={2}
+        value={extra}
+        onChange={setExtra}
+        placeholder="Anything else the AI should know"
+        className="mb-3.5"
+      />
 
-      <label className="field">
-        <span>Prompt to copy into any AI chat</span>
-        <textarea rows={8} readOnly value={template} />
-      </label>
-      <div className="inline-fields prompt-studio-master-actions">
+      <TextareaField label="Prompt to copy into any AI chat" rows={8} readOnly value={template} onChange={() => undefined} className="mb-2" />
+      <div className="mb-3.5">
         <CopyButton text={template} label="Copy prompt" />
       </div>
 
-      <label className="field">
-        <span>Paste the JSON it gives you back</span>
-        <textarea
-          rows={8}
-          value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
-          placeholder='{"masterPrompt": "...", "scenes": [...] } — or a full project JSON from anywhere'
-        />
-      </label>
-      <div className="inline-fields">
-        <button type="button" onClick={handleImport} disabled={!pasteText.trim()}>
+      <TextareaField
+        label="Paste the JSON it gives you back"
+        rows={8}
+        value={pasteText}
+        onChange={setPasteText}
+        placeholder='{"masterPrompt": "...", "scenes": [...] } — or a full project JSON from anywhere'
+        className="mb-3.5"
+      />
+
+      <div className="mb-3.5 flex flex-wrap items-center gap-3">
+        <Button variant="primary" onClick={handleImport} disabled={!pasteText.trim()}>
           Import JSON
-        </button>
-        {importedCount !== null && <span className="prompt-studio-progress-label">Imported {importedCount} scene(s)</span>}
+        </Button>
+        {importedCount !== null && <span className="text-xs text-ps-warning">Imported {importedCount} scene(s)</span>}
       </div>
-      {importError && <p className="export-error">{importError}</p>}
-    </section>
+      {importError && <p className="whitespace-pre-wrap text-xs text-ps-danger">{importError}</p>}
+    </Card>
   );
 }

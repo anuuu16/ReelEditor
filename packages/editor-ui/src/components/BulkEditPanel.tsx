@@ -58,11 +58,18 @@ export function BulkEditPanel() {
     clips.length && clips.every((c) => (c.filter.preset ?? "none") === (clips[0].filter.preset ?? "none"))
       ? clips[0].filter.preset ?? "none"
       : null;
-  const avgTransitionSeconds = clips.length ? clips.reduce((sum, c) => sum + c.transitionOutSeconds, 0) / clips.length : 0;
-  const allNoTransition = clips.length > 0 && clips.every((c) => c.transitionOutSeconds === 0);
-  const anyHasTransition = clips.some((c) => c.transitionOutSeconds > 0);
+  // A track's last clip has no next clip to transition into, so it's excluded from this average/common
+  // calculation the same way ClipInspector hides the field entirely for a single last clip.
+  const transitionClips = clips.slice(0, -1);
+  const avgTransitionSeconds = transitionClips.length
+    ? transitionClips.reduce((sum, c) => sum + c.transitionOutSeconds, 0) / transitionClips.length
+    : 0;
+  const allNoTransition = transitionClips.length > 0 && transitionClips.every((c) => c.transitionOutSeconds === 0);
+  const anyHasTransition = transitionClips.some((c) => c.transitionOutSeconds > 0);
   const commonTransitionType =
-    clips.length && clips.every((c) => c.transitionOutType === clips[0].transitionOutType) ? clips[0].transitionOutType : null;
+    transitionClips.length && transitionClips.every((c) => c.transitionOutType === transitionClips[0].transitionOutType)
+      ? transitionClips[0].transitionOutType
+      : null;
 
   function applyTransition(transitionOutSeconds: number, transitionOutType: TransitionType) {
     dispatch({ type: "BULK_SET_TRANSITION", trackId, transitionOutSeconds, transitionOutType, compensateLength });
@@ -293,7 +300,7 @@ export function BulkEditPanel() {
               <button
                 type="button"
                 className={allNoTransition ? "active" : ""}
-                disabled={clips.length === 0}
+                disabled={transitionClips.length === 0}
                 onClick={() => applyTransition(0, commonTransitionType ?? "dissolve")}
               >
                 None (cut)
@@ -303,7 +310,7 @@ export function BulkEditPanel() {
                   key={type}
                   type="button"
                   className={anyHasTransition && commonTransitionType === type ? "active" : ""}
-                  disabled={clips.length === 0}
+                  disabled={transitionClips.length === 0}
                   onClick={() => applyTransition(avgTransitionSeconds > 0 ? avgTransitionSeconds : 0.5, type)}
                 >
                   {TRANSITION_TYPE_LABELS[type]}
@@ -331,7 +338,7 @@ export function BulkEditPanel() {
                 max={2}
                 step={0.1}
                 value={avgTransitionSeconds}
-                disabled={clips.length === 0}
+                disabled={transitionClips.length === 0}
                 onChange={(e) => applyTransition(Number(e.target.value), commonTransitionType ?? "dissolve")}
               />
             </label>

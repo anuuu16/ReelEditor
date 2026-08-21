@@ -4,6 +4,7 @@ import { loadProjectFromServer, saveProjectToServer } from "../persistence/proje
 import { buildEditorProjectForLanguage } from "./buildEditorProject.js";
 import { patchStudioProject } from "./api.js";
 import type { StudioEditorProjectLink, StudioProject } from "./types.js";
+import { Button, Card } from "./ui/index.js";
 
 interface LaunchEditorPanelProps {
   project: StudioProject;
@@ -47,11 +48,11 @@ export function LaunchEditorPanel({ project, onLinkAdded, onOpenProject }: Launc
   }
 
   return (
-    <section className="prompt-studio-section">
-      <h2>Editor projects</h2>
-      <p className="hint">One full timeline project per language, built from the shared scene resources above. No media is duplicated.</p>
-
-      {error && <p className="export-error">{error}</p>}
+    <Card
+      title="Editor projects"
+      hint="One full timeline project per language, built from the shared scene resources above. No media is duplicated."
+    >
+      {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
 
       <ul className="prompt-studio-language-list">
         {project.languages.map((language) => {
@@ -61,18 +62,18 @@ export function LaunchEditorPanel({ project, onLinkAdded, onOpenProject }: Launc
             <li key={language} className="prompt-studio-language-row">
               <span className="prompt-studio-language-name">{language}</span>
               {link ? (
-                <button type="button" disabled={isBusy} onClick={() => handleOpen(link)}>
+                <Button variant="primary" disabled={isBusy} onClick={() => handleOpen(link)}>
                   {isBusy ? "Opening..." : "Open editor"}
-                </button>
+                </Button>
               ) : (
-                <button type="button" disabled={isBusy} onClick={() => handleLaunch(language)}>
+                <Button variant="primary" disabled={isBusy} onClick={() => handleLaunch(language)}>
                   {isBusy ? "Launching..." : "Launch editor"}
-                </button>
+                </Button>
               )}
             </li>
           );
         })}
       </ul>
-    </section>
+    </Card>
   );
 }

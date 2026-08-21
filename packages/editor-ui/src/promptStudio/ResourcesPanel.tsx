@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ResourceList } from "./ResourceList.js";
 import { ResourceUploader } from "./ResourceUploader.js";
 import type { StudioProject, StudioResource, StudioResourceKind } from "./types.js";
+import { Card, Chip } from "./ui/index.js";
 
 interface ResourcesPanelProps {
   project: StudioProject;
@@ -34,26 +35,21 @@ export function ResourcesPanel({ project, onUploaded, onChanged }: ResourcesPane
   }
 
   return (
-    <section className="prompt-studio-section">
-      <h2>Resources</h2>
-      <p className="hint">Cover, logo, banner, character references, generated scene clips/audio, and finished exports.</p>
-
-      <div className="prompt-studio-subtabs">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`prompt-studio-subtab${subTab === tab.id ? " active" : ""}`}
-            onClick={() => setSubTab(tab.id)}
-          >
-            {tab.label}
-            {countFor(tab.kinds) > 0 && <span className="prompt-studio-subtab-count">{countFor(tab.kinds)}</span>}
-          </button>
-        ))}
+    <Card title="Resources" hint="Cover, logo, banner, character references, generated scene clips/audio, and finished exports.">
+      <div className="mb-3.5 flex flex-wrap gap-1.5 border-b border-ps-border pb-3">
+        {SUB_TABS.map((tab) => {
+          const count = countFor(tab.kinds);
+          return (
+            <Chip key={tab.id} active={subTab === tab.id} onClick={() => setSubTab(tab.id)}>
+              {tab.label}
+              {count > 0 && <span className="ml-1.5 rounded-full bg-black/25 px-1.5 py-0.5 text-[10px]">{count}</span>}
+            </Chip>
+          );
+        })}
       </div>
 
       <ResourceUploader project={project} onUploaded={onUploaded} allowedKinds={active.kinds} />
       <ResourceList project={project} onChanged={onChanged} allowedKinds={active.kinds} />
-    </section>
+    </Card>
   );
 }

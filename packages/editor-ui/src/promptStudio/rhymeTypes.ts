@@ -1,34 +1,38 @@
 // Wire types mirrored by hand from packages/render-service/src/rhymeGenerate.ts.
 
+/** One scene's lines, keyed by language code, e.g. {"English": "...", "Hindi": "..."}. */
 export interface RhymeScene {
-  lines: string;
-  lines2?: string;
+  lines: Record<string, string>;
   seconds: number;
 }
 
+/** A poem in every requested language at once, not a primary version plus translations — each
+ * language's text is independently written to rhyme and scan in that language. */
 export interface RhymePoem {
-  title: string;
-  title2?: string;
-  poem: string;
-  poem2?: string;
+  titles: Record<string, string>;
+  poems: Record<string, string>;
   scenes: RhymeScene[];
 }
+
+export type RhymeContentType = "poem" | "story" | "script";
 
 export interface RhymePoemParams {
   topic: string;
   age: string;
   style: string;
-  lines: number;
+  lengthSeconds: number;
   scenes: number;
-  lang: string;
-  lang2?: string;
+  /** Every language to generate at once, in order. First is the "primary" for display purposes only. */
+  languages: string[];
+  /** What kind of written piece this is — a poem is not the only option. */
+  contentType: RhymeContentType;
   extra?: string;
   avoidTitles?: string[];
 }
 
 export interface RhymeReworkParams extends RhymePoemParams {
   kind: "regenerate" | "optimize" | "enhance";
-  current: { title: string; poem: string; poem2?: string; title2?: string };
+  current: { titles: Record<string, string>; poems: Record<string, string> };
 }
 
 export interface RhymeReelMasterParams {
@@ -39,11 +43,12 @@ export interface RhymeReelMasterParams {
 
 export interface RhymeReelSceneParams {
   master: string;
-  seg: { lines: string; lines2?: string; dur: number };
+  seg: { lines: Record<string, string>; dur: number };
   idx: number;
   total: number;
-  lang: string;
-  lang2?: string;
+  /** Which language's lines are the spoken/sung audio; every other language present becomes an
+   * on-screen subtitle line. */
+  primaryLanguage: string;
 }
 
 export interface RhymeReelCaptionParams {
@@ -58,10 +63,12 @@ export interface RhymePoemVersion {
   label: string;
   poem: RhymePoem;
   createdAt: number;
-  reel?: RhymeReel;
+  /** One built reel per target language, since each language gets its own separate final video. */
+  reels?: Record<string, RhymeReel>;
 }
 
-/** A generated Flow reel for one poem version: one master, one prompt per scene, one caption. */
+/** A generated Flow reel for one poem version, in one language: one master, one prompt per
+ * scene, one caption. */
 export interface RhymeReel {
   master: string;
   scenePrompts: string[];

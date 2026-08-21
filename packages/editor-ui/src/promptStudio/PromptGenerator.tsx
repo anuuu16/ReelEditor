@@ -3,6 +3,7 @@ import { studioGenerateUrl } from "./api.js";
 import { CopyButton } from "./CopyButton.js";
 import { streamStudioGenerate } from "./sse.js";
 import type { StudioGenerateModel, StudioGenerateRequest, StudioProject, StudioScene } from "./types.js";
+import { Button, Card, NumberField, SelectField, TextField, TextareaField } from "./ui/index.js";
 
 interface PromptGeneratorProps {
   project: StudioProject;
@@ -23,9 +24,7 @@ function isKnownModel(model: string): model is StudioGenerateModel {
 export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: PromptGeneratorProps) {
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState(project.platform ?? "");
-  // Kept as text while editing (not a number) so clearing the field to type a new value doesn't
-  // get force-clamped back to a boundary on every keystroke — clamping only happens on blur.
-  const [numScenesText, setNumScenesText] = useState(String(project.scenes.length || 8));
+  const [numScenes, setNumScenes] = useState(project.scenes.length || 8);
   const [style, setStyle] = useState(project.style ?? "");
   const [lang, setLang] = useState(project.languages[0] ?? "en");
   const [ownAudio, setOwnAudio] = useState(false);
@@ -59,13 +58,6 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
       .filter(Boolean);
   }
 
-  function commitNumScenes() {
-    const parsed = Math.round(Number(numScenesText));
-    const clamped = Number.isFinite(parsed) ? Math.max(1, Math.min(30, parsed)) : Number(numScenesText) || 8;
-    setNumScenesText(String(clamped));
-    return clamped;
-  }
-
   async function handleGenerate() {
     if (!topic.trim() || isGenerating) return;
     setError(null);
@@ -77,7 +69,7 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
       topic: topic.trim(),
       videoType: project.videoType,
       platform: platform || project.platform || "",
-      numScenes: commitNumScenes(),
+      numScenes,
       style: style || project.style || "",
       lang,
       ownAudio,
@@ -129,134 +121,111 @@ export function PromptGenerator({ project, onPatch, onLocalUpdate, onRefresh }: 
   }
 
   return (
-    <section className="prompt-studio-section">
-      <h2>Generate prompts</h2>
-      <p className="hint">
-        Fill this in and click Generate for an AI first draft, or skip it entirely and paste your own master prompt below.
-      </p>
+    <Card
+      title="Generate prompts"
+      hint="Fill this in and click Generate for an AI first draft, or skip it entirely and paste your own master prompt below."
+    >
+      <div className="mb-3.5 flex flex-wrap gap-3">
+        <TextField
+          label="Topic"
+          value={topic}
+          onChange={setTopic}
+          placeholder="What is this video about?"
+          className="min-w-[220px] flex-[2]"
+        />
 
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field prompt-studio-topic-field">
-          <span>Topic</span>
-          <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What is this video about?" />
-        </label>
+        <TextField label="Platform" value={platform} onChange={setPlatform} placeholder="Instagram Reels" className="min-w-[180px] flex-1" />
 
-        <label className="field">
-          <span>Platform</span>
-          <input type="text" value={platform} onChange={(e) => setPlatform(e.target.value)} placeholder="Instagram Reels" />
-        </label>
-
-        <label className="field">
-          <span>
-            Number of scenes <span className="prompt-studio-char-count">(~{(Number(numScenesText) || 0) * 8}s total)</span>
-          </span>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            inputMode="numeric"
-            value={numScenesText}
-            onChange={(e) => setNumScenesText(e.target.value)}
-            onBlur={commitNumScenes}
-          />
-        </label>
+        <NumberField
+          label="Number of scenes"
+          hint={`(~${numScenes * 8}s total)`}
+          value={numScenes}
+          onChange={setNumScenes}
+          min={1}
+          max={30}
+          className="min-w-[160px] flex-1"
+        />
       </div>
 
-      <div className="inline-fields prompt-studio-header-row">
-        <label className="field">
-          <span>Style</span>
-          <input type="text" value={style} onChange={(e) => setStyle(e.target.value)} placeholder="cinematic, warm film grade" />
-        </label>
+      <div className="mb-3.5 flex flex-wrap gap-3">
+        <TextField label="Style" value={style} onChange={setStyle} placeholder="cinematic, warm film grade" className="min-w-[180px] flex-1" />
 
-        <label className="field">
-          <span>Voiceover / dialogue language</span>
-          <select value={lang} onChange={(e) => setLang(e.target.value)}>
-            {project.languages.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="Voiceover / dialogue language"
+          value={lang}
+          onChange={setLang}
+          options={project.languages.map((l) => ({ value: l, label: l }))}
+          className="min-w-[180px] flex-1"
+        />
 
-        <label className="field">
-          <span>Model</span>
-          <select value={model} onChange={(e) => setModel(e.target.value as StudioGenerateModel)}>
-            {MODELS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="Model"
+          value={model}
+          onChange={(value) => setModel(value as StudioGenerateModel)}
+          options={MODELS.map((m) => ({ value: m, label: m }))}
+          className="min-w-[160px] flex-1"
+        />
 
-        <div className="field">
+        <label className="flex min-w-[160px] flex-1 flex-col gap-1.5 text-xs text-ps-muted">
           <span>Credits per account</span>
-          <p className="prompt-studio-derived-value" title="Set in the project settings above">
+          <p
+            className="m-0 rounded-ps border border-ps-border bg-ps-panel px-2 py-1.5 text-sm text-ps-muted"
+            title="Set in the project settings above"
+          >
             {project.creditsPerAccount}
           </p>
-        </div>
+        </label>
       </div>
 
-      <label className="field checkbox-field">
-        <span>Generate its own audio (uncheck if you will add your own voice/music track)</span>
+      <label className="mb-3.5 flex flex-row items-center gap-2 text-xs text-ps-muted">
         <input type="checkbox" checked={!ownAudio} onChange={(e) => setOwnAudio(!e.target.checked)} />
+        <span>Generate its own audio (uncheck if you will add your own voice/music track)</span>
       </label>
 
-      <label className="field">
-        <span>Extra direction (optional)</span>
-        <textarea rows={2} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Anything else Flow should know" />
-      </label>
+      <TextareaField
+        label="Extra direction (optional)"
+        rows={2}
+        value={extra}
+        onChange={setExtra}
+        placeholder="Anything else Flow should know"
+        className="mb-3.5"
+      />
 
-      <div className="inline-fields">
-        <button type="button" className="export-button" onClick={handleGenerate} disabled={isGenerating || !topic.trim()}>
+      <div className="mb-3.5 flex flex-wrap items-center gap-3">
+        <Button variant="primary" onClick={handleGenerate} disabled={isGenerating || !topic.trim()}>
           {isGenerating ? "Generating..." : "Generate"}
-        </button>
-        {isGenerating && <span className="prompt-studio-progress-label">{progressLabel}</span>}
+        </Button>
+        {isGenerating && <span className="text-xs text-ps-warning">{progressLabel}</span>}
       </div>
 
-      {error && <p className="export-error">{error}</p>}
+      {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
 
-      <label className="field">
-        <span>Concept</span>
-        <input type="text" value={concept} onChange={(e) => setConcept(e.target.value)} onBlur={() => onPatch({ concept })} />
-      </label>
+      <TextField label="Concept" value={concept} onChange={setConcept} onBlur={() => onPatch({ concept })} className="mb-3.5" />
 
-      <label className="field">
-        <span>Hook</span>
-        <input type="text" value={hook} onChange={(e) => setHook(e.target.value)} onBlur={() => onPatch({ hook })} />
-      </label>
+      <TextField label="Hook" value={hook} onChange={setHook} onBlur={() => onPatch({ hook })} className="mb-3.5" />
 
-      <label className="field">
-        <span>
-          Master prompt <span className="prompt-studio-char-count">({masterPrompt.length} chars)</span>
-        </span>
-        <textarea
-          rows={10}
-          value={masterPrompt}
-          onChange={(e) => setMasterPrompt(e.target.value)}
-          onBlur={() => onPatch({ masterPrompt })}
-          placeholder="Paste your own master setup prompt here, or generate one above."
-        />
-      </label>
-      <div className="inline-fields prompt-studio-master-actions">
+      <TextareaField
+        label="Master prompt"
+        hint={`(${masterPrompt.length} chars)`}
+        rows={10}
+        value={masterPrompt}
+        onChange={setMasterPrompt}
+        onBlur={() => onPatch({ masterPrompt })}
+        placeholder="Paste your own master setup prompt here, or generate one above."
+        className="mb-2"
+      />
+      <div className="mb-3.5">
         <CopyButton text={masterPrompt} label="Copy master prompt" />
       </div>
 
-      <label className="field">
-        <span>Caption</span>
-        <textarea rows={2} value={caption} onChange={(e) => setCaption(e.target.value)} onBlur={() => onPatch({ caption })} />
-      </label>
+      <TextareaField label="Caption" rows={2} value={caption} onChange={setCaption} onBlur={() => onPatch({ caption })} className="mb-3.5" />
 
-      <label className="field">
-        <span>Hashtags (comma separated)</span>
-        <input
-          type="text"
-          value={hashtagsText}
-          onChange={(e) => setHashtagsText(e.target.value)}
-          onBlur={() => onPatch({ hashtags: parseHashtags(hashtagsText) })}
-        />
-      </label>
-    </section>
+      <TextField
+        label="Hashtags (comma separated)"
+        value={hashtagsText}
+        onChange={setHashtagsText}
+        onBlur={() => onPatch({ hashtags: parseHashtags(hashtagsText) })}
+      />
+    </Card>
   );
 }

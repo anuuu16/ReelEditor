@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { deleteStudioResource, patchStudioResource, studioResourceUrl } from "./api.js";
 import { RESOURCE_KINDS } from "./resourceKinds.js";
 import type { MetadataVariant, StudioProject, StudioResource, StudioResourceKind } from "./types.js";
+import { Button, TextField, TextareaField } from "./ui/index.js";
 
 interface ResourceListProps {
   project: StudioProject;
@@ -84,88 +85,77 @@ function ResourceCard({
     <div className="prompt-studio-resource-card">
       <ResourcePreview studioId={studioId} resource={resource} />
       <div className="prompt-studio-resource-meta">
-        {resource.language && <span className="prompt-studio-resource-tag">{resource.language}</span>}
-        {resource.sceneN !== null && <span className="prompt-studio-resource-tag">scene {resource.sceneN}</span>}
-        {variants.length > 0 && <span className="prompt-studio-resource-tag">{variants.length} variant{variants.length === 1 ? "" : "s"}</span>}
+        {resource.language && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">{resource.language}</span>}
+        {resource.sceneN !== null && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">scene {resource.sceneN}</span>}
+        {variants.length > 0 && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">{variants.length} variant{variants.length === 1 ? "" : "s"}</span>}
       </div>
-      <p className="hint prompt-studio-resource-filename">{resource.filename}</p>
+      <p className="prompt-studio-resource-filename text-xs text-ps-muted">{resource.filename}</p>
 
-      <div className="inline-fields">
-        <button type="button" onClick={() => setIsExpanded((v) => !v)}>
-          {isExpanded ? "Hide details" : "Details"}
-        </button>
-        <button type="button" className="project-delete-button" onClick={handleDelete}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button onClick={() => setIsExpanded((v) => !v)}>{isExpanded ? "Hide details" : "Details"}</Button>
+        <Button variant="danger" onClick={handleDelete}>
           Delete
-        </button>
+        </Button>
       </div>
 
       {isExpanded && (
         <>
           {variants.map((variant, index) => (
             <div className="prompt-studio-variant" key={index}>
-              <div className="inline-fields prompt-studio-header-row">
-                <label className="field">
-                  <span>Label</span>
-                  <input
-                    type="text"
-                    value={variant.label ?? ""}
-                    onChange={(e) => updateVariant(index, { label: e.target.value })}
-                    onBlur={() => flush(variants)}
-                  />
-                </label>
-                <label className="field">
-                  <span>Language</span>
-                  <input
-                    type="text"
-                    value={variant.language ?? ""}
-                    onChange={(e) => updateVariant(index, { language: e.target.value })}
-                    onBlur={() => flush(variants)}
-                  />
-                </label>
+              <div className="mb-3.5 flex flex-wrap gap-3">
+                <TextField
+                  label="Label"
+                  value={variant.label ?? ""}
+                  onChange={(value) => updateVariant(index, { label: value })}
+                  onBlur={() => flush(variants)}
+                  className="min-w-[140px] flex-1"
+                />
+                <TextField
+                  label="Language"
+                  value={variant.language ?? ""}
+                  onChange={(value) => updateVariant(index, { language: value })}
+                  onBlur={() => flush(variants)}
+                  className="min-w-[140px] flex-1"
+                />
               </div>
-              <label className="field">
-                <span>Title</span>
-                <input
-                  type="text"
-                  value={variant.title ?? ""}
-                  onChange={(e) => updateVariant(index, { title: e.target.value })}
-                  onBlur={() => flush(variants)}
-                />
-              </label>
-              <label className="field">
-                <span>Description</span>
-                <textarea
-                  rows={2}
-                  value={variant.description ?? ""}
-                  onChange={(e) => updateVariant(index, { description: e.target.value })}
-                  onBlur={() => flush(variants)}
-                />
-              </label>
-              <label className="field">
-                <span>Hashtags (comma separated)</span>
-                <input
-                  type="text"
-                  value={(variant.hashtags ?? []).join(", ")}
-                  onChange={(e) =>
-                    updateVariant(index, {
-                      hashtags: e.target.value
-                        .split(",")
-                        .map((h) => h.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  onBlur={() => flush(variants)}
-                />
-              </label>
-              <button type="button" className="project-delete-button" onClick={() => handleRemoveVariant(index)}>
+              <TextField
+                label="Title"
+                value={variant.title ?? ""}
+                onChange={(value) => updateVariant(index, { title: value })}
+                onBlur={() => flush(variants)}
+                className="mb-3.5"
+              />
+              <TextareaField
+                label="Description"
+                rows={2}
+                value={variant.description ?? ""}
+                onChange={(value) => updateVariant(index, { description: value })}
+                onBlur={() => flush(variants)}
+                className="mb-3.5"
+              />
+              <TextField
+                label="Hashtags (comma separated)"
+                value={(variant.hashtags ?? []).join(", ")}
+                onChange={(value) =>
+                  updateVariant(index, {
+                    hashtags: value
+                      .split(",")
+                      .map((h) => h.trim())
+                      .filter(Boolean),
+                  })
+                }
+                onBlur={() => flush(variants)}
+                className="mb-3.5"
+              />
+              <Button variant="danger" onClick={() => handleRemoveVariant(index)}>
                 Remove variant
-              </button>
+              </Button>
             </div>
           ))}
 
-          <button type="button" onClick={handleAddVariant}>
+          <Button onClick={handleAddVariant} className="mt-1">
             + Add another variant
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -185,7 +175,7 @@ export function ResourceList({ project, onChanged, allowedKinds }: ResourceListP
   const visibleResources = allowedKinds ? project.resources.filter((r) => allowedKinds.includes(r.kind)) : project.resources;
 
   if (visibleResources.length === 0) {
-    return <p className="hint">No resources uploaded yet.</p>;
+    return <p className="text-xs text-ps-muted">No resources uploaded yet.</p>;
   }
 
   return (
@@ -199,7 +189,7 @@ export function ResourceList({ project, onChanged, allowedKinds }: ResourceListP
         return (
           <div key={section.kind} className="prompt-studio-resource-group">
             <h3 className="prompt-studio-resource-group-title">
-              {section.label} <span className="prompt-studio-char-count">({items.length})</span>
+              {section.label} <span className="text-ps-muted">({items.length})</span>
             </h3>
             <div className="prompt-studio-resource-grid">
               {items.map((resource) => (

@@ -6,6 +6,7 @@ import { ResourceUploader } from "./ResourceUploader.js";
 import { RhymePoemCard } from "./RhymePoemCard.js";
 import type { RhymePoemSlot } from "./rhymeTypes.js";
 import type { StudioEditorProjectLink, StudioProject, StudioResource } from "./types.js";
+import { Button, Card } from "./ui/index.js";
 
 interface RhymeWizardProps {
   project: StudioProject;
@@ -48,12 +49,15 @@ export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProjec
   return (
     <div className="rhyme-wizard">
       <div className="rhyme-wizard-header">
-        <button type="button" onClick={onExit}>
+        <Button variant="ghost" onClick={onExit}>
           ← Back to poems
-        </button>
-        <h3>{slot.versions[slot.activeVersionIndex].poem.title || "Untitled poem"}</h3>
+        </Button>
+        <h3>{Object.values(slot.versions[slot.activeVersionIndex].poem.titles)[0] || "Untitled poem"}</h3>
       </div>
 
+      {/* The stepper below keeps its own legacy classes: it needs an "active" vs "done" vs
+          neither three-way state (done steps get a green border) that neither Chip nor Button
+          can express, so re-styling it with the new primitives would lose that signal. */}
       <div className="rhyme-wizard-steps">
         {STEPS.map((s, i) => (
           <button
@@ -67,51 +71,51 @@ export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProjec
         ))}
       </div>
 
-      <p className="hint">{STEPS[stepIndex]?.hint}</p>
+      <p className="text-xs text-ps-muted">{STEPS[stepIndex]?.hint}</p>
 
       {step === "poem" && <RhymePoemCard slot={slot} onChange={onSlotChange} />}
 
       {step === "audio" && (
-        <section className="prompt-studio-section">
+        <Card>
           <ResourceUploader project={project} onUploaded={handleResourceUploaded} allowedKinds={["sceneAudio"]} />
           <ResourceList project={project} onChanged={handleResourcesChanged} allowedKinds={["sceneAudio"]} />
-        </section>
+        </Card>
       )}
 
       {step === "assets" && (
-        <section className="prompt-studio-section">
+        <Card>
           <ResourceUploader
             project={project}
             onUploaded={handleResourceUploaded}
             allowedKinds={["cover", "logo", "banner", "character"]}
           />
           <ResourceList project={project} onChanged={handleResourcesChanged} allowedKinds={["cover", "logo", "banner", "character"]} />
-        </section>
+        </Card>
       )}
 
       {step === "video" && (
-        <section className="prompt-studio-section">
+        <Card>
           <ResourceUploader project={project} onUploaded={handleResourceUploaded} allowedKinds={["sceneVideo"]} />
           <ResourceList project={project} onChanged={handleResourcesChanged} allowedKinds={["sceneVideo"]} />
-        </section>
+        </Card>
       )}
 
       {step === "editor" && <LaunchEditorPanel project={project} onLinkAdded={handleLinkAdded} onOpenProject={onOpenProject} />}
 
       {step === "final" && (
-        <section className="prompt-studio-section">
+        <Card>
           <ResourceUploader project={project} onUploaded={handleResourceUploaded} allowedKinds={["finalExport"]} />
           <ResourceList project={project} onChanged={handleResourcesChanged} allowedKinds={["finalExport"]} />
-        </section>
+        </Card>
       )}
 
-      <div className="inline-fields rhyme-wizard-nav">
-        <button type="button" disabled={stepIndex === 0} onClick={() => setStep(STEPS[stepIndex - 1].id)}>
+      <div className="rhyme-wizard-nav flex flex-wrap gap-1.5">
+        <Button disabled={stepIndex === 0} onClick={() => setStep(STEPS[stepIndex - 1].id)}>
           ← Previous step
-        </button>
-        <button type="button" disabled={stepIndex === STEPS.length - 1} onClick={() => setStep(STEPS[stepIndex + 1].id)}>
+        </Button>
+        <Button disabled={stepIndex === STEPS.length - 1} onClick={() => setStep(STEPS[stepIndex + 1].id)}>
           Next step →
-        </button>
+        </Button>
       </div>
     </div>
   );

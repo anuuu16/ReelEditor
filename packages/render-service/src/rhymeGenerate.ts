@@ -1,38 +1,41 @@
 import { callLlmJson } from "./llm.js";
 
-// Rhyme Studio: kids poems, generated one at a time so they can render as they land, split into
-// timed scenes, optionally bilingual (same scenes, same meaning, both rhyming), then built into a
-// Google Flow (Veo 3.1) reel: one master style bible, one prompt per scene, one caption.
+// Rhyme Studio: kids poems, generated one at a time so they can render as they land, in every
+// requested language at once (not a primary version plus translations, each language's text
+// independently rhymes and scans in that language), split into timed scenes, then built into a
+// Google Flow (Veo 3.1) reel per target language: one master style bible, one prompt per scene,
+// one caption.
 
 export interface Scene {
-  lines: string;
-  lines2?: string;
+  /** Keyed by language, e.g. {"English": "...", "Hindi": "..."}. */
+  lines: Record<string, string>;
   seconds: number;
 }
 
 export interface Poem {
-  title: string;
-  title2?: string;
-  poem: string;
-  poem2?: string;
+  titles: Record<string, string>;
+  poems: Record<string, string>;
   scenes: Scene[];
 }
+
+export type ContentType = "poem" | "story" | "script";
 
 export interface PoemParams {
   topic: string;
   age: string;
   style: string;
-  lines: number;
+  lengthSeconds: number;
   scenes: number;
-  lang: string;
-  lang2?: string;
+  languages: string[];
+  /** What kind of written piece this is — changes the writing instruction, not the JSON shape. */
+  contentType?: ContentType;
   extra?: string;
   avoidTitles?: string[];
 }
 
 export interface ReworkParams extends PoemParams {
   kind: "regenerate" | "optimize" | "enhance";
-  current: { title: string; poem: string; poem2?: string; title2?: string };
+  current: { titles: Record<string, string>; poems: Record<string, string> };
 }
 
 export interface ReelMasterParams {
@@ -43,11 +46,10 @@ export interface ReelMasterParams {
 
 export interface ReelSceneParams {
   master: string;
-  seg: { lines: string; lines2?: string; dur: number };
+  seg: { lines: Record<string, string>; dur: number };
   idx: number;
   total: number;
-  lang: string;
-  lang2?: string;
+  primaryLanguage: string;
 }
 
 export interface ReelCaptionParams {
@@ -70,83 +72,103 @@ function langNote(l: string): string {
   return "";
 }
 
-function isBilingual(lang: string, lang2: string | undefined): boolean {
-  return !!lang2 && lang2 !== "None" && lang2 !== lang;
+// About how many lines a poem of this length and this many languages' worth of scenes wants,
+// just a loose steer for the model, not a hard constraint it has to hit exactly.
+function approximateLineCount(lengthSeconds: number): number {
+  return Math.max(4, Math.round(lengthSeconds / 5));
 }
 
 function isPoem(o: unknown): o is Poem {
   const p = o as Poem | null;
-  return !!p && typeof p.poem === "string" && Array.isArray(p.scenes);
+  return !!p && typeof p.poems === "object" && p.poems !== null && Array.isArray(p.scenes);
 }
+
+function languageJsonExample(languages: string[]): string {
+  const titles = languages.map((l) => `"${l}":"..."`).join(",");
+  const poems = languages.map((l) => `"${l}":"line1\\nline2"`).join(",");
+  const sceneLines = languages.map((l) => `"${l}":"line1"`).join(",");
+  return `{"titles":{${titles}},"poems":{${poems}},"scenes":[{"lines":{${sceneLines}},"seconds":7}]}`;
+}
+
+const CONTENT_TYPE_ROLE: Record<ContentType, string> = {
+  poem: "a beloved children's poet",
+  story: "a beloved children's story writer",
+  script: "a beloved children's video scriptwriter",
+};
+
+const CONTENT_TYPE_NOUN: Record<ContentType, string> = {
+  poem: "poem",
+  story: "story",
+  script: "script",
+};
+
+const CONTENT_TYPE_INSTRUCTION: Record<ContentType, string> = {
+  poem: "Write it with strong sing-song rhythm and clean rhyme",
+  story: "Write it as an engaging short narrative with simple, vivid sentences, it does not need to rhyme",
+  script: "Write it as spoken narration or dialogue lines ready to read aloud in a video, it does not need to rhyme",
+};
 
 function buildPoemPrompt(p: PoemParams): string {
   const hint = AGE_HINTS[p.age] ?? "";
-  const bilingual = isBilingual(p.lang, p.lang2);
+  const languages = p.languages.length ? p.languages : ["English"];
+  const primary = languages[0];
+  const others = languages.slice(1);
+  const lines = approximateLineCount(p.lengthSeconds);
+  const contentType = p.contentType ?? "poem";
+  const noun = CONTENT_TYPE_NOUN[contentType];
 
-  let prompt = `You are a beloved children's poet writing for short vertical video reels.
+  const languageInstruction =
+    others.length === 0
+      ? `Primary language: ${primary}${langNote(primary)}.`
+      : `Write it in EVERY one of these languages at once, independently, not translations of each other: ${languages.map((l) => `${l}${langNote(l)}`).join(", ")}. Each language's version must read naturally on its own while keeping the same meaning, mood, and the SAME ${p.scenes} scenes, so every language lines up scene by scene.`;
+
+  return `You are ${CONTENT_TYPE_ROLE[contentType]} writing for short vertical video reels.
 
 Topic: ${p.topic}
 Audience: ${p.age}. Guidance: ${hint}
 Type: ${p.style}
-Length: about ${p.lines} lines
-Primary language: ${p.lang}${langNote(p.lang)}
+Length: about ${lines} lines, ${p.lengthSeconds} seconds total when read aloud
+${languageInstruction}
 ${p.extra ? `Extra direction: ${p.extra}` : ""}
 ${p.avoidTitles && p.avoidTitles.length ? `Different from these titles: ${p.avoidTitles.join("; ")}` : ""}
 
-Write the poem with strong sing-song rhythm and clean rhyme. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite. Vary the durations to fit the lines. The scenes joined must equal the full poem.`;
+${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point in the ${noun}. Vary the durations to fit the lines. The scenes joined must equal the full ${noun}, in every language.
 
-  if (!bilingual) {
-    prompt += `
-
-Return ONLY valid JSON, no markdown:
-{"title":"...","poem":"line1\\nline2","scenes":[{"lines":"line1","seconds":7}]}
-Use \\n between lines.`;
-  } else {
-    prompt += `
-
-ALSO write the SAME poem as proper rhyming, singable lyrics in ${p.lang2}${langNote(p.lang2 as string)}. This is NOT a word-for-word translation: it must rhyme and scan naturally in ${p.lang2} while keeping the same meaning, mood, and the SAME ${p.scenes} scenes so both versions line up scene by scene. For every scene provide "lines" in ${p.lang} and "lines2" in ${p.lang2} that carry the same idea.
-
-Return ONLY valid JSON, no markdown:
-{"title":"...","title2":"...","poem":"...","poem2":"...","scenes":[{"lines":"...","lines2":"...","seconds":7}]}
-Use \\n between lines.`;
-  }
-  return prompt;
+Return ONLY valid JSON, no markdown, with a "titles" object, a "poems" object, and a "scenes" array, each keyed by the exact language names above:
+${languageJsonExample(languages)}
+Use \\n between lines within a poem string.`;
 }
 
-const REWORK_INTROS: Record<"optimize" | "enhance", string> = {
-  optimize:
-    "Improve the RHYTHM, meter, and rhyme of this children's poem without changing its meaning, topic, length, or reading level.",
-  enhance:
-    "Enhance this children's poem: make imagery more vivid and playful, add sound-play or a fun refrain, optionally one short stanza. Keep the original idea.",
+const REWORK_INTROS: Record<"optimize" | "enhance", (noun: string) => string> = {
+  optimize: (noun) =>
+    `Improve the RHYTHM, flow, and word choice of this children's ${noun} without changing its meaning, topic, length, or reading level.`,
+  enhance: (noun) =>
+    `Enhance this children's ${noun}: make imagery more vivid and playful, add a fun repeated moment or refrain, optionally one short extra section. Keep the original idea.`,
 };
 
 function buildReworkPrompt(p: ReworkParams): string {
   if (p.kind === "regenerate") {
-    const existingTitles = [p.current.title, p.current.title2].filter((t): t is string => !!t);
+    const existingTitles = Object.values(p.current.titles).filter((t): t is string => !!t);
     return buildPoemPrompt({ ...p, avoidTitles: [...(p.avoidTitles ?? []), ...existingTitles] });
   }
 
-  const bilingual = isBilingual(p.lang, p.lang2);
-  const intro = REWORK_INTROS[p.kind];
-  const bilingualNote = bilingual
-    ? `Also keep the ${p.lang2} version as proper rhyming lyrics, same meaning, aligned scene by scene.\nCurrent ${p.lang2} version:\n${p.current.poem2 ?? ""}`
-    : "";
-  const shape = bilingual
-    ? `{"title":"...","title2":"...","poem":"...","poem2":"...","scenes":[{"lines":"...","lines2":"...","seconds":7}]}`
-    : `{"title":"...","poem":"...","scenes":[{"lines":"...","seconds":7}]}`;
+  const languages = p.languages.length ? p.languages : ["English"];
+  const noun = CONTENT_TYPE_NOUN[p.contentType ?? "poem"];
+  const intro = REWORK_INTROS[p.kind](noun);
+  const currentBlocks = languages
+    .map((l) => `Current ${l} title: ${p.current.titles[l] ?? ""}\nCurrent ${l} ${noun}:\n${p.current.poems[l] ?? ""}`)
+    .join("\n\n");
 
   return `${intro}
-Audience ${p.age}, primary language ${p.lang}. Keep it reel friendly.
+Audience ${p.age}. Keep every language version aligned scene by scene and keep it reel friendly.
 
-Current title: ${p.current.title}
-Current poem:
-${p.current.poem}
-${bilingualNote}
-Re-split into exactly ${p.scenes} timed scenes of about 6 to 9 seconds each.
+${currentBlocks}
 
-Return ONLY valid JSON, no markdown:
-${shape}
-Use \\n between lines.`;
+Re-split into exactly ${p.scenes} timed scenes of about 6 to 9 seconds each, for every language above.
+
+Return ONLY valid JSON, no markdown, with the same "titles", "poems", and "scenes" shape, keyed by the exact language names above:
+${languageJsonExample(languages)}
+Use \\n between lines within a poem string.`;
 }
 
 export async function generatePoem(p: PoemParams): Promise<Poem> {
@@ -174,14 +196,18 @@ export async function generateReelMaster(p: ReelMasterParams): Promise<{ master:
 }
 
 function buildReelScenePrompt(p: ReelSceneParams): string {
-  const subtitleLine = p.seg.lines2
-    ? `\nOn-screen subtitle in ${p.lang2}: "${p.seg.lines2.replace(/\n/g, " / ")}"`
-    : "";
+  const primaryLines = p.seg.lines[p.primaryLanguage] ?? Object.values(p.seg.lines)[0] ?? "";
+  const subtitleLines = Object.entries(p.seg.lines)
+    .filter(([lang]) => lang !== p.primaryLanguage)
+    .map(([lang, text]) => `On-screen subtitle in ${lang}: "${text.replace(/\n/g, " / ")}"`)
+    .join("\n");
+
   return `Using this master style bible, keep the look 100% consistent:
 """${p.master}"""
 
 Write ONE Google Flow (Veo 3.1) prompt for scene ${p.idx + 1} of ${p.total}, a ${p.seg.dur}-second 9:16 vertical clip.
-Spoken/sung audio (${p.lang}): "${p.seg.lines.replace(/\n/g, " / ")}"${subtitleLine}
+Spoken/sung audio (${p.primaryLanguage}): "${primaryLines.replace(/\n/g, " / ")}"
+${subtitleLines}
 
 Describe the visual action, camera move, and character, all consistent with the master. Self-contained, ready to paste.
 

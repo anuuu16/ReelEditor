@@ -2,6 +2,7 @@ import { useState, type DragEvent } from "react";
 import { uploadStudioResource } from "./api.js";
 import { RESOURCE_KINDS, type ResourceKindConfig } from "./resourceKinds.js";
 import type { StudioProject, StudioResource, StudioResourceKind } from "./types.js";
+import { Button } from "./ui/index.js";
 
 interface ResourceUploaderProps {
   project: StudioProject;
@@ -133,7 +134,7 @@ export function ResourceUploader({ project, onUploaded, allowedKinds }: Resource
                 onDrop={(e) => handleDrop(section, e)}
               >
                 <span className="prompt-studio-dropzone-label">{section.label}</span>
-                {section.hint && <span className="hint">{section.hint}</span>}
+                {section.hint && <span className="text-xs text-ps-muted">{section.hint}</span>}
               </label>
               <input
                 id={inputId}
@@ -185,8 +186,16 @@ export function ResourceUploader({ project, onUploaded, allowedKinds }: Resource
                       {item.file.name}
                     </span>
 
+                    {/* Compact inline row controls: a labeled SelectField/NumberField would break this
+                        dense layout, and the scene-number field also needs to stay genuinely blank
+                        (no scene number chosen yet), which NumberField's always-numeric contract can't
+                        express — so these stay hand-styled inputs with ps-* token classes instead. */}
                     {section.needsLanguage && (
-                      <select value={item.language} onChange={(e) => updatePending(item.id, { language: e.target.value })}>
+                      <select
+                        value={item.language}
+                        onChange={(e) => updatePending(item.id, { language: e.target.value })}
+                        className="rounded-ps border border-ps-border bg-ps-elevated px-2 py-1 text-xs text-ps-text focus:border-ps-accent focus:outline-none"
+                      >
                         <option value="">(none)</option>
                         {project.languages.map((l) => (
                           <option key={l} value={l}>
@@ -201,7 +210,7 @@ export function ResourceUploader({ project, onUploaded, allowedKinds }: Resource
                         type="number"
                         min={1}
                         inputMode="numeric"
-                        className="prompt-studio-scene-n-input"
+                        className="w-16 rounded-ps border border-ps-border bg-ps-elevated px-2 py-1 text-xs text-ps-text placeholder:text-ps-muted focus:border-ps-accent focus:outline-none"
                         value={item.sceneNText}
                         onChange={(e) => updatePending(item.id, { sceneNText: e.target.value })}
                         placeholder="Scene #"
@@ -214,23 +223,18 @@ export function ResourceUploader({ project, onUploaded, allowedKinds }: Resource
                       {item.status === "error" && (item.error ?? "Failed")}
                     </span>
 
-                    <button
-                      type="button"
-                      className="project-delete-button"
-                      onClick={() => removePending(item.id)}
-                      disabled={item.status === "uploading"}
-                    >
+                    <Button variant="danger" onClick={() => removePending(item.id)} disabled={item.status === "uploading"}>
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
             );
           })}
 
-          <button type="button" onClick={handleUploadAll} disabled={isUploadingAll || pendingCount === 0}>
+          <Button variant="primary" onClick={handleUploadAll} disabled={isUploadingAll || pendingCount === 0}>
             {isUploadingAll ? "Uploading..." : `Upload all (${pendingCount})`}
-          </button>
+          </Button>
         </div>
       )}
     </div>

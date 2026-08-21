@@ -3,6 +3,7 @@ import { accountsNeeded } from "./creditMath.js";
 import { MetadataGenerator } from "./MetadataGenerator.js";
 import { RESOURCE_KINDS } from "./resourceKinds.js";
 import type { StudioProject, StudioResource } from "./types.js";
+import { Button } from "./ui/index.js";
 
 interface StudioOverviewProps {
   project: StudioProject;
@@ -35,7 +36,11 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
           {cover ? (
             <img src={studioResourceUrl(project.id, cover.id)} alt="Cover" />
           ) : (
-            <button type="button" className="prompt-studio-overview-cover-placeholder" onClick={() => onNavigate("resources")}>
+            <button
+              type="button"
+              className="h-full w-full cursor-pointer border-none bg-transparent text-xs text-ps-muted hover:text-ps-text"
+              onClick={() => onNavigate("resources")}
+            >
               + Add a cover
             </button>
           )}
@@ -68,21 +73,11 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
       </div>
 
       <div className="prompt-studio-overview-actions">
-        <button type="button" onClick={() => onNavigate("content")}>
-          Write / edit poem
-        </button>
-        <button type="button" onClick={() => onNavigate("prompts")}>
-          Generate or paste prompts
-        </button>
-        <button type="button" onClick={() => onNavigate("scenes")}>
-          Edit scenes
-        </button>
-        <button type="button" onClick={() => onNavigate("resources")}>
-          Upload resources
-        </button>
-        <button type="button" onClick={() => onNavigate("editors")}>
-          Launch / open an editor project
-        </button>
+        <Button onClick={() => onNavigate("content")}>Write / edit poem</Button>
+        <Button onClick={() => onNavigate("prompts")}>Generate or paste prompts</Button>
+        <Button onClick={() => onNavigate("scenes")}>Edit scenes</Button>
+        <Button onClick={() => onNavigate("resources")}>Upload resources</Button>
+        <Button onClick={() => onNavigate("editors")}>Launch / open an editor project</Button>
       </div>
 
       {project.masterPrompt && (
@@ -98,13 +93,17 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
         <div className="prompt-studio-overview-block-header">
           <h3>Scenes</h3>
           {project.scenes.length > 0 && (
-            <button type="button" className="prompt-studio-overview-see-all" onClick={() => onNavigate("scenes")}>
+            <button
+              type="button"
+              className="cursor-pointer border-none bg-transparent p-0 text-xs text-ps-accent hover:underline"
+              onClick={() => onNavigate("scenes")}
+            >
               See all {project.scenes.length}
             </button>
           )}
         </div>
         {previewScenes.length === 0 ? (
-          <p className="hint">No scenes yet. Generate, paste JSON, or add one by hand.</p>
+          <p className="text-xs text-ps-muted">No scenes yet. Generate, paste JSON, or add one by hand.</p>
         ) : (
           <ul className="prompt-studio-overview-scene-list">
             {previewScenes.map((scene) => (
@@ -122,13 +121,17 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
         <div className="prompt-studio-overview-block-header">
           <h3>Resources</h3>
           {project.resources.length > 0 && (
-            <button type="button" className="prompt-studio-overview-see-all" onClick={() => onNavigate("resources")}>
+            <button
+              type="button"
+              className="cursor-pointer border-none bg-transparent p-0 text-xs text-ps-accent hover:underline"
+              onClick={() => onNavigate("resources")}
+            >
               See all {project.resources.length}
             </button>
           )}
         </div>
         {project.resources.length === 0 ? (
-          <p className="hint">Nothing uploaded yet.</p>
+          <p className="text-xs text-ps-muted">Nothing uploaded yet.</p>
         ) : (
           RESOURCE_KINDS.map((section) => {
             const items = project.resources.filter((r) => r.kind === section.kind);
@@ -136,7 +139,7 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
             return (
               <div key={section.kind} className="prompt-studio-overview-resource-row">
                 <span className="prompt-studio-overview-resource-row-label">
-                  {section.label} <span className="prompt-studio-char-count">({items.length})</span>
+                  {section.label} <span className="text-ps-muted">({items.length})</span>
                 </span>
                 <div className="prompt-studio-overview-thumb-strip">
                   {items.map((r) => (

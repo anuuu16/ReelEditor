@@ -5,8 +5,9 @@ import { buildRhymePoemPromptTemplate, parseRhymePoemJson } from "./rhymeImportE
 import { generateRhymePoem } from "./rhymeApi.js";
 import { RhymePoemCard } from "./RhymePoemCard.js";
 import { RhymeWizard } from "./RhymeWizard.js";
-import type { RhymePoemParams, RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
+import type { RhymeContentType, RhymePoemParams, RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
 import type { StudioProject } from "./types.js";
+import { Button, Card, Chip, NumberField, SelectField, TextField, TextareaField } from "./ui/index.js";
 
 interface RhymeStudioViewProps {
   project: StudioProject;
@@ -16,11 +17,29 @@ interface RhymeStudioViewProps {
 
 const AGE_OPTIONS = ["Toddler (2-4)", "Preschool (4-6)", "Early school (6-9)"];
 const STYLE_OPTIONS = ["Rhyme", "Story poem", "Lullaby", "Action song", "Counting song"];
-const LENGTH_OPTIONS: Array<{ label: string; lines: number }> = [
-  { label: "Short", lines: 6 },
-  { label: "Medium", lines: 10 },
-  { label: "Long", lines: 14 },
+const LANGUAGE_OPTIONS = ["English", "Hindi", "Hinglish"];
+const CONTENT_TYPE_OPTIONS: Array<{ id: RhymeContentType; label: string }> = [
+  { id: "poem", label: "Poem" },
+  { id: "story", label: "Story" },
+  { id: "script", label: "Script" },
 ];
+
+// A Studio project's own `languages` list is a free-form tag used across every tab (resources,
+// editor links, and so on), so it sometimes holds a short code like "en" from elsewhere in the
+// app rather than the full name an AI generation prompt actually needs. Normalizing here means an
+// older project doesn't show "English" and "en" as two separate, confusing chips.
+const LANGUAGE_CODE_ALIASES: Record<string, string> = { en: "English", hi: "Hindi", "hi-en": "Hinglish", hinglish: "Hinglish" };
+
+function normalizeLanguageName(value: string): string {
+  return LANGUAGE_CODE_ALIASES[value.toLowerCase()] ?? value;
+}
+
+function normalizeLanguageList(values: string[]): string[] {
+  return [...new Set(values.map(normalizeLanguageName))];
+}
+const MIN_LENGTH_SECONDS = 18;
+const MAX_LENGTH_SECONDS = 54;
+const DEFAULT_LENGTH_SECONDS = 32;
 const EXTRA_PRESETS = [
   "Add a repeating chorus kids can sing along",
   "Add fun animal sounds",
@@ -32,16 +51,22 @@ const EXTRA_PRESETS = [
   "Simple words toddlers can repeat",
 ];
 
+function scenesForLength(lengthSeconds: number): number {
+  return Math.max(3, Math.min(6, Math.round(lengthSeconds / 8)));
+}
+
 export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudioViewProps) {
   const [wizardSlotId, setWizardSlotId] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
-  const [poemCount, setPoemCountText] = useState("2");
-  const [sceneCount, setSceneCountText] = useState("4");
-  const [lengthLabel, setLengthLabel] = useState("Medium");
-  const [lang, setLang] = useState(project.languages[0] ?? "English");
-  const [lang2, setLang2] = useState("None");
+  const [poemCount, setPoemCount] = useState(2);
+  const [lengthSeconds, setLengthSeconds] = useState(DEFAULT_LENGTH_SECONDS);
+  const [languages, setLanguages] = useState<string[]>(
+    project.languages.length ? normalizeLanguageList(project.languages) : ["English"]
+  );
+  const [customLanguage, setCustomLanguage] = useState("");
+  const [contentType, setContentType] = useState<RhymeContentType>("poem");
   const [age, setAge] = useState(AGE_OPTIONS[1]);
   const [style, setStyle] = useState(STYLE_OPTIONS[0]);
   const [extra, setExtra] = useState("");
@@ -51,13 +76,33 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   const [progressLabel, setProgressLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const availableLanguages = [...new Set([...LANGUAGE_OPTIONS, ...languages])];
+  const scenes = scenesForLength(lengthSeconds);
+
+  function toggleLanguage(language: string) {
+    setLanguages((prev) => (prev.includes(language) ? prev.filter((l) => l !== language) : [...prev, language]));
+  }
+
+  function addCustomLanguage() {
+    const value = customLanguage.trim();
+    if (!value || languages.includes(value)) return;
+    setLanguages((prev) => [...prev, value]);
+    setCustomLanguage("");
+  }
+
   function toggleExtraPreset(preset: string) {
     setExtra((prev) => (prev.includes(preset) ? prev.replace(preset, "").replace(/^, |, $/g, "").trim() : prev ? `${prev}, ${preset}` : preset));
   }
 
+  // Every language a rhyme was actually generated/imported in must stay available project-wide
+  // (the resource uploader's language picker and the wizard's per-language editor launcher both
+  // read project.languages), otherwise a rhyme written in a language never added to the project
+  // gets stranded with nowhere to upload its audio or launch its editor.
   function persistSlots(next: RhymePoemSlot[]) {
     setSlots(next);
-    onPatch({ poems: next });
+    const mergedLanguages = normalizeLanguageList([...project.languages, ...next.flatMap((s) => s.params.languages)]);
+    const languagesChanged = mergedLanguages.some((l) => !project.languages.includes(l));
+    onPatch(languagesChanged ? { poems: next, languages: mergedLanguages } : { poems: next });
   }
 
   function updateSlot(next: RhymePoemSlot) {
@@ -65,16 +110,14 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   }
 
   function currentParams(): RhymePoemParams {
-    const scenes = Math.max(3, Math.min(6, Math.round(Number(sceneCount)) || 4));
-    const lines = LENGTH_OPTIONS.find((l) => l.label === lengthLabel)?.lines ?? 10;
     return {
       topic: topic.trim(),
       age,
       style,
-      lines,
+      lengthSeconds,
       scenes,
-      lang,
-      lang2: lang2 !== "None" ? lang2 : undefined,
+      languages: languages.length ? languages : ["English"],
+      contentType,
       extra: extra.trim() || undefined,
     };
   }
@@ -96,9 +139,9 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     if (!topic.trim() || isGenerating) return;
     setIsGenerating(true);
     setError(null);
-    const count = Math.max(1, Math.min(6, Math.round(Number(poemCount)) || 1));
+    const count = poemCount;
 
-    const avoidTitles = slots.map((s) => s.versions[s.activeVersionIndex].poem.title);
+    const avoidTitles = slots.flatMap((s) => Object.values(s.versions[s.activeVersionIndex].poem.titles));
     const created: RhymePoemSlot[] = [];
 
     for (let i = 0; i < count; i++) {
@@ -106,7 +149,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
       const params: RhymePoemParams = { ...currentParams(), avoidTitles: [...avoidTitles] };
       try {
         const poem = await generateRhymePoem(params);
-        avoidTitles.push(poem.title);
+        avoidTitles.push(...Object.values(poem.titles));
         const version: RhymePoemVersion = { id: crypto.randomUUID(), label: "Original", poem, createdAt: Date.now() };
         const slot: RhymePoemSlot = { id: crypto.randomUUID(), params, versions: [version], activeVersionIndex: 0 };
         created.push(slot);
@@ -135,163 +178,161 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
     );
   }
 
+  const contentNoun = CONTENT_TYPE_OPTIONS.find((c) => c.id === contentType)?.label.toLowerCase() ?? "content";
+
   return (
     <div className="rhyme-studio">
-      <section className="prompt-studio-section">
-        <h2>Generate poems</h2>
-        <p className="hint">Kids poems, pre-timed into reel scenes. Optionally in a second language, aligned scene by scene.</p>
-
-        <div className="inline-fields prompt-studio-header-row">
-          <label className="field prompt-studio-topic-field">
-            <span>Topic</span>
-            <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What should the poem be about?" />
-          </label>
-          <label className="field">
-            <span>How many poems</span>
-            <input
-              type="number"
-              min={1}
-              max={6}
-              inputMode="numeric"
-              value={poemCount}
-              onChange={(e) => setPoemCountText(e.target.value)}
-              onBlur={() => setPoemCountText(String(Math.max(1, Math.min(6, Math.round(Number(poemCount)) || 1))))}
-            />
-          </label>
-          <label className="field">
-            <span>Reel scenes</span>
-            <input
-              type="number"
-              min={3}
-              max={6}
-              inputMode="numeric"
-              value={sceneCount}
-              onChange={(e) => setSceneCountText(e.target.value)}
-              onBlur={() => setSceneCountText(String(Math.max(3, Math.min(6, Math.round(Number(sceneCount)) || 4))))}
-            />
-          </label>
-        </div>
-
-        <div className="inline-fields prompt-studio-header-row">
-          <label className="field">
-            <span>Length</span>
-            <select value={lengthLabel} onChange={(e) => setLengthLabel(e.target.value)}>
-              {LENGTH_OPTIONS.map((l) => (
-                <option key={l.label} value={l.label}>
-                  {l.label} (~{l.lines} lines)
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Age group</span>
-            <select value={age} onChange={(e) => setAge(e.target.value)}>
-              {AGE_OPTIONS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Style</span>
-            <select value={style} onChange={(e) => setStyle(e.target.value)}>
-              {STYLE_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="inline-fields prompt-studio-header-row">
-          <label className="field">
-            <span>Primary language</span>
-            <select value={lang} onChange={(e) => setLang(e.target.value)}>
-              {["English", "Hindi", "Hinglish"].map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Second language</span>
-            <select value={lang2} onChange={(e) => setLang2(e.target.value)}>
-              {["None", "English", "Hindi", "Hinglish"].map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <label className="field">
-          <span>Extra direction (optional)</span>
-          <textarea rows={2} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Anything else the poem should include" />
-        </label>
-
-        <div className="rhyme-preset-chips">
-          {EXTRA_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className={`rhyme-preset-chip${extra.includes(preset) ? " active" : ""}`}
-              onClick={() => toggleExtraPreset(preset)}
-            >
-              {preset}
-            </button>
+      <Card
+        title="Generate content"
+        hint="Kids' poems, stories, or scripts, pre-timed into reel scenes, in as many languages at once as you pick below."
+      >
+        <div className="mb-3.5 flex flex-wrap gap-1.5">
+          {CONTENT_TYPE_OPTIONS.map((option) => (
+            <Chip key={option.id} active={contentType === option.id} onClick={() => setContentType(option.id)}>
+              {option.label}
+            </Chip>
           ))}
         </div>
 
-        <div className="inline-fields">
-          <button type="button" className="export-button" disabled={isGenerating || !topic.trim()} onClick={handleGenerate}>
-            {isGenerating ? progressLabel || "Generating..." : "Generate"}
-          </button>
+        <div className="mb-3.5 flex flex-wrap gap-3">
+          <TextField
+            label="Topic"
+            value={topic}
+            onChange={setTopic}
+            placeholder={`What should the ${contentNoun} be about?`}
+            className="min-w-[220px] flex-[2]"
+          />
+          <NumberField
+            label="How many pieces (1-6)"
+            value={poemCount}
+            onChange={setPoemCount}
+            min={1}
+            max={6}
+            className="min-w-[140px] flex-1"
+          />
+          <NumberField
+            label="Video length (seconds)"
+            hint={`(~${scenes} scenes)`}
+            value={lengthSeconds}
+            onChange={setLengthSeconds}
+            min={MIN_LENGTH_SECONDS}
+            max={MAX_LENGTH_SECONDS}
+            className="min-w-[160px] flex-1"
+          />
         </div>
-        {error && <p className="export-error">{error}</p>}
-      </section>
 
-      <section className="prompt-studio-section">
-        <h2>Use any AI chat</h2>
-        <p className="hint">
-          Copy this prompt into Claude, ChatGPT, or anywhere else, then paste back the JSON it gives you as a new poem.
-        </p>
-        <label className="field">
-          <span>Prompt to copy into any AI chat</span>
-          <textarea rows={6} readOnly value={buildRhymePoemPromptTemplate(currentParams())} />
-        </label>
-        <div className="inline-fields prompt-studio-master-actions">
+        <div className="mb-3.5 flex flex-wrap gap-3">
+          <SelectField
+            label="Age group"
+            value={age}
+            onChange={setAge}
+            options={AGE_OPTIONS.map((a) => ({ value: a, label: a }))}
+            className="min-w-[180px] flex-1"
+          />
+          <SelectField
+            label="Style"
+            value={style}
+            onChange={setStyle}
+            options={STYLE_OPTIONS.map((s) => ({ value: s, label: s }))}
+            className="min-w-[180px] flex-1"
+          />
+        </div>
+
+        <div className="mb-3.5 flex flex-col gap-1.5 text-xs text-ps-muted">
+          <span>Languages — every one is a full, independently written {contentNoun}, not a translation</span>
+          <div className="flex flex-wrap gap-1.5">
+            {availableLanguages.map((language) => (
+              <Chip key={language} active={languages.includes(language)} onClick={() => toggleLanguage(language)}>
+                {language}
+              </Chip>
+            ))}
+          </div>
+          <div className="flex items-end gap-3">
+            {/* Kept as a hand-styled input (not TextField) because it needs an Enter-to-submit
+                onKeyDown handler that the TextField primitive does not expose — same ps-* token
+                classes as TextField's input, just with the extra handler wired in. */}
+            <label className="flex min-w-[220px] flex-1 flex-col gap-1.5">
+              <span>Add another language</span>
+              <input
+                type="text"
+                value={customLanguage}
+                onChange={(e) => setCustomLanguage(e.target.value)}
+                placeholder="Add another language"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomLanguage();
+                  }
+                }}
+                className="w-full min-w-0 rounded-ps border border-ps-border bg-ps-elevated px-2.5 py-1.5 text-sm text-ps-text placeholder:text-ps-muted focus:border-ps-accent focus:outline-none"
+              />
+            </label>
+            <Button onClick={addCustomLanguage} disabled={!customLanguage.trim()}>
+              + Add
+            </Button>
+          </div>
+          {languages.length === 0 && <p>Pick at least one language above.</p>}
+        </div>
+
+        <TextareaField
+          label="Extra direction (optional)"
+          rows={2}
+          value={extra}
+          onChange={setExtra}
+          placeholder="Anything else the poem should include"
+          className="mb-3.5"
+        />
+
+        <div className="mb-3.5 flex flex-wrap gap-1.5">
+          {EXTRA_PRESETS.map((preset) => (
+            <Chip key={preset} active={extra.includes(preset)} onClick={() => toggleExtraPreset(preset)}>
+              {preset}
+            </Chip>
+          ))}
+        </div>
+
+        <Button variant="primary" disabled={isGenerating || !topic.trim() || languages.length === 0} onClick={handleGenerate}>
+          {isGenerating ? progressLabel || "Generating..." : "Generate"}
+        </Button>
+        {error && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
+      </Card>
+
+      <Card
+        title="Use any AI chat"
+        hint="Copy this prompt into Claude, ChatGPT, or anywhere else, then paste back the JSON it gives you as a new poem."
+      >
+        <TextareaField
+          label="Prompt to copy into any AI chat"
+          rows={6}
+          readOnly
+          value={buildRhymePoemPromptTemplate(currentParams())}
+          onChange={() => {}}
+          className="mb-2"
+        />
+        <div className="mb-3.5">
           <CopyButton text={buildRhymePoemPromptTemplate(currentParams())} label="Copy prompt" />
         </div>
-        <label className="field">
-          <span>Paste the JSON it gives you back</span>
-          <textarea
-            rows={6}
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            placeholder='{"title":"...","poem":"...","scenes":[...]}'
-          />
-        </label>
-        <div className="inline-fields">
-          <button type="button" onClick={handleImportPoem} disabled={!pasteText.trim()}>
-            Import poem
-          </button>
-        </div>
-        {pasteError && <p className="export-error">{pasteError}</p>}
-      </section>
+        <TextareaField
+          label="Paste the JSON it gives you back"
+          rows={6}
+          value={pasteText}
+          onChange={setPasteText}
+          placeholder='{"titles":{"English":"..."},"poems":{"English":"..."},"scenes":[...]}'
+          className="mb-3.5"
+        />
+        <Button variant="primary" onClick={handleImportPoem} disabled={!pasteText.trim()}>
+          Import poem
+        </Button>
+        {pasteError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{pasteError}</p>}
+      </Card>
 
       {slots.length === 0 ? (
-        <p className="hint">No poems yet. Fill in a topic above and click Generate, or paste one in.</p>
+        <p className="text-xs text-ps-muted">No poems yet. Fill in a topic above and click Generate, or paste one in.</p>
       ) : (
         slots.map((slot) => (
           <div key={slot.id} className="rhyme-poem-card-wrapper">
-            <div className="inline-fields rhyme-poem-card-wizard-link">
-              <button type="button" onClick={() => setWizardSlotId(slot.id)}>
-                Step-by-step: audio, assets, video, editor, final →
-              </button>
+            <div className="mb-1.5">
+              <Button onClick={() => setWizardSlotId(slot.id)}>Step-by-step: audio, assets, video, editor, final →</Button>
             </div>
             <RhymePoemCard slot={slot} onChange={updateSlot} />
           </div>
