@@ -78,13 +78,20 @@ function approximateLineCount(lengthSeconds: number): number {
   return Math.max(4, Math.round(lengthSeconds / 5));
 }
 
-// Checks the model actually returned the requested number of scenes, not just *some* array of
-// scenes — without this, an under-length response (e.g. 6 scenes/52s when 15 scenes/120s were
-// asked for) still passed validation and was silently accepted as-is.
-function makeIsPoem(expectedScenes: number): (o: unknown) => o is Poem {
+// Checks the model actually returned the requested number of scenes AND that their durations sum
+// close to the requested total — without the duration check, a response could have exactly the
+// right scene count but still land well under the target (e.g. 15 scenes summing to 90s when 120s
+// was asked for) and still pass. 12% tolerance: enough for the model's own "vary durations to fit
+// the lines" discretion, not enough to let it systematically undershoot.
+function makeIsPoem(expectedScenes: number, expectedLengthSeconds: number): (o: unknown) => o is Poem {
+  const tolerance = Math.max(4, expectedLengthSeconds * 0.12);
   return (o: unknown): o is Poem => {
     const p = o as Poem | null;
-    return !!p && typeof p.poems === "object" && p.poems !== null && Array.isArray(p.scenes) && p.scenes.length === expectedScenes;
+    if (!p || typeof p.poems !== "object" || p.poems === null || !Array.isArray(p.scenes) || p.scenes.length !== expectedScenes) {
+      return false;
+    }
+    const total = p.scenes.reduce((sum, s) => sum + (Number(s.seconds) || 0), 0);
+    return Math.abs(total - expectedLengthSeconds) <= tolerance;
   };
 }
 
@@ -144,12 +151,12 @@ function buildPoemPrompt(p: PoemParams): string {
 Topic: ${p.topic}
 Audience: ${p.age}. Guidance: ${hint}
 Type: ${p.style}
-Length: about ${lines} lines, ${p.lengthSeconds} seconds total when read aloud
+Length: write enough content for ${p.lengthSeconds} seconds total when read aloud (about ${lines} lines). This is a firm target, not a ceiling — do not undershoot it.
 ${languageInstruction}
 ${p.extra ? `Extra direction: ${p.extra}` : ""}
 ${p.avoidTitles && p.avoidTitles.length ? `Different from these titles: ${p.avoidTitles.join("; ")}` : ""}
 
-${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above. Then split it into exactly ${p.scenes} timed scenes for a vertical reel. Each scene is a natural chunk of 1 to 3 lines taking about 6 to 9 seconds to recite, with every language's scene lines carrying the same idea at the same point in the ${noun}. Vary the durations to fit the lines. The scenes joined must equal the full ${noun}, in every language.
+${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above, with enough lines to fill the full ${p.lengthSeconds} seconds — a short poem split into many scenes is wrong, write more content rather than stretch too little. Then split it into exactly ${p.scenes} timed scenes for a vertical reel, each scene's "seconds" averaging about ${Math.round(p.lengthSeconds / p.scenes)} (vary a little for natural line breaks, but they MUST sum to close to ${p.lengthSeconds} total, not less), with every language's scene lines carrying the same idea at the same point in the ${noun}. The scenes joined must equal the full ${noun}, in every language.
 
 Return ONLY valid JSON, no markdown, with a "titles" object, a "poems" object, and a "scenes" array, each keyed by the exact language names above:
 ${languageJsonExample(languages)}
@@ -181,7 +188,7 @@ Audience ${p.age}. Keep every language version aligned scene by scene and keep i
 
 ${currentBlocks}
 
-Re-split into exactly ${p.scenes} timed scenes of about 6 to 9 seconds each, for every language above.
+Re-split into exactly ${p.scenes} timed scenes, each scene's "seconds" averaging about ${Math.round(p.lengthSeconds / p.scenes)} (vary a little for natural line breaks, but they MUST sum to close to ${p.lengthSeconds} seconds total, not less), for every language above.
 
 Return ONLY valid JSON, no markdown, with the same "titles", "poems", and "scenes" shape, keyed by the exact language names above:
 ${languageJsonExample(languages)}
@@ -189,11 +196,11 @@ Use \\n between lines within a poem string.`;
 }
 
 export async function generatePoem(p: PoemParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
+  return callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), makeIsPoem(p.scenes, p.lengthSeconds), 3, estimatePoemMaxTokens(p));
 }
 
 export async function reworkPoem(p: ReworkParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
+  return callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), makeIsPoem(p.scenes, p.lengthSeconds), 3, estimatePoemMaxTokens(p));
 }
 
 function buildReelMasterPrompt(p: ReelMasterParams): string {
