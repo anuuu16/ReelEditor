@@ -22,6 +22,9 @@ export interface RhymePoemParams {
   style: string;
   lengthSeconds: number;
   scenes: number;
+  /** Seconds per scene (matches the video-gen model's fixed clip length, e.g. Veo). Optional since
+   * a slot saved before this field existed won't have it — falls back to 8 wherever read. */
+  clipLengthSeconds?: number;
   /** Every language to generate at once, in order. First is the "primary" for display purposes only. */
   languages: string[];
   /** What kind of written piece this is — a poem is not the only option. */
@@ -33,6 +36,16 @@ export interface RhymePoemParams {
 export interface RhymeReworkParams extends RhymePoemParams {
   kind: "regenerate" | "optimize" | "enhance";
   current: { titles: Record<string, string>; poems: Record<string, string> };
+}
+
+// Unlike RhymeReworkParams, the words never change — only "scenes" comes back, so lyric drift is
+// impossible by construction rather than by trusting the model to leave text alone.
+export interface RhymeFixTimelineParams {
+  poems: Record<string, string>;
+  languages: string[];
+  scenes: number;
+  lengthSeconds: number;
+  clipLengthSeconds: number;
 }
 
 export interface RhymeReelMasterParams {

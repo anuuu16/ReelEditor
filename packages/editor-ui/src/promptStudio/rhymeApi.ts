@@ -1,5 +1,6 @@
 import { RENDER_SERVICE_URL } from "../constants.js";
 import type {
+  RhymeFixTimelineParams,
   RhymePoem,
   RhymePoemParams,
   RhymeReelCaptionParams,
@@ -8,6 +9,7 @@ import type {
   RhymeReelMasterParams,
   RhymeReelSceneParams,
   RhymeReworkParams,
+  RhymeScene,
 } from "./rhymeTypes.js";
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -29,6 +31,10 @@ export function generateRhymePoem(params: RhymePoemParams): Promise<RhymePoem> {
 
 export function reworkRhymePoem(params: RhymeReworkParams): Promise<RhymePoem> {
   return postJson<RhymePoem>("/rhyme/poem/rework", params);
+}
+
+export function fixRhymeTimeline(params: RhymeFixTimelineParams): Promise<{ scenes: RhymeScene[] }> {
+  return postJson<{ scenes: RhymeScene[] }>("/rhyme/poem/fix-timeline", params);
 }
 
 export function generateRhymeReelMaster(params: RhymeReelMasterParams): Promise<{ master: string }> {

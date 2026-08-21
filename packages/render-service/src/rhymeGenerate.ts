@@ -26,6 +26,10 @@ export interface PoemParams {
   style: string;
   lengthSeconds: number;
   scenes: number;
+  /** Seconds per scene (matches the video-gen model's fixed clip length, e.g. Veo). Every scene's
+   * "seconds" is forced to this value server-side after generation — never trusted from the model,
+   * since it's fixed infrastructure, not something for the model to estimate. */
+  clipLengthSeconds: number;
   languages: string[];
   /** What kind of written piece this is — changes the writing instruction, not the JSON shape. */
   contentType?: ContentType;
@@ -36,6 +40,18 @@ export interface PoemParams {
 export interface ReworkParams extends PoemParams {
   kind: "regenerate" | "optimize" | "enhance";
   current: { titles: Record<string, string>; poems: Record<string, string> };
+}
+
+// Unlike ReworkParams, this never touches the words — the model isn't even shown as a rewrite
+// target, only as fixed reference text to re-split. The caller also ignores anything the model
+// might echo back beyond "scenes" and keeps its own poems/titles verbatim, so lyric drift is
+// impossible by construction, not just by prompt instruction.
+export interface FixTimelineParams {
+  poems: Record<string, string>;
+  languages: string[];
+  scenes: number;
+  lengthSeconds: number;
+  clipLengthSeconds: number;
 }
 
 export interface ReelMasterParams {
@@ -90,21 +106,22 @@ function approximateLineCount(lengthSeconds: number): number {
   return Math.max(4, Math.round(lengthSeconds / 5));
 }
 
-// Checks the model actually returned the requested number of scenes AND that their durations sum
-// close to the requested total — without the duration check, a response could have exactly the
-// right scene count but still land well under the target (e.g. 15 scenes summing to 90s when 120s
-// was asked for) and still pass. 12% tolerance: enough for the model's own "vary durations to fit
-// the lines" discretion, not enough to let it systematically undershoot.
-function makeIsPoem(expectedScenes: number, expectedLengthSeconds: number): (o: unknown) => o is Poem {
-  const tolerance = Math.max(4, expectedLengthSeconds * 0.12);
+// Only checks the scene count — durations are never trusted from the model at all (see
+// forceSceneDurations below), so there's nothing to validate about them. Scene count still needs
+// enforcing: a response could easily come back with too few scenes otherwise.
+function makeIsPoem(expectedScenes: number): (o: unknown) => o is Poem {
   return (o: unknown): o is Poem => {
     const p = o as Poem | null;
-    if (!p || typeof p.poems !== "object" || p.poems === null || !Array.isArray(p.scenes) || p.scenes.length !== expectedScenes) {
-      return false;
-    }
-    const total = p.scenes.reduce((sum, s) => sum + (Number(s.seconds) || 0), 0);
-    return Math.abs(total - expectedLengthSeconds) <= tolerance;
+    return !!p && typeof p.poems === "object" && p.poems !== null && Array.isArray(p.scenes) && p.scenes.length === expectedScenes;
   };
+}
+
+// Every scene is exactly clipLengthSeconds long — that's the video-gen model's fixed clip length,
+// not something the writing model estimates or varies. Whatever "seconds" the model may have put
+// in its response (if anything, since the prompt no longer even asks for it) is overwritten here,
+// so the timeline is strictly uniform by construction regardless of model behavior.
+function forceSceneDurations(scenes: Scene[], clipLengthSeconds: number): Scene[] {
+  return scenes.map((s) => ({ ...s, seconds: clipLengthSeconds }));
 }
 
 // Flat 2000-token default (see llm.ts) is fine for a short single-language poem, but a large
@@ -119,11 +136,13 @@ function estimatePoemMaxTokens(p: PoemParams): number {
   return Math.max(2000, sceneTokens + poemTokens + 500);
 }
 
+// No "seconds" in the shape the model is asked for — every scene's duration is fixed
+// (clipLengthSeconds) and forced server-side afterward, never left to the model to state.
 function languageJsonExample(languages: string[]): string {
   const titles = languages.map((l) => `"${l}":"..."`).join(",");
   const poems = languages.map((l) => `"${l}":"line1\\nline2"`).join(",");
   const sceneLines = languages.map((l) => `"${l}":"line1"`).join(",");
-  return `{"titles":{${titles}},"poems":{${poems}},"scenes":[{"lines":{${sceneLines}},"seconds":7}]}`;
+  return `{"titles":{${titles}},"poems":{${poems}},"scenes":[{"lines":{${sceneLines}}}]}`;
 }
 
 const CONTENT_TYPE_ROLE: Record<ContentType, string> = {
@@ -168,7 +187,7 @@ ${languageInstruction}
 ${p.extra ? `Extra direction: ${p.extra}` : ""}
 ${p.avoidTitles && p.avoidTitles.length ? `Different from these titles: ${p.avoidTitles.join("; ")}` : ""}
 
-${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above, with enough lines to fill the full ${p.lengthSeconds} seconds — a short poem split into many scenes is wrong, write more content rather than stretch too little. Then split it into exactly ${p.scenes} timed scenes for a vertical reel, each scene's "seconds" averaging about ${Math.round(p.lengthSeconds / p.scenes)} (vary a little for natural line breaks, but they MUST sum to close to ${p.lengthSeconds} total, not less), with every language's scene lines carrying the same idea at the same point in the ${noun}. The scenes joined must equal the full ${noun}, in every language.
+${CONTENT_TYPE_INSTRUCTION[contentType]} in every language above, with enough lines to fill the full ${p.lengthSeconds} seconds — a short poem split into many scenes is wrong, write more content rather than stretch too little. Then split it into EXACTLY ${p.scenes} scenes, one per ${p.clipLengthSeconds}-second video clip (${p.scenes} clips x ${p.clipLengthSeconds}s = ${p.lengthSeconds}s total — this is fixed, not your choice). Each scene holds 1 to 3 lines that naturally fit speaking/singing in about ${p.clipLengthSeconds} seconds, with every language's scene lines carrying the same idea at the same point in the ${noun}. If the ${noun} doesn't have enough natural content to fill every one of the ${p.scenes} scenes with words, that's fine — give a trailing or transitional scene EMPTY "lines" (an instrumental/music-only beat, no vocals) for every language, rather than stretching or repeating text unnaturally. The scene COUNT must still be exactly ${p.scenes}, even if some are empty.
 
 Return ONLY valid JSON, no markdown, with a "titles" object, a "poems" object, and a "scenes" array, each keyed by the exact language names above:
 ${languageJsonExample(languages)}
@@ -200,7 +219,7 @@ Audience ${p.age}. Keep every language version aligned scene by scene and keep i
 
 ${currentBlocks}
 
-Re-split into exactly ${p.scenes} timed scenes, each scene's "seconds" averaging about ${Math.round(p.lengthSeconds / p.scenes)} (vary a little for natural line breaks, but they MUST sum to close to ${p.lengthSeconds} seconds total, not less), for every language above.
+Re-split into EXACTLY ${p.scenes} scenes, one per ${p.clipLengthSeconds}-second video clip (${p.scenes} clips x ${p.clipLengthSeconds}s = ${p.lengthSeconds}s total — fixed, not your choice), for every language above. If there isn't enough content to fill every scene with words, leave a trailing/transitional scene's "lines" empty (music-only, no vocals) rather than stretching text — but the scene count must still be exactly ${p.scenes}.
 
 Return ONLY valid JSON, no markdown, with the same "titles", "poems", and "scenes" shape, keyed by the exact language names above:
 ${languageJsonExample(languages)}
@@ -208,11 +227,53 @@ Use \\n between lines within a poem string.`;
 }
 
 export async function generatePoem(p: PoemParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), makeIsPoem(p.scenes, p.lengthSeconds), 3, estimatePoemMaxTokens(p));
+  const poem = await callLlmJson<Poem>(RHYME_SYSTEM, buildPoemPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
+  return { ...poem, scenes: forceSceneDurations(poem.scenes, p.clipLengthSeconds) };
 }
 
 export async function reworkPoem(p: ReworkParams): Promise<Poem> {
-  return callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), makeIsPoem(p.scenes, p.lengthSeconds), 3, estimatePoemMaxTokens(p));
+  const poem = await callLlmJson<Poem>(RHYME_SYSTEM, buildReworkPrompt(p), makeIsPoem(p.scenes), 3, estimatePoemMaxTokens(p));
+  return { ...poem, scenes: forceSceneDurations(poem.scenes, p.clipLengthSeconds) };
+}
+
+function buildFixTimelinePrompt(p: FixTimelineParams): string {
+  const languages = p.languages.length ? p.languages : Object.keys(p.poems);
+  const blocks = languages.map((l) => `${l}:\n${p.poems[l] ?? ""}`).join("\n\n");
+
+  return `Do NOT change, translate, rephrase, correct, or add to any words below — copy every line into scenes 100% verbatim, exactly as written.
+
+${blocks}
+
+Your only task: split the text above into EXACTLY ${p.scenes} scenes, one per ${p.clipLengthSeconds}-second video clip (${p.scenes} clips x ${p.clipLengthSeconds}s = ${p.lengthSeconds}s total — fixed, not your choice), keyed by the same language names. Each scene is a natural chunk of 1 to 3 CONSECUTIVE lines taken word-for-word from the text above (never invented, never reworded), fitting about ${p.clipLengthSeconds} seconds of speech, with every language's scene lines carrying the same idea at the same point so all languages line up scene by scene. If the text runs out before filling all ${p.scenes} scenes, leave the remaining trailing scene(s)' "lines" empty (music-only, no vocals) for every language — never invent or stretch text to fill space. The scene count must still be exactly ${p.scenes}.
+
+Return ONLY valid JSON, no markdown, with just a "scenes" array, keyed by the exact language names above:
+{"scenes":[{"lines":{${languages.map((l) => `"${l}":"..."`).join(",")}}}]}`;
+}
+
+function makeIsScenesResult(expectedScenes: number): (o: unknown) => o is { scenes: Scene[] } {
+  return (o: unknown): o is { scenes: Scene[] } => {
+    const r = o as { scenes?: Scene[] } | null;
+    return !!r && Array.isArray(r.scenes) && r.scenes.length === expectedScenes;
+  };
+}
+
+// Lighter than estimatePoemMaxTokens: no full poem text to regenerate, just the scenes array (each
+// scene repeats a line or two per language) plus the reference text itself in the prompt.
+function estimateFixTimelineMaxTokens(p: FixTimelineParams): number {
+  const languageCount = Math.max(1, p.languages.length);
+  const sceneTokens = p.scenes * languageCount * 40;
+  return Math.max(1200, sceneTokens + 500);
+}
+
+export async function fixPoemTimeline(p: FixTimelineParams): Promise<{ scenes: Scene[] }> {
+  const result = await callLlmJson<{ scenes: Scene[] }>(
+    RHYME_SYSTEM,
+    buildFixTimelinePrompt(p),
+    makeIsScenesResult(p.scenes),
+    3,
+    estimateFixTimelineMaxTokens(p)
+  );
+  return { scenes: forceSceneDurations(result.scenes, p.clipLengthSeconds) };
 }
 
 function buildReelMasterPrompt(p: ReelMasterParams): string {

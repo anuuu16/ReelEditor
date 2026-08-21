@@ -159,6 +159,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
       style,
       lengthSeconds,
       scenes,
+      clipLengthSeconds,
       languages: languages.length ? languages : ["English"],
       contentType,
       extra: extra.trim() || undefined,

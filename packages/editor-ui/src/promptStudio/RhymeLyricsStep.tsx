@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { reworkRhymePoem } from "./rhymeApi.js";
+import { fixRhymeTimeline, reworkRhymePoem } from "./rhymeApi.js";
 import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.js";
-import type { RhymePoemSlot, RhymePoemVersion } from "./rhymeTypes.js";
+import type { RhymePoemSlot, RhymePoemVersion, RhymeScene } from "./rhymeTypes.js";
 import { Button, Card, TextareaField } from "./ui/index.js";
 
 interface RhymeLyricsStepProps {
@@ -20,6 +20,7 @@ const REWORK_LABELS: Record<"regenerate" | "optimize" | "enhance", string> = {
 // takes this text as input) is a separate step, RhymeScenesStep, further along the wizard.
 export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
   const [isReworking, setIsReworking] = useState<string | null>(null);
+  const [isFixingTimeline, setIsFixingTimeline] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const version = slot.versions[slot.activeVersionIndex];
@@ -46,6 +47,14 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
 
   function setActiveVersionIndex(index: number) {
     onChange({ ...slot, activeVersionIndex: index });
+  }
+
+  // Unlike updatePoemField, this only ever touches the active version's scenes — never its
+  // titles/poems — and never appends a new version, since nothing here changes the lyrics
+  // themselves worth keeping as a separate draft.
+  function updateScenes(scenes: RhymeScene[]) {
+    const versions = slot.versions.map((v, i) => (i === slot.activeVersionIndex ? { ...v, poem: { ...v.poem, scenes } } : v));
+    onChange({ ...slot, versions });
   }
 
   // Regenerate/optimize/enhance only ever append a version, never replace one, so they can pile up
@@ -80,6 +89,28 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsReworking(null);
+    }
+  }
+
+  // Like enhance/optimize but never touches the words at all — only re-splits the existing lyrics
+  // into a corrected, strictly timed scene breakdown. Updates the current version in place rather
+  // than appending a new one, since the lyrics themselves aren't changing.
+  async function handleFixTimeline() {
+    setIsFixingTimeline(true);
+    setError(null);
+    try {
+      const { scenes } = await fixRhymeTimeline({
+        poems: poem.poems,
+        languages,
+        scenes: slot.params.scenes,
+        lengthSeconds: slot.params.lengthSeconds,
+        clipLengthSeconds: slot.params.clipLengthSeconds ?? 8,
+      });
+      updateScenes(scenes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsFixingTimeline(false);
     }
   }
 
@@ -168,6 +199,9 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
         </Button>
         <Button disabled={isReworking !== null} onClick={() => handleRework("enhance")}>
           {isReworking === "enhance" ? "Enhancing..." : "Enhance"}
+        </Button>
+        <Button disabled={isFixingTimeline} onClick={handleFixTimeline} title="Re-splits into scenes without changing any words">
+          {isFixingTimeline ? "Fixing timeline..." : "Fix timeline"}
         </Button>
       </div>
 

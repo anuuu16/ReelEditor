@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type Router } from "express";
 import {
+  fixPoemTimeline,
   generatePoem,
   generateReelCaption,
   generateReelCharacter,
@@ -7,6 +8,7 @@ import {
   generateReelMaster,
   generateReelScene,
   reworkPoem,
+  type FixTimelineParams,
   type PoemParams,
   type ReelCaptionParams,
   type ReelCharacterParams,
@@ -49,6 +51,7 @@ export function createRhymeRouter(): Router {
       style: body.style ?? "Rhyme",
       lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(1, Number(body.scenes) || 4),
+      clipLengthSeconds: Math.max(1, Number(body.clipLengthSeconds) || 8),
       languages,
       contentType: body.contentType === "story" || body.contentType === "script" ? body.contentType : "poem",
       extra: body.extra,
@@ -78,6 +81,7 @@ export function createRhymeRouter(): Router {
       style: body.style ?? "Rhyme",
       lengthSeconds: Number(body.lengthSeconds) || 32,
       scenes: Math.max(1, Number(body.scenes) || 4),
+      clipLengthSeconds: Math.max(1, Number(body.clipLengthSeconds) || 8),
       languages,
       contentType: body.contentType === "story" || body.contentType === "script" ? body.contentType : "poem",
       extra: body.extra,
@@ -87,6 +91,29 @@ export function createRhymeRouter(): Router {
     };
     try {
       res.json(await reworkPoem(params));
+    } catch (err) {
+      sendGenerationError(res, err);
+    }
+  });
+
+  // Unlike /poem/rework, this never touches the words — poems/titles aren't even sent back, the
+  // caller keeps its own verbatim and only applies the returned "scenes".
+  router.post("/poem/fix-timeline", async (req: Request, res: Response) => {
+    const body = req.body as Partial<FixTimelineParams>;
+    const languages = Array.isArray(body.languages) ? body.languages.filter(isNonEmptyString) : [];
+    if (!body.poems || typeof body.poems !== "object" || languages.length === 0) {
+      res.status(400).json({ error: "poems and languages are required" });
+      return;
+    }
+    const params: FixTimelineParams = {
+      poems: body.poems,
+      languages,
+      scenes: Math.max(1, Number(body.scenes) || 4),
+      lengthSeconds: Number(body.lengthSeconds) || 32,
+      clipLengthSeconds: Math.max(1, Number(body.clipLengthSeconds) || 8),
+    };
+    try {
+      res.json(await fixPoemTimeline(params));
     } catch (err) {
       sendGenerationError(res, err);
     }
