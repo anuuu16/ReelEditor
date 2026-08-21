@@ -2,11 +2,15 @@ import express, { type Request, type Response, type Router } from "express";
 import {
   generatePoem,
   generateReelCaption,
+  generateReelCharacter,
+  generateReelCover,
   generateReelMaster,
   generateReelScene,
   reworkPoem,
   type PoemParams,
   type ReelCaptionParams,
+  type ReelCharacterParams,
+  type ReelCoverParams,
   type ReelMasterParams,
   type ReelSceneParams,
   type ReworkParams,
@@ -131,6 +135,34 @@ export function createRhymeRouter(): Router {
     const params: ReelCaptionParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
     try {
       res.json(await generateReelCaption(params));
+    } catch (err) {
+      sendGenerationError(res, err);
+    }
+  });
+
+  router.post("/reel/character", async (req: Request, res: Response) => {
+    const body = req.body as Partial<ReelCharacterParams>;
+    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
+      res.status(400).json({ error: "title and topic are required" });
+      return;
+    }
+    const params: ReelCharacterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    try {
+      res.json(await generateReelCharacter(params));
+    } catch (err) {
+      sendGenerationError(res, err);
+    }
+  });
+
+  router.post("/reel/cover", async (req: Request, res: Response) => {
+    const body = req.body as Partial<ReelCoverParams>;
+    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
+      res.status(400).json({ error: "title and topic are required" });
+      return;
+    }
+    const params: ReelCoverParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    try {
+      res.json(await generateReelCover(params));
     } catch (err) {
       sendGenerationError(res, err);
     }

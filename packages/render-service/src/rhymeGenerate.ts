@@ -58,6 +58,18 @@ export interface ReelCaptionParams {
   age: string;
 }
 
+export interface ReelCharacterParams {
+  title: string;
+  topic: string;
+  age: string;
+}
+
+export interface ReelCoverParams {
+  title: string;
+  topic: string;
+  age: string;
+}
+
 const RHYME_SYSTEM = "Follow the instructions exactly. Return only valid JSON, no markdown, no code fences, no commentary.";
 
 const AGE_HINTS: Record<string, string> = {
@@ -204,9 +216,16 @@ export async function reworkPoem(p: ReworkParams): Promise<Poem> {
 }
 
 function buildReelMasterPrompt(p: ReelMasterParams): string {
-  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical reels. Write a MASTER SETUP PROMPT, a reusable style bible, for an animated kids reel of a poem titled "${p.title}" about "${p.topic}" for ${p.age}.
+  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem titled "${p.title}" about "${p.topic}", for ${p.age}.
 
-Cover: 9:16 vertical format, animation style, color palette, main character or mascot design for consistency across scenes, mood, lighting, and on-screen text style. Reusable for every scene.
+Write it as full sentences that explain, clearly enough that every later scene/character/cover prompt can copy it verbatim as their shared style anchor and stay consistent with each other:
+1. Animation style and rendering (e.g. 2D flat vector, 3D claymation, watercolor) and why it fits the audience.
+2. Color palette (name the actual colors) and overall mood/lighting.
+3. The main character/mascot's design in enough detail to redraw it identically every time.
+4. Setting/world details that recur across scenes.
+5. On-screen text style, if any (font feel, color, placement), for captions/titles.
+
+Write it as ONE continuous, well-organized prompt (the numbered list above is just what to cover, not the format), ready to paste as-is before every other prompt.
 
 Return ONLY valid JSON, no markdown: {"master":"..."}`;
 }
@@ -216,6 +235,45 @@ export async function generateReelMaster(p: ReelMasterParams): Promise<{ master:
     RHYME_SYSTEM,
     buildReelMasterPrompt(p),
     (o): o is { master: string } => !!(o && typeof (o as { master?: unknown }).master === "string")
+  );
+}
+
+function buildReelCharacterPrompt(p: ReelCharacterParams): string {
+  return `You are a character designer for Google Flow (Veo 3.1) vertical kids reels. Design the MAIN CHARACTER (or mascot) for a reel titled "${p.title}" about "${p.topic}", for ${p.age}.
+
+Describe it in enough visual detail to regenerate this exact character identically across every scene:
+- Species/type and defining physical features (shape, size, colors, patterns)
+- Face and expression style (eyes, expression range, how emotion reads)
+- Outfit or markings, if any, and their colors
+- Personality conveyed through posture and design
+- The animation/art style it's rendered in, matching the master style bible
+
+Write it as ONE self-contained Google Flow prompt, ready to paste, for generating a clean reference image of this character alone on a plain background (a turnaround/model sheet, not a scene).
+
+Return ONLY valid JSON, no markdown: {"prompt":"..."}`;
+}
+
+export async function generateReelCharacter(p: ReelCharacterParams): Promise<{ prompt: string }> {
+  return callLlmJson<{ prompt: string }>(
+    RHYME_SYSTEM,
+    buildReelCharacterPrompt(p),
+    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string")
+  );
+}
+
+function buildReelCoverPrompt(p: ReelCoverParams): string {
+  return `You are a thumbnail/cover designer for a kids' YouTube Short / Instagram Reel titled "${p.title}" about "${p.topic}", for ${p.age}.
+
+Write ONE Google Flow / image-gen prompt for an eye-catching 9:16 vertical COVER/THUMBNAIL image: the main character in an appealing pose, a bold readable title-text treatment (describe its placement and style, not the literal words), bright inviting colors, a clear focal point that still reads well shrunk down to thumbnail size. Consistent with the reel's master style bible.
+
+Return ONLY valid JSON, no markdown: {"prompt":"..."}`;
+}
+
+export async function generateReelCover(p: ReelCoverParams): Promise<{ prompt: string }> {
+  return callLlmJson<{ prompt: string }>(
+    RHYME_SYSTEM,
+    buildReelCoverPrompt(p),
+    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string")
   );
 }
 

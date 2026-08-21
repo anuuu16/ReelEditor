@@ -57,6 +57,18 @@ export interface RhymeReelCaptionParams {
   age: string;
 }
 
+export interface RhymeReelCharacterParams {
+  title: string;
+  topic: string;
+  age: string;
+}
+
+export interface RhymeReelCoverParams {
+  title: string;
+  topic: string;
+  age: string;
+}
+
 /** One saved version of a poem, appended never overwritten, so earlier drafts stay reachable. */
 export interface RhymePoemVersion {
   id: string;
@@ -67,10 +79,13 @@ export interface RhymePoemVersion {
   reels?: Record<string, RhymeReel>;
 }
 
-/** A generated Flow reel for one poem version, in one language: one master, one prompt per
- * scene, one caption. */
+/** A generated Flow reel for one poem version, in one language: one master style bible, one
+ * character reference prompt, one cover/thumbnail prompt, one prompt per scene, one caption.
+ * characterPrompt/coverPrompt are optional since a reel saved before they existed won't have them. */
 export interface RhymeReel {
   master: string;
+  characterPrompt?: string;
+  coverPrompt?: string;
   scenePrompts: string[];
   caption: string;
 }

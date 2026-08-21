@@ -3,6 +3,8 @@ import type {
   RhymePoem,
   RhymePoemParams,
   RhymeReelCaptionParams,
+  RhymeReelCharacterParams,
+  RhymeReelCoverParams,
   RhymeReelMasterParams,
   RhymeReelSceneParams,
   RhymeReworkParams,
@@ -39,4 +41,12 @@ export function generateRhymeReelScene(params: RhymeReelSceneParams): Promise<{ 
 
 export function generateRhymeReelCaption(params: RhymeReelCaptionParams): Promise<{ caption: string }> {
   return postJson<{ caption: string }>("/rhyme/reel/caption", params);
+}
+
+export function generateRhymeReelCharacter(params: RhymeReelCharacterParams): Promise<{ prompt: string }> {
+  return postJson<{ prompt: string }>("/rhyme/reel/character", params);
+}
+
+export function generateRhymeReelCover(params: RhymeReelCoverParams): Promise<{ prompt: string }> {
+  return postJson<{ prompt: string }>("/rhyme/reel/cover", params);
 }

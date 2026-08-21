@@ -1,20 +1,30 @@
 import { useState } from "react";
-import { generateRhymeReelCaption, generateRhymeReelMaster, generateRhymeReelScene } from "./rhymeApi.js";
+import { accountForScene, buildAccounts } from "./creditMath.js";
+import {
+  generateRhymeReelCaption,
+  generateRhymeReelCharacter,
+  generateRhymeReelCover,
+  generateRhymeReelMaster,
+  generateRhymeReelScene,
+} from "./rhymeApi.js";
 import { computeTiming, deriveScenesFromPoems, formatMmSs } from "./rhymeTiming.js";
 import type { RhymePoemSlot, RhymeReel } from "./rhymeTypes.js";
+import type { StudioProject } from "./types.js";
 import { CopyButton } from "./CopyButton.js";
 import { Button, Card, SelectField } from "./ui/index.js";
 
 interface RhymeScenesStepProps {
+  project: StudioProject;
   slot: RhymePoemSlot;
   onChange: (next: RhymePoemSlot) => void;
 }
 
 // The scene-prompt half of what used to be RhymePoemCard: takes the topic (slot.params) and the
-// lyrics written in RhymeLyricsStep as input, and writes a Flow master style bible + one prompt
-// per timed scene + a caption. Deliberately reads the poem text rather than owning it, so editing
-// lyrics after generating scenes (and regenerating scenes from the edit) both just work.
-export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
+// lyrics written in RhymeLyricsStep as input, and writes a Flow master style bible, a character
+// reference prompt, a cover/thumbnail prompt, one prompt per timed scene, and a caption.
+// Deliberately reads the poem text rather than owning it, so editing lyrics after generating scenes
+// (and regenerating scenes from the edit) both just work.
+export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProps) {
   const [isBuildingReel, setIsBuildingReel] = useState(false);
   const [reelProgress, setReelProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,14 +36,38 @@ export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
   const primaryTitle = poem.titles[languages[0]] ?? Object.values(poem.titles)[0] ?? "";
   const { timed } = computeTiming(poem.scenes.length ? poem.scenes : deriveScenesFromPoems(poem.poems, slot.params.scenes));
   const currentReel = version.reels?.[reelLanguage];
+  // Which Flow account each scene belongs to, purely derived from the project's own credits
+  // settings — not stored, so it never drifts from Settings the way a saved copy could.
+  const accounts = buildAccounts(timed.length, project.creditsPerAccount, project.creditsPerClip);
+
+  function updateReel(patch: Partial<RhymeReel>) {
+    const base: RhymeReel = version.reels?.[reelLanguage] ?? { master: "", scenePrompts: [], caption: "" };
+    const next: RhymeReel = { ...base, ...patch };
+    const versions = slot.versions.map((v, idx) =>
+      idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: next } } : v
+    );
+    onChange({ ...slot, versions });
+    return next;
+  }
 
   async function handleMakeReel() {
     setIsBuildingReel(true);
     setError(null);
     try {
       const title = poem.titles[reelLanguage] ?? primaryTitle;
+      const base = { title, topic: slot.params.topic, age: slot.params.age };
+
       setReelProgress("Writing master style bible...");
-      const { master } = await generateRhymeReelMaster({ title, topic: slot.params.topic, age: slot.params.age });
+      const { master } = await generateRhymeReelMaster(base);
+      updateReel({ master, characterPrompt: "", coverPrompt: "", scenePrompts: [], caption: "" });
+
+      setReelProgress("Writing character reference prompt...");
+      const { prompt: characterPrompt } = await generateRhymeReelCharacter(base);
+      updateReel({ characterPrompt });
+
+      setReelProgress("Writing cover/thumbnail prompt...");
+      const { prompt: coverPrompt } = await generateRhymeReelCover(base);
+      updateReel({ coverPrompt });
 
       const scenePrompts: string[] = [];
       for (let i = 0; i < timed.length; i++) {
@@ -47,20 +81,12 @@ export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
           primaryLanguage: reelLanguage,
         });
         scenePrompts.push(prompt);
-        const partialReel: RhymeReel = { master, scenePrompts: [...scenePrompts], caption: "" };
-        const versions = slot.versions.map((v, idx) =>
-          idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: partialReel } } : v
-        );
-        onChange({ ...slot, versions });
+        updateReel({ scenePrompts: [...scenePrompts] });
       }
 
       setReelProgress("Writing caption...");
-      const { caption } = await generateRhymeReelCaption({ title, topic: slot.params.topic, age: slot.params.age });
-      const reel: RhymeReel = { master, scenePrompts, caption };
-      const versions = slot.versions.map((v, idx) =>
-        idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: reel } } : v
-      );
-      onChange({ ...slot, versions });
+      const { caption } = await generateRhymeReelCaption(base);
+      updateReel({ caption });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -84,6 +110,13 @@ export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
         </Button>
       </div>
 
+      {accounts.length > 0 && (
+        <p className="mb-3.5 text-xs text-ps-muted">
+          {timed.length} scene{timed.length === 1 ? "" : "s"} across {accounts.length} Flow account{accounts.length === 1 ? "" : "s"}:{" "}
+          {accounts.map((a) => `Account ${a.account}: scenes ${a.sceneRange[0]}-${a.sceneRange[1]} (${a.clips})`).join(", ")}
+        </p>
+      )}
+
       {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
 
       {currentReel ? (
@@ -96,11 +129,32 @@ export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
             <p>{currentReel.master}</p>
           </div>
 
+          {currentReel.characterPrompt && (
+            <div className="rhyme-reel-card rhyme-reel-character">
+              <div className="rhyme-reel-card-header">
+                <span>Character reference</span>
+                <CopyButton text={currentReel.characterPrompt} label="Copy" />
+              </div>
+              <p>{currentReel.characterPrompt}</p>
+            </div>
+          )}
+
+          {currentReel.coverPrompt && (
+            <div className="rhyme-reel-card rhyme-reel-cover">
+              <div className="rhyme-reel-card-header">
+                <span>Cover / thumbnail</span>
+                <CopyButton text={currentReel.coverPrompt} label="Copy" />
+              </div>
+              <p>{currentReel.coverPrompt}</p>
+            </div>
+          )}
+
           {currentReel.scenePrompts.map((prompt, i) => (
             <div key={i} className="rhyme-reel-card rhyme-reel-scene">
               <div className="rhyme-reel-card-header">
                 <span>
-                  Scene {i + 1} ({formatMmSs(timed[i]?.start ?? 0)} - {formatMmSs(timed[i]?.end ?? 0)})
+                  Scene {i + 1} ({formatMmSs(timed[i]?.start ?? 0)} - {formatMmSs(timed[i]?.end ?? 0)}) · Account{" "}
+                  {accountForScene(accounts, i + 1)}
                 </span>
                 <CopyButton text={prompt} label="Copy" />
               </div>
@@ -120,7 +174,9 @@ export function RhymeScenesStep({ slot, onChange }: RhymeScenesStepProps) {
           )}
 
           <CopyButton
-            text={[currentReel.master, ...currentReel.scenePrompts, currentReel.caption].filter(Boolean).join("\n\n")}
+            text={[currentReel.master, currentReel.characterPrompt, currentReel.coverPrompt, ...currentReel.scenePrompts, currentReel.caption]
+              .filter(Boolean)
+              .join("\n\n")}
             label="Copy full reel brief"
           />
         </div>

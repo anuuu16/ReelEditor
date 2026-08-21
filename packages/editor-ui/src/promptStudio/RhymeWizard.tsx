@@ -79,7 +79,7 @@ export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProjec
 
       {step === "lyrics" && <RhymeLyricsStep slot={slot} onChange={onSlotChange} />}
 
-      {step === "scenes" && <RhymeScenesStep slot={slot} onChange={onSlotChange} />}
+      {step === "scenes" && <RhymeScenesStep project={project} slot={slot} onChange={onSlotChange} />}
 
       {step === "audio" && (
         <Card>
