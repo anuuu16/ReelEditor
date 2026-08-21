@@ -44,6 +44,9 @@ export interface Clip {
   /** Transition into the next clip on this track, in seconds. 0 = a hard cut. Ignored on the last clip. */
   transitionOutSeconds: number;
   transitionOutType: TransitionType;
+  /** Empty space (black/silence) to insert on this track immediately before this clip, in seconds.
+   * Set by dragging a clip on the timeline; 0 = sits directly after the previous clip as usual. */
+  gapBeforeSeconds: number;
 }
 
 export type TransitionType = "dissolve" | "slide" | "wipe" | "zoom";

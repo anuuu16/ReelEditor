@@ -39,18 +39,35 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
     return clips.length;
   }
 
+  // Below this pixel distance from where a clip would naturally land (zero gap) at its target
+  // index, treat the drop as "no gap intended" — otherwise every reorder-only drop would need
+  // pixel-perfect precision to avoid leaving a tiny unwanted gap.
+  const GAP_SNAP_PX = 8;
+
   function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragOver(false);
     const clipId = e.dataTransfer.getData("application/x-clip-id");
     const sourceId = e.dataTransfer.getData("application/x-source-id");
     const atIndex = indexFromDropX(e.clientX, e.currentTarget);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropSeconds = Math.max(0, (e.clientX - rect.left) / pixelsPerSecond);
 
     if (clipId) {
       const movingClip = state.project.clips.find((c) => c.id === clipId);
       const movingSource = movingClip && state.project.sources.find((s) => s.id === movingClip.sourceId);
-      if (movingSource && trackKindAccepts(accept, movingSource.kind)) {
-        dispatch({ type: "MOVE_CLIP", clipId, trackId, atIndex });
+      if (movingClip && movingSource && trackKindAccepts(accept, movingSource.kind)) {
+        // Where this clip would sit with zero gap at the target index, so the drop's actual
+        // position relative to that becomes the new gap — drop it right where it would naturally
+        // land and there's no gap; drop it further right and that much empty space opens before it.
+        const otherTrackClips = state.project.clips.filter((c) => c.trackId === trackId && c.id !== clipId);
+        const hypothetical = [...otherTrackClips];
+        const insertIndex = Math.max(0, Math.min(atIndex, hypothetical.length));
+        hypothetical.splice(insertIndex, 0, { ...movingClip, gapBeforeSeconds: 0 });
+        const naturalStart = layoutSequentialClips(hypothetical)[insertIndex]?.timelineStart ?? 0;
+        const rawGap = Math.max(0, dropSeconds - naturalStart);
+        const gapBeforeSeconds = rawGap * pixelsPerSecond < GAP_SNAP_PX ? 0 : rawGap;
+        dispatch({ type: "MOVE_CLIP", clipId, trackId, atIndex, gapBeforeSeconds });
       }
     } else if (sourceId) {
       const source = state.project.sources.find((s) => s.id === sourceId);

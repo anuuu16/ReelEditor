@@ -60,6 +60,7 @@ function buildClip(trackId: string, source: MediaSource): Clip {
     filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
     transitionOutSeconds: 0,
     transitionOutType: "dissolve",
+    gapBeforeSeconds: 0,
   };
 }
 

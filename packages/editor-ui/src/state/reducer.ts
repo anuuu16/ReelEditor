@@ -32,7 +32,7 @@ export type Action =
   | { type: "ADD_SOURCE"; source: MediaSource }
   | { type: "REMOVE_SOURCE"; sourceId: string }
   | { type: "ADD_CLIP"; trackId: string; sourceId: string; atIndex: number }
-  | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number }
+  | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number; gapBeforeSeconds?: number }
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
@@ -88,6 +88,7 @@ function normalizeProject(project: ProjectModel): ProjectModel {
       ...c,
       transitionOutSeconds: c.transitionOutSeconds ?? 0,
       transitionOutType: c.transitionOutType ?? "dissolve",
+      gapBeforeSeconds: c.gapBeforeSeconds ?? 0,
     })),
     sources: project.sources.map((s) => ({ ...s, isPlaceholder: s.isPlaceholder ?? false })),
     metadata: { ...project.metadata, isTemplate: project.metadata.isTemplate ?? false },
@@ -103,14 +104,14 @@ export function findMergeableNeighbor(clips: Clip[], clip: Clip): Clip | null {
   return next;
 }
 
-function moveClipTo(clips: Clip[], clipId: string, trackId: string, atIndex: number): Clip[] {
+function moveClipTo(clips: Clip[], clipId: string, trackId: string, atIndex: number, gapBeforeSeconds?: number): Clip[] {
   const moving = clips.find((c) => c.id === clipId);
   if (!moving) return clips;
   const rest = clips.filter((c) => c.id !== clipId);
   const trackClips = rest.filter((c) => c.trackId === trackId);
   const others = rest.filter((c) => c.trackId !== trackId);
   const index = Math.max(0, Math.min(atIndex, trackClips.length));
-  trackClips.splice(index, 0, { ...moving, trackId });
+  trackClips.splice(index, 0, { ...moving, trackId, gapBeforeSeconds: gapBeforeSeconds ?? moving.gapBeforeSeconds });
   return [...others, ...trackClips];
 }
 
@@ -162,6 +163,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
         transitionOutSeconds: 0,
         transitionOutType: "dissolve",
+        gapBeforeSeconds: 0,
       };
       return {
         ...state,
@@ -172,7 +174,10 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "MOVE_CLIP":
       return {
         ...state,
-        project: { ...state.project, clips: moveClipTo(state.project.clips, action.clipId, action.trackId, action.atIndex) },
+        project: {
+          ...state.project,
+          clips: moveClipTo(state.project.clips, action.clipId, action.trackId, action.atIndex, action.gapBeforeSeconds),
+        },
       };
 
     case "REMOVE_CLIP":
@@ -319,8 +324,11 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 
       // A split is a hard cut: the transition that used to carry from `clip` into whatever followed
       // it now belongs to the second half, which is the one that actually still has that neighbor.
+      // Same reasoning for gapBeforeSeconds in the other direction: any gap before the original
+      // clip stays with the first half (which now sits where the original started), and the second
+      // half — immediately following the first half with a hard cut — gets none of its own.
       const firstHalf: Clip = { ...clip, outPoint: splitSourceTime, transitionOutSeconds: 0 };
-      const secondHalf: Clip = { ...clip, id: crypto.randomUUID(), inPoint: splitSourceTime };
+      const secondHalf: Clip = { ...clip, id: crypto.randomUUID(), inPoint: splitSourceTime, gapBeforeSeconds: 0 };
       const index = state.project.clips.findIndex((c) => c.id === action.clipId);
       const clips = [...state.project.clips];
       clips.splice(index, 1, firstHalf, secondHalf);
@@ -349,7 +357,9 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "DUPLICATE_CLIP": {
       const index = state.project.clips.findIndex((c) => c.id === action.clipId);
       if (index === -1) return state;
-      const duplicate: Clip = { ...state.project.clips[index], id: crypto.randomUUID() };
+      // gapBeforeSeconds: 0 — a gap before the original stays with the original; the duplicate
+      // (inserted immediately after) shouldn't inherit it or a gap would open up between them.
+      const duplicate: Clip = { ...state.project.clips[index], id: crypto.randomUUID(), gapBeforeSeconds: 0 };
       const clips = [...state.project.clips];
       clips.splice(index + 1, 0, duplicate);
       return { ...state, project: { ...state.project, clips }, selectedClipId: duplicate.id };

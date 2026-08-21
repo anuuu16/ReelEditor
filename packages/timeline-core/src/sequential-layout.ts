@@ -17,6 +17,10 @@ export function layoutSequentialClips(clips: Clip[]): LaidOutClip[] {
   const laidOut: LaidOutClip[] = [];
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
+    // `?? 0`: same backward-compat reasoning as transitionOutSeconds below — an older saved
+    // project has no gapBeforeSeconds field at all. Empty space (black/silence) before this clip,
+    // set by dragging it away from the previous one on the timeline.
+    cursor += Math.max(0, clip.gapBeforeSeconds ?? 0);
     const duration = (clip.outPoint - clip.inPoint) / clip.speed;
     laidOut.push({ ...clip, timelineStart: cursor, duration });
 

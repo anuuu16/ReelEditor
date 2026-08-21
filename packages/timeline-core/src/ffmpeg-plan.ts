@@ -191,13 +191,46 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   };
 
   // Chains consecutive per-clip streams into one, using an ffmpeg cross-dissolve (xfade for video,
-  // acrossfade for audio) wherever two clips overlap, and a plain concat wherever they don't — so a
-  // reel can freely mix hard cuts and dissolves. `clips` supplies each label's laid-out duration and
-  // the overlap/transition type between consecutive entries, and must be 1:1 with `labels`.
-  function chainSequential(labels: string[], clips: LaidOutClip[], kind: "video" | "audio", labelPrefix: string): string {
+  // acrossfade for audio) wherever two clips overlap, a plain concat wherever they sit directly
+  // adjacent, and a generated filler (buildGapFiller) spliced in wherever gapBeforeSeconds opened a
+  // gap between them — so a reel can freely mix hard cuts, dissolves, and empty space. `clips`
+  // supplies each label's laid-out timing and the overlap/transition type between consecutive
+  // entries, and must be 1:1 with `labels`. Overlap and gap are mutually exclusive by construction
+  // (getOverlapSeconds floors at 0), so a pair is never both at once.
+  function chainSequential(
+    labels: string[],
+    clips: LaidOutClip[],
+    kind: "video" | "audio",
+    labelPrefix: string,
+    buildGapFiller: (durationSeconds: number, label: string) => string
+  ): string {
+    const concatArgs = kind === "video" ? "n=2:v=1:a=0" : "n=2:v=0:a=1";
+
+    // Splices a gap-filler in next to `label`'s existing content. `gapFirst` controls play order:
+    // true for the leading gap (empty space plays before anything else on the track), false for a
+    // gap opened up between two clips (the accumulated content-so-far still plays first, then the
+    // gap, then whatever gets concatenated after this call returns).
+    function spliceGap(label: string, durationSeconds: number, gapLabel: string, gapFirst: boolean): string {
+      filterChains.push(buildGapFiller(durationSeconds, gapLabel));
+      const splicedLabel = `${gapLabel}spliced`;
+      const ordered = gapFirst ? `[${gapLabel}]${label}` : `${label}[${gapLabel}]`;
+      filterChains.push(`${ordered}concat=${concatArgs}[${splicedLabel}]`);
+      return `[${splicedLabel}]`;
+    }
+
     let prevLabel = labels[0];
+    if (clips[0].timelineStart > 0.0005) {
+      prevLabel = spliceGap(prevLabel, clips[0].timelineStart, `${labelPrefix}leadgap`, true);
+    }
+
     let cumulative = clips[0].duration;
     for (let i = 1; i < labels.length; i++) {
+      const gap = Math.max(0, clips[i].timelineStart - (clips[i - 1].timelineStart + clips[i - 1].duration));
+      if (gap > 0.0005) {
+        prevLabel = spliceGap(prevLabel, gap, `${labelPrefix}gap${i}`, false);
+        cumulative += gap;
+      }
+
       const overlap = getOverlapSeconds(clips[i - 1], clips[i]);
       const outLabel = `${labelPrefix}${i}`;
       if (overlap > 0) {
@@ -209,13 +242,20 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
         filterChains.push(`${prevLabel}${labels[i]}${transitionFilter}[${outLabel}]`);
         cumulative += clips[i].duration - overlap;
       } else {
-        const concatArgs = kind === "video" ? "n=2:v=1:a=0" : "n=2:v=0:a=1";
         filterChains.push(`${prevLabel}${labels[i]}concat=${concatArgs}[${outLabel}]`);
         cumulative += clips[i].duration;
       }
       prevLabel = `[${outLabel}]`;
     }
     return prevLabel;
+  }
+
+  function buildVideoGapFiller(durationSeconds: number, label: string): string {
+    return `color=c=black:s=${width}x${height}:r=${frameRate}:d=${durationSeconds.toFixed(3)},format=yuv420p,setsar=1[${label}]`;
+  }
+
+  function buildAudioGapFiller(durationSeconds: number, label: string): string {
+    return `anullsrc=r=48000:cl=stereo,atrim=duration=${durationSeconds.toFixed(3)}[${label}]`;
   }
 
   function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
@@ -263,12 +303,13 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
       filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label, false));
       labels.push(`[${label}]`);
     });
-    const trackLabel = `amusic${trackIndex}`;
-    filterChains.push(`${labels.join("")}concat=n=${labels.length}:v=0:a=1[${trackLabel}]`);
-    musicTrackLabels.push(`[${trackLabel}]`);
+    // chainSequential (not a flat concat) so a gap opened by dragging a clip on this track is
+    // filled with real silence instead of being silently dropped.
+    const trackLabel = chainSequential(labels, trackClips, "audio", `amusic${trackIndex}_`, buildAudioGapFiller);
+    musicTrackLabels.push(trackLabel);
   });
 
-  const videoConcatLabel = chainSequential(videoLabels, videoClips, "video", "vxf");
+  const videoConcatLabel = chainSequential(videoLabels, videoClips, "video", "vxf", buildVideoGapFiller);
 
   const overlayTextFiles: OverlayTextFile[] = [];
   let finalVideoLabel = videoConcatLabel;
@@ -296,7 +337,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     finalVideoLabel = `[${nextLabel}]`;
   });
 
-  const clipAudioConcatLabel = chainSequential(clipAudioLabels, videoClips, "audio", "axf");
+  const clipAudioConcatLabel = chainSequential(clipAudioLabels, videoClips, "audio", "axf", buildAudioGapFiller);
 
   let finalAudioLabel = clipAudioConcatLabel;
   if (musicTrackLabels.length > 0) {
