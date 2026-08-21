@@ -55,8 +55,10 @@ export interface FixTimelineParams {
 }
 
 export interface ReelMasterParams {
-  title: string;
-  topic: string;
+  /** Both optional — a poem pasted in from an external chat AI often has no topic filled in (and
+   * sometimes no title yet either), and poemText carries the real content regardless. */
+  title?: string;
+  topic?: string;
   age: string;
   /** The actual lyrics, so the style bible reflects specific story beats/imagery, not just the
    * short topic phrase. Optional so a caller without it (or an older client) still works. */
@@ -72,15 +74,15 @@ export interface ReelSceneParams {
 }
 
 export interface ReelCaptionParams {
-  title: string;
-  topic: string;
+  title?: string;
+  topic?: string;
   age: string;
   poemText?: string;
 }
 
 export interface ReelCharacterParams {
-  title: string;
-  topic: string;
+  title?: string;
+  topic?: string;
   age: string;
   poemText?: string;
   /** The already-generated master style bible, so this can actually match it (same as
@@ -89,8 +91,8 @@ export interface ReelCharacterParams {
 }
 
 export interface ReelCoverParams {
-  title: string;
-  topic: string;
+  title?: string;
+  topic?: string;
   age: string;
   master?: string;
   poemText?: string;
@@ -293,8 +295,20 @@ function poemContextBlock(poemText?: string): string {
   return poemText?.trim() ? `\nFull lyrics, for context on the actual story/imagery to depict:\n"""${poemText.trim()}"""\n` : "";
 }
 
+// A poem pasted in from an external chat AI often has no topic filled in (sometimes no title
+// either) — gracefully compose whatever's actually present instead of erroring, since poemText
+// (when given) carries the real content regardless of whether either of these is set.
+function titleTopicPhrase(title?: string, topic?: string): string {
+  const t = title?.trim();
+  const top = topic?.trim();
+  if (t && top) return `titled "${t}" about "${top}"`;
+  if (t) return `titled "${t}"`;
+  if (top) return `about "${top}"`;
+  return "described by the lyrics below";
+}
+
 function buildReelMasterPrompt(p: ReelMasterParams): string {
-  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem titled "${p.title}" about "${p.topic}", for ${p.age}.
+  return `You are a prompt engineer for Google Flow (Veo 3.1) vertical kids reels. Write a MASTER SETUP PROMPT — a detailed, reusable style bible — for an animated reel of a poem ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${poemContextBlock(p.poemText)}
 Write it as full sentences that explain, clearly enough that every later scene/character/cover prompt can copy it verbatim as their shared style anchor and stay consistent with each other:
 1. Animation style: 3D animated (Pixar/DreamWorks-style rendering — rounded, dimensional, soft-shaded characters and environments, NOT 2D/flat/vector). Describe the specific 3D look (e.g. soft claymation-like shading, smooth toy-like plastic finish, painterly 3D) and why it fits the audience.
@@ -318,7 +332,7 @@ export async function generateReelMaster(p: ReelMasterParams): Promise<{ master:
 
 function buildReelCharacterPrompt(p: ReelCharacterParams): string {
   const masterBlock = p.master ? `\nMaster style bible, keep the look 100% consistent with it:\n"""${p.master}"""\n` : "";
-  return `You are a character designer for Google Flow (Veo 3.1) vertical kids reels. Design the MAIN CHARACTER (or mascot) for a reel titled "${p.title}" about "${p.topic}", for ${p.age}.
+  return `You are a character designer for Google Flow (Veo 3.1) vertical kids reels. Design the MAIN CHARACTER (or mascot) for a reel ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${masterBlock}${poemContextBlock(p.poemText)}
 Describe it in enough visual detail to regenerate this exact character identically across every scene:
 - Species/type and defining physical features (shape, size, colors, patterns)
@@ -342,7 +356,7 @@ export async function generateReelCharacter(p: ReelCharacterParams): Promise<{ p
 
 function buildReelCoverPrompt(p: ReelCoverParams): string {
   const masterBlock = p.master ? `\nMaster style bible, keep the look 100% consistent with it:\n"""${p.master}"""\n` : "";
-  return `You are a thumbnail/cover designer for a kids' YouTube Short / Instagram Reel titled "${p.title}" about "${p.topic}", for ${p.age}.
+  return `You are a thumbnail/cover designer for a kids' YouTube Short / Instagram Reel ${titleTopicPhrase(p.title, p.topic)}, for ${p.age}.
 ${masterBlock}${poemContextBlock(p.poemText)}
 Write ONE Google Flow / image-gen prompt for an eye-catching 9:16 vertical COVER/THUMBNAIL image: the main character in an appealing pose (pick a moment/pose that reflects the poem's story), a bold readable title-text treatment (describe its placement and style, not the literal words), bright inviting colors, a clear focal point that still reads well shrunk down to thumbnail size, matching the master style bible above.
 
@@ -385,7 +399,7 @@ export async function generateReelScene(p: ReelSceneParams): Promise<{ prompt: s
 }
 
 function buildReelCaptionPrompt(p: ReelCaptionParams): string {
-  return `Write a short Instagram Reel / YouTube Short caption plus 8 to 12 hashtags for a kids poem titled "${p.title}" about "${p.topic}", audience ${p.age}. Friendly, parent-facing, no em dashes.
+  return `Write a short Instagram Reel / YouTube Short caption plus 8 to 12 hashtags for a kids poem ${titleTopicPhrase(p.title, p.topic)}, audience ${p.age}. Friendly, parent-facing, no em dashes.
 ${poemContextBlock(p.poemText)}
 
 Return ONLY valid JSON, no markdown: {"caption":"..."}`;

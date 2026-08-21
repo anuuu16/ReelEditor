@@ -121,10 +121,6 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/master", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelMasterParams>;
-    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
-      res.status(400).json({ error: "title and topic are required" });
-      return;
-    }
     const params: ReelMasterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText };
     try {
       res.json(await generateReelMaster(params));
@@ -155,10 +151,6 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/caption", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelCaptionParams>;
-    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
-      res.status(400).json({ error: "title and topic are required" });
-      return;
-    }
     const params: ReelCaptionParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText };
     try {
       res.json(await generateReelCaption(params));
@@ -169,10 +161,6 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/character", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelCharacterParams>;
-    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
-      res.status(400).json({ error: "title and topic are required" });
-      return;
-    }
     const params: ReelCharacterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master };
     try {
       res.json(await generateReelCharacter(params));
@@ -183,10 +171,6 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/cover", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelCoverParams>;
-    if (!isNonEmptyString(body.title) || !isNonEmptyString(body.topic)) {
-      res.status(400).json({ error: "title and topic are required" });
-      return;
-    }
     const params: ReelCoverParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master };
     try {
       res.json(await generateReelCover(params));
