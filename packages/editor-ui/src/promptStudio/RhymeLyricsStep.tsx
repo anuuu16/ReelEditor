@@ -18,9 +18,13 @@ const REWORK_LABELS: Record<"regenerate" | "optimize" | "enhance", string> = {
 
 // ElevenLabs (and most TTS) has no separate "instructions" channel — whatever text you paste gets
 // read aloud verbatim, so a plain sentence like "read this cheerfully" would just get spoken as
-// words. Their v3 model is the exception: bracketed tags like [playful] are recognized as delivery
-// direction and stripped before speaking rather than voiced — safe to prepend for that model, but
-// on any other TTS the brackets would just get read literally, so this is called out in the UI.
+// words, and a literal timestamp like "0:00-0:08" would get read aloud as numbers, not used for
+// timing — there's no TTS input for "land this at 8 seconds." Their v3 model is the one exception
+// to the instructions point: bracketed tags like [playful] are recognized as delivery direction and
+// stripped before speaking rather than voiced — safe to prepend for that model, but on any other
+// TTS the brackets would just get read literally, so this is called out in the UI. Real sync comes
+// from generating audio one scene at a time (the per-scene Copy buttons) and matching clips to
+// scenes by order when uploading them back, not from anything embedded in the prompt text.
 const STYLE_TONE_TAGS: Record<string, string> = {
   Rhyme: "playful, sing-song",
   "Story poem": "warm, narrative",
@@ -29,10 +33,20 @@ const STYLE_TONE_TAGS: Record<string, string> = {
   "Counting song": "cheerful, rhythmic",
 };
 
-function voicePromptText(lines: string, style: string): string {
-  const tone = STYLE_TONE_TAGS[style] ?? "warm, friendly";
+// Lines repeated verbatim across multiple scenes (a chorus/refrain) get a distinct, consistent tag
+// instead of the base style tone, so a v3 voice treats every repetition of the hook the same way.
+const CHORUS_TAG = "singing, energetic, chorus";
+
+function voicePromptText(lines: string, style: string, isChorus: boolean): string {
+  const tone = isChorus ? CHORUS_TAG : (STYLE_TONE_TAGS[style] ?? "warm, friendly");
   return `[${tone}] ${lines}`;
 }
+
+// Real, broadly-supported pause convention (not v3-specific) — an ellipsis between scene blocks
+// gives the reader a natural breath at each scene boundary when pasting the whole poem in one
+// shot, so the single continuous audio file's natural pauses land close to where video scene cuts
+// need to happen, instead of running on with zero indication of where one scene ends.
+const SCENE_BOUNDARY_PAUSE = "\n\n...\n\n";
 
 // The lyrics half of what used to be RhymePoemCard — title, per-language poem text, rework
 // actions, and the timed scene breakdown those lines produce. Scene *prompt* generation (which
@@ -47,6 +61,19 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
   const languages = slot.params.languages.length ? slot.params.languages : Object.keys(poem.poems);
   const primaryTitle = poem.titles[languages[0]] ?? Object.values(poem.titles)[0] ?? "";
   const { timed, total } = computeTiming(poem.scenes.length ? poem.scenes : deriveScenesFromPoems(poem.poems, slot.params.scenes));
+
+  // A line (per language) that appears verbatim in 2+ scenes is treated as the chorus/refrain.
+  function isChorusLine(language: string, lines: string): boolean {
+    if (!lines.trim()) return false;
+    return timed.filter((seg) => (seg.lines[language] ?? "") === lines).length > 1;
+  }
+
+  // The "prompt" version of the whole poem: same words as "lyrics", but split into the same
+  // scene blocks as the video timeline (joined by a pause cue) with each block tagged for tone —
+  // chorus lines consistently, everything else by the poem's style — instead of one untagged blob.
+  function wholePoemPromptText(language: string): string {
+    return timed.map((seg) => voicePromptText(seg.lines[language] ?? "", slot.params.style, isChorusLine(language, seg.lines[language] ?? ""))).join(SCENE_BOUNDARY_PAUSE);
+  }
 
   function updatePoemField(patch: { titles?: Record<string, string>; poems?: Record<string, string> }) {
     const versions = slot.versions.map((v, i) =>
@@ -209,14 +236,17 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
         {languages.map((language) => (
           <CopyButton
             key={`${language}-prompt`}
-            text={voicePromptText(poem.poems[language] ?? "", slot.params.style)}
+            text={wholePoemPromptText(language)}
             label={`Copy ${language} prompt`}
-            title={`${language} lyrics with an ElevenLabs v3 [emotion] tag prepended (ElevenLabs v3 only — other TTS engines would read the brackets aloud)`}
+            title={`${language} lyrics split into the same scene blocks as the video timeline (pause cue between each), chorus lines consistently tagged — ElevenLabs v3 only, other TTS engines would read the [tags] aloud`}
             disabled={!(poem.poems[language] ?? "").trim()}
           />
         ))}
       </div>
-      <p className="mb-3.5 text-xs text-ps-muted">"Prompt" adds an [emotion] tag for ElevenLabs v3 — use plain "lyrics" for any other TTS.</p>
+      <p className="mb-3.5 text-xs text-ps-muted">
+        "Prompt" splits the poem into the same scene blocks as the timeline below (pause cue between each) with
+        chorus lines consistently tagged for ElevenLabs v3 — use plain "lyrics" for any other TTS.
+      </p>
 
       <div className="rhyme-timeline">
         <h4>Scenes ({formatMmSs(total)} total)</h4>
@@ -227,23 +257,9 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
             </span>
             <div className="rhyme-timeline-lines">
               {languages.map((language, langIndex) => (
-                <div key={language} className="flex items-center gap-1.5">
-                  <span className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>{seg.lines[language] ?? ""}</span>
-                  <CopyButton
-                    text={seg.lines[language] ?? ""}
-                    label="Copy"
-                    title={`Copy ${language} lines for scene ${i + 1} (${formatMmSs(seg.start)}-${formatMmSs(seg.end)}, ~${(seg.end - seg.start).toFixed(1)}s) — paste into any TTS, pacing it to fill that time to stay in sync with the video timeline`}
-                    className="!px-1.5 !py-0.5 text-[10px]"
-                    disabled={!(seg.lines[language] ?? "").trim()}
-                  />
-                  <CopyButton
-                    text={voicePromptText(seg.lines[language] ?? "", slot.params.style)}
-                    label="Copy prompt"
-                    title={`Scene ${i + 1} (${formatMmSs(seg.start)}-${formatMmSs(seg.end)}, ~${(seg.end - seg.start).toFixed(1)}s) with an ElevenLabs v3 [emotion] tag prepended — v3 only, other TTS engines would read the brackets aloud`}
-                    className="!px-1.5 !py-0.5 text-[10px]"
-                    disabled={!(seg.lines[language] ?? "").trim()}
-                  />
-                </div>
+                <span key={language} className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>
+                  {seg.lines[language] ?? ""}
+                </span>
               ))}
             </div>
           </div>
