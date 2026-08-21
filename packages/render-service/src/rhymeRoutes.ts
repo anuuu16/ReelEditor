@@ -125,7 +125,7 @@ export function createRhymeRouter(): Router {
       res.status(400).json({ error: "title and topic are required" });
       return;
     }
-    const params: ReelMasterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    const params: ReelMasterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText };
     try {
       res.json(await generateReelMaster(params));
     } catch (err) {
@@ -159,7 +159,7 @@ export function createRhymeRouter(): Router {
       res.status(400).json({ error: "title and topic are required" });
       return;
     }
-    const params: ReelCaptionParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    const params: ReelCaptionParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText };
     try {
       res.json(await generateReelCaption(params));
     } catch (err) {
@@ -173,7 +173,7 @@ export function createRhymeRouter(): Router {
       res.status(400).json({ error: "title and topic are required" });
       return;
     }
-    const params: ReelCharacterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    const params: ReelCharacterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master };
     try {
       res.json(await generateReelCharacter(params));
     } catch (err) {
@@ -187,7 +187,7 @@ export function createRhymeRouter(): Router {
       res.status(400).json({ error: "title and topic are required" });
       return;
     }
-    const params: ReelCoverParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)" };
+    const params: ReelCoverParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master };
     try {
       res.json(await generateReelCover(params));
     } catch (err) {

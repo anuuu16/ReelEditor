@@ -52,6 +52,8 @@ export interface RhymeReelMasterParams {
   title: string;
   topic: string;
   age: string;
+  /** The actual lyrics, so the style bible reflects specific story beats/imagery, not just topic. */
+  poemText?: string;
 }
 
 export interface RhymeReelSceneParams {
@@ -68,18 +70,23 @@ export interface RhymeReelCaptionParams {
   title: string;
   topic: string;
   age: string;
+  poemText?: string;
 }
 
 export interface RhymeReelCharacterParams {
   title: string;
   topic: string;
   age: string;
+  poemText?: string;
+  master?: string;
 }
 
 export interface RhymeReelCoverParams {
   title: string;
   topic: string;
   age: string;
+  master?: string;
+  poemText?: string;
 }
 
 /** One saved version of a poem, appended never overwritten, so earlier drafts stay reachable. */

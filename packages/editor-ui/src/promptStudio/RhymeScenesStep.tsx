@@ -60,7 +60,7 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     setError(null);
     try {
       const title = poem.titles[reelLanguage] ?? primaryTitle;
-      const base = { title, topic: slot.params.topic, age: slot.params.age };
+      const base = { title, topic: slot.params.topic, age: slot.params.age, poemText: poem.poems[reelLanguage] ?? "" };
       let reel: RhymeReel = { master: "", characterPrompt: "", coverPrompt: "", scenePrompts: [], caption: "" };
 
       setReelProgress("Writing master style bible...");
@@ -69,12 +69,12 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
       applyReel(reel);
 
       setReelProgress("Writing character reference prompt...");
-      const { prompt: characterPrompt } = await generateRhymeReelCharacter(base);
+      const { prompt: characterPrompt } = await generateRhymeReelCharacter({ ...base, master });
       reel = { ...reel, characterPrompt };
       applyReel(reel);
 
       setReelProgress("Writing cover/thumbnail prompt...");
-      const { prompt: coverPrompt } = await generateRhymeReelCover(base);
+      const { prompt: coverPrompt } = await generateRhymeReelCover({ ...base, master });
       reel = { ...reel, coverPrompt };
       applyReel(reel);
 
