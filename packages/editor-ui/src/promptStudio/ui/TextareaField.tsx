@@ -19,10 +19,12 @@ export function TextareaField({ label, hint, value, onChange, onBlur, placeholde
 
   return (
     <label className={`flex flex-col gap-1.5 text-xs text-ps-muted ${className ?? ""}`}>
-      <span>
-        {label}
-        {hint && <span className="ml-1.5 text-ps-muted/70">{hint}</span>}
-      </span>
+      {(label || hint) && (
+        <span>
+          {label}
+          {hint && <span className="ml-1.5 text-ps-muted/70">{hint}</span>}
+        </span>
+      )}
       <textarea
         value={value}
         onChange={handleChange}

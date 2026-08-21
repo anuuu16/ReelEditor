@@ -58,6 +58,20 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
     onChange({ ...slot, versions });
   }
 
+  // For manual edits after generation (fixing a prompt by hand rather than regenerating it) —
+  // patches against the currently-saved reel from props, safe here since edits happen one at a
+  // time on user interaction, not in the rapid async loop applyReel's own comment warns about.
+  function updateReelField(patch: Partial<RhymeReel>) {
+    if (!currentReel) return;
+    applyReel({ ...currentReel, ...patch });
+  }
+
+  function updateScenePrompt(index: number, value: string) {
+    if (!currentReel) return;
+    const scenePrompts = currentReel.scenePrompts.map((p, i) => (i === index ? value : p));
+    applyReel({ ...currentReel, scenePrompts });
+  }
+
   async function handleMakeReel() {
     setIsBuildingReel(true);
     setError(null);
@@ -181,7 +195,12 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
               <span>Master style bible</span>
               <CopyButton text={currentReel.master} label="Copy" />
             </div>
-            <p>{currentReel.master}</p>
+            <TextareaField
+              label=""
+              rows={4}
+              value={currentReel.master}
+              onChange={(value) => updateReelField({ master: value })}
+            />
           </div>
 
           {currentReel.characterPrompt && (
@@ -190,7 +209,12 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
                 <span>Character reference</span>
                 <CopyButton text={currentReel.characterPrompt} label="Copy" />
               </div>
-              <p>{currentReel.characterPrompt}</p>
+              <TextareaField
+                label=""
+                rows={4}
+                value={currentReel.characterPrompt}
+                onChange={(value) => updateReelField({ characterPrompt: value })}
+              />
             </div>
           )}
 
@@ -200,7 +224,12 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
                 <span>Cover / thumbnail</span>
                 <CopyButton text={currentReel.coverPrompt} label="Copy" />
               </div>
-              <p>{currentReel.coverPrompt}</p>
+              <TextareaField
+                label=""
+                rows={4}
+                value={currentReel.coverPrompt}
+                onChange={(value) => updateReelField({ coverPrompt: value })}
+              />
             </div>
           )}
 
@@ -214,7 +243,7 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
                 <CopyButton text={prompt} label="Copy" />
               </div>
               <p className="text-xs text-ps-muted">{timed[i]?.lines[reelLanguage]}</p>
-              <p>{prompt}</p>
+              <TextareaField label="" rows={3} value={prompt} onChange={(value) => updateScenePrompt(i, value)} />
             </div>
           ))}
 
@@ -224,7 +253,12 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
                 <span>Caption</span>
                 <CopyButton text={currentReel.caption} label="Copy" />
               </div>
-              <p>{currentReel.caption}</p>
+              <TextareaField
+                label=""
+                rows={2}
+                value={currentReel.caption}
+                onChange={(value) => updateReelField({ caption: value })}
+              />
             </div>
           )}
 
