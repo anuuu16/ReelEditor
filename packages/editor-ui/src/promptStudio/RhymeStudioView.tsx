@@ -37,9 +37,15 @@ function normalizeLanguageName(value: string): string {
 function normalizeLanguageList(values: string[]): string[] {
   return [...new Set(values.map(normalizeLanguageName))];
 }
-const MIN_LENGTH_SECONDS = 18;
-const MAX_LENGTH_SECONDS = 54;
-const DEFAULT_LENGTH_SECONDS = 32;
+// Reel mode stays short-form (3-6 scenes, matching the vertical-reel/shorts norms this app started
+// from). Full video mode (project.videoType, set in Settings) has no upper bound at all — any
+// length the user types is split into ~8s scenes (Veo's own generated-clip length), same math
+// either way, just without the reel range's 54s/6-scene ceiling.
+const REEL_MIN_LENGTH_SECONDS = 18;
+const REEL_MAX_LENGTH_SECONDS = 54;
+const REEL_DEFAULT_LENGTH_SECONDS = 32;
+const FULL_VIDEO_MIN_LENGTH_SECONDS = 8;
+const FULL_VIDEO_DEFAULT_LENGTH_SECONDS = 180;
 const EXTRA_PRESETS = [
   "Add a repeating chorus kids can sing along",
   "Add fun animal sounds",
@@ -51,8 +57,9 @@ const EXTRA_PRESETS = [
   "Simple words toddlers can repeat",
 ];
 
-function scenesForLength(lengthSeconds: number): number {
-  return Math.max(3, Math.min(6, Math.round(lengthSeconds / 8)));
+function scenesForLength(lengthSeconds: number, isFullVideo: boolean): number {
+  const scenes = Math.round(lengthSeconds / 8);
+  return isFullVideo ? Math.max(3, scenes) : Math.max(3, Math.min(6, scenes));
 }
 
 export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudioViewProps) {
@@ -61,7 +68,8 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [poemCount, setPoemCount] = useState(2);
-  const [lengthSeconds, setLengthSeconds] = useState(DEFAULT_LENGTH_SECONDS);
+  const isFullVideo = project.videoType === "full_video";
+  const [lengthSeconds, setLengthSeconds] = useState(isFullVideo ? FULL_VIDEO_DEFAULT_LENGTH_SECONDS : REEL_DEFAULT_LENGTH_SECONDS);
   const [languages, setLanguages] = useState<string[]>(
     project.languages.length ? normalizeLanguageList(project.languages) : ["English"]
   );
@@ -114,7 +122,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   }
 
   const availableLanguages = [...new Set([...LANGUAGE_OPTIONS, ...languages])];
-  const scenes = scenesForLength(lengthSeconds);
+  const scenes = scenesForLength(lengthSeconds, isFullVideo);
 
   function toggleLanguage(language: string) {
     setLanguages((prev) => (prev.includes(language) ? prev.filter((l) => l !== language) : [...prev, language]));
@@ -280,12 +288,12 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
             className="min-w-[140px] flex-1"
           />
           <NumberField
-            label="Video length (seconds)"
+            label={`Video length (seconds)${isFullVideo ? " — full video, any length" : ""}`}
             hint={`(~${scenes} scenes)`}
             value={lengthSeconds}
             onChange={setLengthSeconds}
-            min={MIN_LENGTH_SECONDS}
-            max={MAX_LENGTH_SECONDS}
+            min={isFullVideo ? FULL_VIDEO_MIN_LENGTH_SECONDS : REEL_MIN_LENGTH_SECONDS}
+            max={isFullVideo ? undefined : REEL_MAX_LENGTH_SECONDS}
             className="min-w-[160px] flex-1"
           />
         </div>
