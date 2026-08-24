@@ -34,6 +34,40 @@ export function SaveStatus() {
   // Timestamp of the oldest not-yet-server-saved edit, so a steady stream of edits (each one resets
   // a plain debounce timer) can't push the server save off indefinitely — see maxWait below.
   const pendingSinceRef = useRef<number | null>(null);
+  // Guards against two overlapping server saves in flight at once. Without this, the maxWait timer
+  // above can fire a new save while an earlier one (re-uploading every used media file) is still in
+  // progress; if the earlier request's response then lands *after* the newer one's, its stale body
+  // is the last write to reach the file on disk, silently clobbering more recent edits even though
+  // the UI already shows "Saved". Only one saveProjectToServer call is ever allowed in flight —
+  // anything that wants to save while one is running just flags it and lets the in-flight call's
+  // completion handler re-run itself against the latest state instead of starting a second request.
+  const savingRef = useRef(false);
+  const needsAnotherSaveRef = useRef(false);
+
+  function runServerSave() {
+    if (savingRef.current) {
+      needsAnotherSaveRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    setStatus("saving");
+    saveProjectToServer(stateRef.current.project)
+      .then(() => {
+        pendingSinceRef.current = null;
+        setStatus("saved");
+      })
+      .catch((err) => {
+        console.error("Autosave failed", err);
+        setStatus("error");
+      })
+      .finally(() => {
+        savingRef.current = false;
+        if (needsAnotherSaveRef.current) {
+          needsAnotherSaveRef.current = false;
+          runServerSave();
+        }
+      });
+  }
 
   useEffect(() => {
     setStatus("pending");
@@ -49,18 +83,7 @@ export function SaveStatus() {
     const elapsedSincePending = Date.now() - pendingSinceRef.current;
     const serverDelay = Math.max(0, SERVER_AUTOSAVE_DELAY_MS - elapsedSincePending);
 
-    const serverHandle = setTimeout(() => {
-      setStatus("saving");
-      saveProjectToServer(state.project)
-        .then(() => {
-          pendingSinceRef.current = null;
-          setStatus("saved");
-        })
-        .catch((err) => {
-          console.error("Autosave failed", err);
-          setStatus("error");
-        });
-    }, serverDelay);
+    const serverHandle = setTimeout(runServerSave, serverDelay);
 
     return () => {
       clearTimeout(localHandle);
@@ -77,7 +100,7 @@ export function SaveStatus() {
     function flush() {
       if (statusRef.current === "saved") return;
       saveProject(stateRef.current.project).catch(() => {});
-      saveProjectToServer(stateRef.current.project).catch(() => {});
+      runServerSave();
     }
     function handleBeforeUnload(e: BeforeUnloadEvent) {
       if (statusRef.current === "saved") return;
@@ -98,16 +121,10 @@ export function SaveStatus() {
   }, []);
 
   async function handleSaveNow() {
-    setStatus("saving");
-    try {
-      await saveProject(state.project);
-      await saveProjectToServer(state.project);
-      pendingSinceRef.current = null;
-      setStatus("saved");
-    } catch (err) {
-      console.error("Save failed", err);
-      setStatus("error");
-    }
+    await saveProject(stateRef.current.project).catch((err) => console.error("Local save failed", err));
+    // Goes through the same in-flight guard as autosave: if one is already running, this just
+    // flags it to run again immediately after, rather than firing a second overlapping request.
+    runServerSave();
   }
 
   return (

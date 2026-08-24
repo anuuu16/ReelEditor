@@ -62,7 +62,14 @@ export function stripProjectToTemplate(project: ProjectModel, name: string): Pro
 
 export async function saveProjectToServer(project: ProjectModel): Promise<void> {
   const thumbnailDataUrl = await computeProjectThumbnail(project);
-  const projectToSave: ProjectModel = { ...project, metadata: { ...project.metadata, thumbnailDataUrl } };
+  // The reducer never stamps metadata.updatedAt on ordinary edits (it would mean touching every
+  // action type), so this is the one place that actually knows "this snapshot was just persisted" —
+  // otherwise the Dashboard/Projects panel keeps showing a stale creation-time date forever, which
+  // reads as "my changes aren't saving" even when the file on disk is perfectly current.
+  const projectToSave: ProjectModel = {
+    ...project,
+    metadata: { ...project.metadata, thumbnailDataUrl, updatedAt: Date.now() },
+  };
 
   const usedSourceIds = getUsedSourceIds(project);
   const formData = new FormData();
