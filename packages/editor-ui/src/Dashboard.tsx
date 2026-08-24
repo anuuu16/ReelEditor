@@ -61,7 +61,14 @@ export function Dashboard() {
   }
 
   function handleNew() {
-    navigate("/editor", { state: { project: createInitialProject() } });
+    // Route to /editor/:id (not bare /editor) even though nothing has been saved to the server yet —
+    // the id already exists (createInitialProject mints one), and putting it in the URL immediately
+    // is what lets a page reload re-fetch this exact project once autosave lands, instead of landing
+    // back on bare /editor and minting yet another blank project (silently orphaning whatever was
+    // just being worked on — confirmed live: two same-second "Untitled reel" folders on disk, one
+    // with real clips, one empty, from exactly this sequence).
+    const project = createInitialProject();
+    navigate(`/editor/${project.id}`, { state: { project } });
   }
 
   async function handleOpen(id: string) {
