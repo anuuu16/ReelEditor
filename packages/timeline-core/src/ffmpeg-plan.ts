@@ -205,6 +205,15 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     buildGapFiller: (durationSeconds: number, label: string) => string
   ): string {
     const concatArgs = kind === "video" ? "n=2:v=1:a=0" : "n=2:v=0:a=1";
+    // concat's output timebase isn't guaranteed to match the 1/frameRate timebase every per-clip
+    // chain gets from its own `fps=` filter — it can come out as a generic microsecond timebase
+    // instead. That's invisible until the concat's output later feeds an xfade alongside a plain
+    // per-clip label: ffmpeg then refuses to reinitialize the filter graph ("First input link main
+    // timebase ... do not match the corresponding second input link xfade timebase"). Re-applying
+    // `fps=` right after every video concat keeps every label's timebase identical regardless of how
+    // many concats it passed through, so a later transition never sees a mismatch. Audio has no
+    // equivalent timebase coupling with acrossfade, so this is video-only.
+    const retimebase = kind === "video" ? `,fps=${frameRate}` : "";
 
     // Splices a gap-filler in next to `label`'s existing content. `gapFirst` controls play order:
     // true for the leading gap (empty space plays before anything else on the track), false for a
@@ -214,7 +223,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
       filterChains.push(buildGapFiller(durationSeconds, gapLabel));
       const splicedLabel = `${gapLabel}spliced`;
       const ordered = gapFirst ? `[${gapLabel}]${label}` : `${label}[${gapLabel}]`;
-      filterChains.push(`${ordered}concat=${concatArgs}[${splicedLabel}]`);
+      filterChains.push(`${ordered}concat=${concatArgs}${retimebase}[${splicedLabel}]`);
       return `[${splicedLabel}]`;
     }
 
@@ -242,7 +251,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
         filterChains.push(`${prevLabel}${labels[i]}${transitionFilter}[${outLabel}]`);
         cumulative += clips[i].duration - overlap;
       } else {
-        filterChains.push(`${prevLabel}${labels[i]}concat=${concatArgs}[${outLabel}]`);
+        filterChains.push(`${prevLabel}${labels[i]}concat=${concatArgs}${retimebase}[${outLabel}]`);
         cumulative += clips[i].duration;
       }
       prevLabel = `[${outLabel}]`;
