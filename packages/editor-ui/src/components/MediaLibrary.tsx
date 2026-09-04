@@ -5,6 +5,8 @@ import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { OVERLAY_TRACK_ID, VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { readMediaMetadata } from "../media/importFile.js";
 import { deleteMediaBlob, saveMediaBlob } from "../persistence/db.js";
+import { MediaPreviewModal } from "./MediaPreviewModal.js";
+import { MediaThumbnail } from "./MediaThumbnail.js";
 import { SlideshowDialog } from "./SlideshowDialog.js";
 
 const DEFAULT_LOGO_DURATION_SECONDS = 5;
@@ -17,6 +19,7 @@ export function MediaLibrary() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [overlayMenuFor, setOverlayMenuFor] = useState<string | null>(null);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [previewSource, setPreviewSource] = useState<MediaSource | null>(null);
 
   const imageCount = state.project.sources.filter((s) => s.kind === "image" && !s.isPlaceholder).length;
 
@@ -127,13 +130,27 @@ export function MediaLibrary() {
         {state.project.sources.map((source) => (
           <li
             key={source.id}
-            className="media-item"
+            className={`media-item media-item-${source.kind}`}
             draggable
             onDragStart={(e) => {
               e.dataTransfer.setData("application/x-source-id", source.id);
               e.dataTransfer.effectAllowed = "copy";
             }}
           >
+            <button
+              type="button"
+              className="media-thumb-button"
+              onClick={() => setPreviewSource(source)}
+              // The row itself is `draggable` (drag-to-timeline works from anywhere on it) — a
+              // click that moves the cursor even slightly while over this button would otherwise
+              // also be read as the start of that native drag, and the browser's own drag-ghost
+              // ends up floating free of the list instead of the click opening the preview.
+              onDragStart={(e) => e.preventDefault()}
+              disabled={source.isPlaceholder}
+              title="Preview"
+            >
+              <MediaThumbnail source={source} />
+            </button>
             <span className={`media-kind media-kind-${source.kind}`}>{MEDIA_KIND_LABEL[source.kind]}</span>
             <span className="media-name">{source.name}</span>
             <button type="button" onClick={() => handleAppend(source)} title="Add to timeline">
@@ -164,6 +181,7 @@ export function MediaLibrary() {
         ))}
       </ul>
       {slideshowOpen && <SlideshowDialog onClose={() => setSlideshowOpen(false)} />}
+      {previewSource && <MediaPreviewModal source={previewSource} onClose={() => setPreviewSource(null)} />}
     </div>
   );
 }

@@ -30,6 +30,14 @@ const MAX_PREVIEW_DIMENSION = 640;
 const MIN_OVERLAY_SIZE_RATIO = 0.02;
 const RESIZE_HANDLE_SIZE = 10;
 
+// HTMLMediaElement.playbackRate throws/clamps outside roughly this range depending on the browser
+// (Chrome supports ~0.0625–16); guard against a clip.speed that's 0, negative, or absurd from bad
+// data rather than let the assignment silently no-op and fall back to the drift-seek stutter.
+function clampPlaybackRate(speed: number): number {
+  if (!Number.isFinite(speed) || speed <= 0) return 1;
+  return Math.min(16, Math.max(0.0625, speed));
+}
+
 interface ImageOverlayRect {
   x: number;
   y: number;
@@ -213,6 +221,14 @@ export function PreviewCanvas() {
         const isUpNext = !transition && activeVideo != null && laidOutVideo[activeVideo.index + 1]?.id === clip.id;
 
         if (activeInfo) {
+          // Without this the element always plays at its own native 1× regardless of clip.speed,
+          // while localTime (below) advances at `speed` — the two drift apart and the periodic
+          // correction above snaps currentTime back, which looks like a stutter/repeat-frame
+          // "blink" instead of smooth slow motion. Matching the element's own rate to the clip's
+          // means currentTime tracks localTime on its own; the seek above is then just drift/seek
+          // correction, not the primary way playback speed happens.
+          const rate = clampPlaybackRate(clip.speed);
+          if (el.playbackRate !== rate) el.playbackRate = rate;
           if (Math.abs(el.currentTime - activeInfo.localTime) > SEEK_THRESHOLD) {
             el.currentTime = activeInfo.localTime;
           }
@@ -313,6 +329,8 @@ export function PreviewCanvas() {
           const el = audioElsRef.current.get(clip.id);
           if (!el) return;
           if (activeAudio?.clip.id === clip.id) {
+            const rate = clampPlaybackRate(clip.speed);
+            if (el.playbackRate !== rate) el.playbackRate = rate;
             if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
               el.currentTime = activeAudio.localTime;
             }

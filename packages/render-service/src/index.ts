@@ -15,6 +15,7 @@ import {
   readProjectFile,
   saveProjectFile,
 } from "./projects.js";
+import { audioEditUpload, handleAudioEdit } from "./audioEdit.js";
 import { startRenderJob } from "./render.js";
 import { createRhymeRouter } from "./rhymeRoutes.js";
 import {
@@ -175,6 +176,9 @@ app.get("/render/:jobId/result", (req: Request, res: Response) => {
   }
   res.download(job.outputPath, "reel.mp4");
 });
+
+// Standalone Audio Editor: one synchronous ffmpeg pass (trim + fade + gain + speed) → encoded file.
+app.post("/audio/edit", audioEditUpload, handleAudioEdit);
 
 app.post("/render/:jobId/cancel", (req: Request, res: Response) => {
   const job = getJob(paramString(req.params.jobId));

@@ -1,31 +1,42 @@
 import type { ProjectModel } from "@reel-studio/shared-types";
 
 const DB_NAME = "reel-studio";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const PROJECT_STORE = "project";
 const MEDIA_STORE = "media";
 const IMAGE_STORE = "savedImages";
+const AUDIO_STORE = "savedAudio";
 const PROJECT_KEY = "current";
+const EXPECTED_STORES = [PROJECT_STORE, MEDIA_STORE, IMAGE_STORE, AUDIO_STORE];
 
-function openDb(): Promise<IDBDatabase> {
+function applySchema(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains(PROJECT_STORE)) db.createObjectStore(PROJECT_STORE);
+  if (!db.objectStoreNames.contains(MEDIA_STORE)) db.createObjectStore(MEDIA_STORE);
+  // v2: images exported from the Image Editor, kept separately from project media so they survive
+  // independently of any project and can be listed on the Dashboard.
+  if (!db.objectStoreNames.contains(IMAGE_STORE)) db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
+  // v3: audio exported from the Audio Editor — same "outlives any project" reasoning as images.
+  if (!db.objectStoreNames.contains(AUDIO_STORE)) db.createObjectStore(AUDIO_STORE, { keyPath: "id" });
+}
+
+function open(version?: number): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(PROJECT_STORE)) {
-        db.createObjectStore(PROJECT_STORE);
-      }
-      if (!db.objectStoreNames.contains(MEDIA_STORE)) {
-        db.createObjectStore(MEDIA_STORE);
-      }
-      // v2: images exported from the Image Editor, kept separately from project media so they
-      // survive independently of any project and can be listed on the Dashboard.
-      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
-        db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
-      }
-    };
+    const request = version === undefined ? indexedDB.open(DB_NAME) : indexedDB.open(DB_NAME, version);
+    request.onupgradeneeded = () => applySchema(request.result);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+function openDb(): Promise<IDBDatabase> {
+  return open(DB_VERSION).then((db) => {
+    // Guard against a database that reached the current version without every store (a partial
+    // upgrade, or a stray raw `indexedDB.open` elsewhere): reopen one version higher to re-run the
+    // schema step, which only ever adds missing stores.
+    if (EXPECTED_STORES.every((name) => db.objectStoreNames.contains(name))) return db;
+    const bumped = db.version + 1;
+    db.close();
+    return open(bumped);
   });
 }
 
@@ -90,4 +101,26 @@ export async function listSavedImages(): Promise<SavedImage[]> {
 
 export async function deleteSavedImage(id: string): Promise<void> {
   await runTransaction(IMAGE_STORE, "readwrite", (store) => store.delete(id));
+}
+
+export interface SavedAudio {
+  id: string;
+  name: string;
+  blob: Blob;
+  format: string;
+  durationSeconds: number;
+  savedAt: number;
+}
+
+export async function saveAudioToGallery(audio: SavedAudio): Promise<void> {
+  await runTransaction(AUDIO_STORE, "readwrite", (store) => store.put(audio));
+}
+
+export async function listSavedAudio(): Promise<SavedAudio[]> {
+  const all = await runTransaction<SavedAudio[]>(AUDIO_STORE, "readonly", (store) => store.getAll());
+  return (all ?? []).sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export async function deleteSavedAudio(id: string): Promise<void> {
+  await runTransaction(AUDIO_STORE, "readwrite", (store) => store.delete(id));
 }

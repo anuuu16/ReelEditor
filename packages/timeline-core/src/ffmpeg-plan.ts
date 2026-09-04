@@ -1,4 +1,5 @@
 import type { Clip, FitMode, Overlay, ProjectModel, TransitionType } from "@reel-studio/shared-types";
+import { buildAtempoFilters } from "./audio-edit.js";
 import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type LaidOutClip } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
@@ -59,19 +60,8 @@ function buildVideoFadeSuffix(clip: Clip, duration: number): string {
 }
 
 function buildAtempoChain(speed: number): string {
-  if (speed === 1) return "";
-  const factors: number[] = [];
-  let remaining = speed;
-  while (remaining > 2.0) {
-    factors.push(2.0);
-    remaining /= 2.0;
-  }
-  while (remaining < 0.5) {
-    factors.push(0.5);
-    remaining /= 0.5;
-  }
-  factors.push(remaining);
-  return "," + factors.map((f) => `atempo=${f.toFixed(4)}`).join(",");
+  const filters = buildAtempoFilters(speed);
+  return filters.length > 0 ? "," + filters.join(",") : "";
 }
 
 // No `font=`/`fontfile=` option: there's no font-family control in the UI yet, so this

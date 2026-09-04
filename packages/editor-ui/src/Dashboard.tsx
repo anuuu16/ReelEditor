@@ -2,12 +2,30 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createInitialProject } from "./state/initialProject.js";
 import { formatProjectDate, useProjectBrowser } from "./persistence/useProjectBrowser.js";
-import { deleteSavedImage, listSavedImages, type SavedImage } from "./persistence/db.js";
+import {
+  deleteSavedAudio,
+  deleteSavedImage,
+  listSavedAudio,
+  listSavedImages,
+  type SavedAudio,
+  type SavedImage,
+} from "./persistence/db.js";
 import { createStudioProject, deleteStudioProject, listStudioProjects } from "./promptStudio/api.js";
 import type { StudioProjectSummary } from "./promptStudio/types.js";
 
 interface GalleryEntry extends SavedImage {
   url: string;
+}
+
+interface AudioGalleryEntry extends SavedAudio {
+  url: string;
+}
+
+function formatDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function formatStudioSummaryMeta(s: StudioProjectSummary): string {
@@ -19,6 +37,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { realProjects, templates, refresh, errorMessage, busyProjectId, openProject, useAsTemplate, deleteProject } = useProjectBrowser();
   const [savedImages, setSavedImages] = useState<GalleryEntry[]>([]);
+  const [savedAudio, setSavedAudio] = useState<AudioGalleryEntry[]>([]);
   const [studioProjects, setStudioProjects] = useState<StudioProjectSummary[]>([]);
   const [studioError, setStudioError] = useState<string | null>(null);
   const [isCreatingStudio, setIsCreatingStudio] = useState(false);
@@ -27,6 +46,11 @@ export function Dashboard() {
     const images = await listSavedImages();
     // Object URLs are recreated on each listing; the previous batch is revoked on unmount below.
     setSavedImages(images.map((image) => ({ ...image, url: URL.createObjectURL(image.blob) })));
+  }
+
+  async function refreshAudio() {
+    const clips = await listSavedAudio();
+    setSavedAudio(clips.map((clip) => ({ ...clip, url: URL.createObjectURL(clip.blob) })));
   }
 
   function refreshStudioProjects() {
@@ -38,6 +62,7 @@ export function Dashboard() {
   useEffect(() => {
     refresh();
     refreshImages().catch((err) => console.error("Failed to load saved images", err));
+    refreshAudio().catch((err) => console.error("Failed to load saved audio", err));
     refreshStudioProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -46,6 +71,11 @@ export function Dashboard() {
     return () => savedImages.forEach((image) => URL.revokeObjectURL(image.url));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedImages]);
+
+  useEffect(() => {
+    return () => savedAudio.forEach((clip) => URL.revokeObjectURL(clip.url));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedAudio]);
 
   async function handleDeleteImage(image: GalleryEntry) {
     if (!window.confirm(`Delete "${image.name}"?`)) return;
@@ -57,6 +87,19 @@ export function Dashboard() {
     const link = document.createElement("a");
     link.href = image.url;
     link.download = `${image.name}.${image.format}`;
+    link.click();
+  }
+
+  async function handleDeleteAudio(clip: AudioGalleryEntry) {
+    if (!window.confirm(`Delete "${clip.name}"?`)) return;
+    await deleteSavedAudio(clip.id);
+    await refreshAudio();
+  }
+
+  function handleDownloadAudio(clip: AudioGalleryEntry) {
+    const link = document.createElement("a");
+    link.href = clip.url;
+    link.download = `${clip.name}.${clip.format}`;
     link.click();
   }
 
@@ -111,6 +154,9 @@ export function Dashboard() {
         <div className="inline-fields">
           <button type="button" onClick={() => navigate("/image-editor")}>
             Image Editor
+          </button>
+          <button type="button" onClick={() => navigate("/audio-editor")}>
+            Audio Editor
           </button>
         </div>
       </header>
@@ -239,6 +285,31 @@ export function Dashboard() {
               </figure>
             ))}
           </div>
+        </section>
+
+        <section className="dashboard-section">
+          <h2>Saved audio</h2>
+          <p className="hint">Audio you saved from the Audio Editor, kept locally in this browser.</p>
+          {savedAudio.length === 0 && <p className="hint">Nothing saved yet — use "Save" in the Audio Editor.</p>}
+          <ul className="project-list">
+            {savedAudio.map((clip) => (
+              <li key={clip.id} className="project-list-item">
+                <div className="project-list-info">
+                  <span className="project-list-name">{clip.name}</span>
+                  <span className="project-list-meta">
+                    {formatDuration(clip.durationSeconds)} {clip.format.toUpperCase()} · {formatProjectDate(clip.savedAt)}
+                  </span>
+                  <audio controls src={clip.url} preload="none" />
+                </div>
+                <button type="button" onClick={() => handleDownloadAudio(clip)}>
+                  Download
+                </button>
+                <button type="button" className="project-delete-button" onClick={() => handleDeleteAudio(clip)}>
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
     </div>

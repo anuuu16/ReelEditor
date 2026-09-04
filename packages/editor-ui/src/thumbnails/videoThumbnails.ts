@@ -8,6 +8,12 @@ export function generateVideoThumbnails(previewUrl: string, inPoint: number, out
     }
 
     const video = document.createElement("video");
+    // Most previewUrls are same-origin blob: URLs (project media is fetched and rehydrated to one),
+    // but a Studio-origin source's previewUrl points straight at a cross-origin render-service URL.
+    // Without this, drawing that frame into the canvas below taints it — crossOrigin is a no-op for
+    // blob: URLs, so it's safe to always set (render-service already sends a permissive
+    // Access-Control-Allow-Origin, this is the missing client-side half of CORS-enabling the load).
+    video.crossOrigin = "anonymous";
     video.src = previewUrl;
     video.muted = true;
     video.preload = "auto";
@@ -46,7 +52,15 @@ export function generateVideoThumbnails(previewUrl: string, inPoint: number, out
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push(canvas.toDataURL("image/jpeg", 0.6));
+          // A tainted canvas (a cross-origin frame the crossOrigin attribute above didn't manage to
+          // CORS-clean, e.g. a server not actually sending the header) throws here — without this,
+          // that throw happens inside an event handler with no catcher, so the promise never
+          // settles and every caller waits on it forever instead of just missing this one frame.
+          try {
+            frames.push(canvas.toDataURL("image/jpeg", 0.6));
+          } catch (err) {
+            console.error("Failed to capture video thumbnail frame (tainted canvas?)", err);
+          }
         }
       }
       frameIndex++;
@@ -64,6 +78,9 @@ export function generateImageThumbnail(previewUrl: string): Promise<string | nul
       return;
     }
     const img = new Image();
+    // See the matching comment in generateVideoThumbnails: needed for Studio-origin (cross-origin)
+    // sources, harmless no-op for same-origin blob: URLs.
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const aspect = img.naturalWidth / img.naturalHeight || 9 / 16;
       const canvas = document.createElement("canvas");
@@ -75,7 +92,13 @@ export function generateImageThumbnail(previewUrl: string): Promise<string | nul
         return;
       }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.6));
+      // Same tainted-canvas guard as the video path — resolve null instead of hanging forever.
+      try {
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      } catch (err) {
+        console.error("Failed to capture image thumbnail (tainted canvas?)", err);
+        resolve(null);
+      }
     };
     img.onerror = () => resolve(null);
     img.src = previewUrl;

@@ -3,6 +3,7 @@ declare global {
     interface Request {
       jobId?: string;
       resourceId?: string;
+      audioEditId?: string;
     }
   }
 }

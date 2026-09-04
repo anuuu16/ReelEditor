@@ -14,7 +14,8 @@ interface ClipBlockProps {
 interface TrimDragState {
   edge: "left" | "right";
   startClientX: number;
-  startValue: number;
+  /** The clip's displayed (timeline) duration when the drag began, seconds. */
+  startDuration: number;
 }
 
 export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
@@ -60,22 +61,34 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
     e.stopPropagation();
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    trimDragRef.current = { edge, startClientX: e.clientX, startValue: edge === "left" ? clip.inPoint : clip.outPoint };
+    trimDragRef.current = { edge, startClientX: e.clientX, startDuration: clip.duration };
     setIsTrimming(true);
   }
 
+  // Dragging a handle past the clip's available source footage no longer just stops there — it
+  // keeps extending the clip and slows playback down just enough to stretch the footage across the
+  // longer duration (an 8s clip dragged out to 16s plays at 0.5×), the same "extend footage first,
+  // then nudge speed" trade the transition-overlap compensation (BULK_SET_TRANSITION in reducer.ts)
+  // already makes. Reference speed 1 (not clip.speed) as the baseline, so the split between footage
+  // and speed is a pure function of (inPoint/outPoint, targetDuration, source length) — dragging
+  // back within bounds cleanly recovers speed 1 rather than drifting from whatever speed a previous
+  // drag left behind.
   function handleTrimPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     e.stopPropagation();
     const drag = trimDragRef.current;
-    if (!drag) return;
+    if (!drag || !source) return;
     const deltaSeconds = (e.clientX - drag.startClientX) / pixelsPerSecond;
+
     if (drag.edge === "left") {
-      const next = Math.max(0, Math.min(drag.startValue + deltaSeconds, clip.outPoint - MIN_CLIP_DURATION_SECONDS));
-      dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { inPoint: next } });
+      const targetDuration = Math.max(MIN_CLIP_DURATION_SECONDS, drag.startDuration - deltaSeconds);
+      const inPoint = Math.max(0, Math.min(clip.outPoint - MIN_CLIP_DURATION_SECONDS, clip.outPoint - targetDuration));
+      const speed = (clip.outPoint - inPoint) / targetDuration;
+      dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { inPoint, speed } });
     } else {
-      const maxOut = source?.durationSeconds ?? drag.startValue;
-      const next = Math.min(maxOut, Math.max(drag.startValue + deltaSeconds, clip.inPoint + MIN_CLIP_DURATION_SECONDS));
-      dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { outPoint: next } });
+      const targetDuration = Math.max(MIN_CLIP_DURATION_SECONDS, drag.startDuration + deltaSeconds);
+      const outPoint = Math.max(clip.inPoint + MIN_CLIP_DURATION_SECONDS, Math.min(source.durationSeconds, clip.inPoint + targetDuration));
+      const speed = (outPoint - clip.inPoint) / targetDuration;
+      dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { outPoint, speed } });
     }
   }
 
@@ -123,6 +136,11 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
         <span className="clip-name">
           {index + 1}. {clip.label || source?.name || "clip"}
         </span>
+        {Math.abs(clip.speed - 1) > 0.005 && (
+          <span className="clip-speed-badge" title="Playback speed, from dragging a trim handle past the clip's available footage">
+            {clip.speed.toFixed(2)}×
+          </span>
+        )}
         <button type="button" className="clip-remove" draggable={false} onClick={handleRemove} title="Remove clip">
           ×
         </button>

@@ -251,9 +251,69 @@ body {
   gap: 8px;
   background: #1e1f26;
   border: 1px solid #2a2b31;
+  border-left: 3px solid #2a2b31;
   border-radius: 6px;
   padding: 6px 8px;
   cursor: grab;
+}
+
+/* One accent color per media kind, echoed on the row's left edge, the kind badge, and the
+   thumbnail's placeholder square — so a list of mixed clips scans by color at a glance even
+   before a thumbnail has rendered. */
+.media-item-video {
+  border-left-color: #6e8cff;
+}
+
+.media-item-image {
+  border-left-color: #7ee787;
+}
+
+.media-item-audio {
+  border-left-color: #f2a65a;
+}
+
+.media-thumb {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  background: #101114;
+}
+
+.media-thumb-fallback {
+  display: block;
+}
+
+.media-thumb-fallback.media-thumb-video {
+  background: #6e8cff33;
+}
+
+.media-thumb-fallback.media-thumb-image {
+  background: #7ee78733;
+}
+
+.media-thumb-fallback.media-thumb-audio {
+  background: #f2a65a33;
+}
+
+.media-thumb-button {
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  line-height: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.media-thumb-button:hover {
+  outline: 2px solid #5b7cff;
+  outline-offset: 1px;
+}
+
+.media-thumb-button:disabled {
+  cursor: default;
 }
 
 .media-kind {
@@ -261,6 +321,11 @@ body {
   font-weight: 700;
   color: #6e8cff;
   width: 28px;
+  flex-shrink: 0;
+}
+
+.media-kind-image {
+  color: #7ee787;
 }
 
 .media-kind-audio {
@@ -750,6 +815,18 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Shown once a trim handle has been dragged past the clip's available footage, slowing it down
+   (or, dragged the other way after that, back up toward 1×) to cover the requested duration. */
+.clip-speed-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: #f2a65a;
+  border: 1px solid #6b4f2e;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
 .clip-remove {
   margin-left: auto;
   z-index: 3;
@@ -978,6 +1055,49 @@ body {
   color: #b7b8c2;
   font-size: 15px;
   padding: 2px 6px;
+}
+
+/* Large image/video/audio preview modal, opened from a media library thumbnail. Same overlay
+   as .export-panel, sized to the content instead of a fixed width. */
+.media-preview-panel {
+  position: relative;
+  width: auto;
+  max-width: 90vw;
+  background: #1a1b20;
+  border: 1px solid #2a2b31;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.media-preview-panel h2 {
+  font-size: 15px;
+  margin: 0 0 12px;
+  padding-right: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-preview-panel .hint {
+  margin: 12px 0 0;
+}
+
+.media-preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-preview-media {
+  display: block;
+  max-width: min(80vw, 900px);
+  max-height: 75vh;
+  border-radius: 6px;
+  background: #000;
+}
+
+.media-preview-audio {
+  width: min(80vw, 500px);
 }
 
 .export-progress-track {
@@ -1696,6 +1816,205 @@ body {
   bottom: -6px;
   right: -6px;
   cursor: nwse-resize;
+}
+
+/* Audio Editor — reuses .ie-body / .ie-controls / .ie-section / .ie-preview layout */
+
+.ae-preview {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.ae-stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Multi-track timeline */
+
+.ae-timeline {
+  width: 100%;
+  background: #0b0c0f;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ae-timeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.ae-ruler {
+  position: relative;
+  background: #16171c;
+  border-bottom: 1px solid #2a2b31;
+  cursor: text;
+  touch-action: none;
+}
+
+.ae-lanes {
+  position: relative;
+  touch-action: none;
+}
+
+.ae-lane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid #1c1d22;
+  background: repeating-linear-gradient(90deg, transparent, transparent 79px, #14151a 79px, #14151a 80px);
+}
+
+.ae-clip {
+  position: absolute;
+  background: #26324d;
+  border: 1px solid #4d6bb3;
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  box-sizing: border-box;
+}
+
+.ae-clip.selected {
+  border-color: #7da2ff;
+  box-shadow: 0 0 0 1px #7da2ff;
+  z-index: 2;
+}
+
+.ae-clip.muted {
+  opacity: 0.45;
+}
+
+.ae-clip-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ae-clip-label {
+  position: absolute;
+  left: 6px;
+  bottom: 3px;
+  font-size: 10px;
+  color: #dfe6f5;
+  text-shadow: 0 1px 2px #0009;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: calc(100% - 12px);
+}
+
+.ae-clip-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.ae-clip-edge-left {
+  left: 0;
+}
+
+.ae-clip-edge-right {
+  right: 0;
+}
+
+.ae-playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: #ffffff;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ae-source-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ae-source-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ae-source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ae-source-dur {
+  color: #9294a1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ae-lane-count {
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ae-danger {
+  background: #3a2225;
+  color: #ff9d9d;
+  border: 1px solid #5a3236;
+}
+
+.ae-transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ae-time {
+  font-size: 12px;
+  color: #9294a1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ae-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.ae-check input {
+  width: auto;
+}
+
+.ae-fields .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.ae-fields .field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.project-list-info audio {
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
 }
 
 /* Saved-image gallery on the Dashboard */
