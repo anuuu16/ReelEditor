@@ -1,4 +1,4 @@
-import type { Clip, FitMode, Overlay, ProjectModel, TransitionType } from "@reel-studio/shared-types";
+import type { Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel, Transform, TransitionType } from "@reel-studio/shared-types";
 import { buildAtempoFilters } from "./audio-edit.js";
 import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type LaidOutClip } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
@@ -62,6 +62,70 @@ function buildVideoFadeSuffix(clip: Clip, duration: number): string {
 function buildAtempoChain(speed: number): string {
   const filters = buildAtempoFilters(speed);
   return filters.length > 0 ? "," + filters.join(",") : "";
+}
+
+function transformsEqual(a: Transform, b: Transform): boolean {
+  return a.scale === b.scale && a.x === b.x && a.y === b.y && a.rotation === b.rotation;
+}
+
+function clipFiltersEqual(a: ClipFilter, b: ClipFilter): boolean {
+  return a.preset === b.preset && a.brightness === b.brightness && a.contrast === b.contrast && a.saturation === b.saturation && a.hue === b.hue;
+}
+
+// `-stream_loop` repeats a source's ENTIRE file, so folding a clip into a repeat block is only
+// correct when the clip plays that file start-to-finish untrimmed.
+function isWholeFileVideoClip(clip: LaidOutClip, sources: MediaSource[]): boolean {
+  const source = sources.find((s) => s.id === clip.sourceId);
+  if (!source || source.kind !== "video") return false;
+  return clip.inPoint <= 0.0005 && Math.abs(clip.outPoint - source.durationSeconds) <= 0.01;
+}
+
+function isIdenticalRepeatOf(a: LaidOutClip, b: LaidOutClip): boolean {
+  return (
+    a.sourceId === b.sourceId &&
+    a.inPoint === b.inPoint &&
+    a.outPoint === b.outPoint &&
+    a.speed === b.speed &&
+    a.fitMode === b.fitMode &&
+    transformsEqual(a.transform, b.transform) &&
+    clipFiltersEqual(a.filter, b.filter) &&
+    a.volume === b.volume &&
+    a.muted === b.muted &&
+    a.fadeInSeconds === 0 &&
+    a.fadeOutSeconds === 0 &&
+    b.fadeInSeconds === 0 &&
+    b.fadeOutSeconds === 0
+  );
+}
+
+// Groups consecutive video clips into runs eligible for a single `-stream_loop` input: an
+// identical whole-file clip repeated back-to-back with plain hard cuts (no gap, no transition) in
+// between. Exporting a clip repeated many times over — e.g. a chant video looped 100+ times — used
+// to give each repeat its own trim/scale/color filter chain, all branching off the same source
+// input and folded through one big concat; at 4K that many parallel decode branches of the same
+// source is enough to exhaust memory and get ffmpeg killed by the OS mid-encode. A run like this
+// collapses to one dedicated `-stream_loop` input feeding a single linear filter chain instead —
+// memory-flat regardless of the repeat count. A run of length 1 falls through to the exact
+// original per-clip path unchanged.
+function groupIntoVideoUnits(clips: LaidOutClip[], sources: MediaSource[]): LaidOutClip[][] {
+  const units: LaidOutClip[][] = [];
+  for (const clip of clips) {
+    const currentUnit = units[units.length - 1];
+    const prev = currentUnit?.[currentUnit.length - 1];
+    const isHardCutFromPrev = prev !== undefined && Math.abs(clip.timelineStart - (prev.timelineStart + prev.duration)) <= 0.0005;
+    const canExtend =
+      prev !== undefined &&
+      isHardCutFromPrev &&
+      isWholeFileVideoClip(prev, sources) &&
+      isWholeFileVideoClip(clip, sources) &&
+      isIdenticalRepeatOf(prev, clip);
+    if (canExtend) {
+      currentUnit.push(clip);
+    } else {
+      units.push([clip]);
+    }
+  }
+  return units;
 }
 
 // No `font=`/`fontfile=` option: there's no font-family control in the UI yet, so this
@@ -155,6 +219,22 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return index;
   }
 
+  // Video clips deliberately bypass inputIndexFor's sourceId cache too: when the same source is
+  // placed on the timeline more than once, sharing one decoded input means ffmpeg auto-splits it
+  // into as many consumers, all pulling from the *same* physical decode range at once. Each
+  // consumer's fit/color/scale output then has to sit buffered in memory until its own place in
+  // the output timeline comes up — for clip N of an M-times-repeated source that's most of clip N's
+  // full duration of already-4K frames held in RAM. With enough repeats (or even just a handful at
+  // 4K) that's enough to get ffmpeg OOM-killed mid-encode. A dedicated `-i` per clip instance gives
+  // each its own independent decoder that paces itself off its own downstream consumer instead.
+  function addVideoInput(sourceId: string): number {
+    const path = sourcePaths[sourceId];
+    if (!path) throw new Error(`Missing local file for source ${sourceId}`);
+    const index = inputs.length;
+    inputs.push({ path, extraArgs: [] });
+    return index;
+  }
+
   // Image clips deliberately bypass inputIndexFor's sourceId cache: each needs its own -t matching
   // that specific clip's duration, and two clips could reuse the same image at different durations.
   function addImageInput(sourceId: string, durationSeconds: number): number {
@@ -162,6 +242,16 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     if (!path) throw new Error(`Missing local file for source ${sourceId}`);
     const index = inputs.length;
     inputs.push({ path, extraArgs: ["-loop", "1", "-t", durationSeconds.toFixed(3)] });
+    return index;
+  }
+
+  // Like addImageInput, bypasses the sourceId cache: a `-stream_loop` input is exclusive to one
+  // repeat run and must not be reused by another (possibly non-looped) usage of the same source.
+  function addLoopedInput(sourceId: string, extraLoops: number): number {
+    const path = sourcePaths[sourceId];
+    if (!path) throw new Error(`Missing local file for source ${sourceId}`);
+    const index = inputs.length;
+    inputs.push({ path, extraArgs: ["-stream_loop", String(extraLoops)] });
     return index;
   }
 
@@ -306,28 +396,68 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     );
   }
 
-  videoClips.forEach((clip, i) => {
+  function buildSingleClipFilters(clip: LaidOutClip, vLabel: string, aLabel: string): void {
     const clipSource = project.sources.find((s) => s.id === clip.sourceId);
     const isImageClip = clipSource?.kind === "image";
     const fitFilter = buildFitFilter(clip.fitMode, width, height);
     const panZoomFilter = buildPanZoomFilter(clip.transform, width, height);
     const colorFilter = buildFfmpegColorFilter(clip.filter);
-    const vLabel = `v${i}`;
-    const aLabel = `ca${i}`;
 
     // An image clip has no in/out point or speed to trim/stretch — the input is already looped to
     // exactly this clip's duration (addImageInput), and it has no audio track at all (forced silent).
-    const inputIdx = isImageClip ? addImageInput(clip.sourceId, clip.duration) : inputIndexFor(clip.sourceId);
+    const inputIdx = isImageClip ? addImageInput(clip.sourceId, clip.duration) : addVideoInput(clip.sourceId);
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},`;
     filterChains.push(
       `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
     );
-    videoLabels.push(`[${vLabel}]`);
-
     filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, aLabel, isImageClip));
+  }
+
+  // The whole run plays through one `-stream_loop` input and one linear filter chain — panZoom and
+  // colorFilter are static (no time-varying animation), so applying them once over the full looped
+  // stream is identical to applying them per-repeat. fadeIn/fadeOut are required to be 0 by
+  // isIdenticalRepeatOf, so buildVideoFadeSuffix/buildFadeSuffix have nothing to contribute here.
+  function buildRepeatUnitFilters(unit: LaidOutClip[], vLabel: string, aLabel: string): void {
+    const first = unit[0];
+    const repeatCount = unit.length;
+    const fitFilter = buildFitFilter(first.fitMode, width, height);
+    const panZoomFilter = buildPanZoomFilter(first.transform, width, height);
+    const colorFilter = buildFfmpegColorFilter(first.filter);
+    const inputIdx = addLoopedInput(first.sourceId, repeatCount - 1);
+    filterChains.push(
+      `[${inputIdx}:v]setpts=(PTS-STARTPTS)/${first.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`
+    );
+    const totalDuration = first.duration * repeatCount;
+    filterChains.push(
+      first.muted
+        ? `anullsrc=r=48000:cl=stereo,atrim=duration=${totalDuration.toFixed(3)}[${aLabel}]`
+        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`
+    );
+  }
+
+  const videoUnits = groupIntoVideoUnits(videoClips, project.sources);
+  videoUnits.forEach((unit, i) => {
+    const vLabel = `v${i}`;
+    const aLabel = `ca${i}`;
+    if (unit.length > 1) {
+      buildRepeatUnitFilters(unit, vLabel, aLabel);
+    } else {
+      buildSingleClipFilters(unit[0], vLabel, aLabel);
+    }
+    videoLabels.push(`[${vLabel}]`);
     clipAudioLabels.push(`[${aLabel}]`);
+  });
+
+  // One synthetic entry per unit (matching videoLabels/clipAudioLabels 1:1) so chainSequential's
+  // gap/transition sequencing sees a repeat run as a single clip spanning its full combined
+  // duration, with the run's *last* clip's outgoing transition into whatever follows it.
+  const sequencingClips: LaidOutClip[] = videoUnits.map((unit) => {
+    if (unit.length === 1) return unit[0];
+    const first = unit[0];
+    const last = unit[unit.length - 1];
+    return { ...first, transitionOutType: last.transitionOutType, transitionOutSeconds: last.transitionOutSeconds, duration: first.duration * unit.length };
   });
 
   const musicTrackLabels: string[] = [];
@@ -347,7 +477,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     musicTrackLabels.push(trackLabel);
   });
 
-  const videoConcatLabel = chainSequential(videoLabels, videoClips, "video", "vxf", buildVideoGapFiller);
+  const videoConcatLabel = chainSequential(videoLabels, sequencingClips, "video", "vxf", buildVideoGapFiller);
 
   const overlayTextFiles: OverlayTextFile[] = [];
   let finalVideoLabel = videoConcatLabel;
@@ -375,7 +505,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     finalVideoLabel = `[${nextLabel}]`;
   });
 
-  const clipAudioConcatLabel = chainSequential(clipAudioLabels, videoClips, "audio", "axf", buildAudioGapFiller);
+  const clipAudioConcatLabel = chainSequential(clipAudioLabels, sequencingClips, "audio", "axf", buildAudioGapFiller);
 
   let finalAudioLabel = clipAudioConcatLabel;
   if (musicTrackLabels.length > 0) {
