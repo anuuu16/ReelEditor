@@ -31,7 +31,18 @@ export interface EditorState {
 export type Action =
   | { type: "ADD_SOURCE"; source: MediaSource }
   | { type: "REMOVE_SOURCE"; sourceId: string }
+  | { type: "REMOVE_ALL_SOURCES" }
   | { type: "ADD_CLIP"; trackId: string; sourceId: string; atIndex: number }
+  | {
+      type: "CREATE_SLIDESHOW";
+      imageSourceIds: string[];
+      /** Still duration per image, 1:1 with imageSourceIds (seconds). */
+      perImageSeconds: number[];
+      transitionType: TransitionType;
+      transitionSeconds: number;
+      musicSourceId: string | null;
+      replaceVideoTrack: boolean;
+    }
   | { type: "MOVE_CLIP"; clipId: string; trackId: string; atIndex: number; gapBeforeSeconds?: number }
   | { type: "REMOVE_CLIP"; clipId: string }
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
@@ -69,6 +80,36 @@ export type Action =
   | { type: "TOGGLE_MASTER_MUTE" }
   | { type: "SET_MASTER_VOLUME"; volume: number }
   | { type: "LOAD_PROJECT"; project: ProjectModel };
+
+// A fresh clip in its default state. A video/audio clip defaults to its full source length; an
+// image has no intrinsic length (source.durationSeconds is just the trim ceiling), so it defaults
+// to a short, muted still. `overrides` lets a caller tweak the result (e.g. a slideshow setting a
+// custom still duration and an outgoing transition) without re-listing every field.
+function buildClip(source: MediaSource, trackId: string, overrides?: Partial<Clip>): Clip {
+  const isImage = source.kind === "image";
+  return {
+    id: crypto.randomUUID(),
+    sourceId: source.id,
+    trackId,
+    label: "",
+    inPoint: 0,
+    outPoint: isImage ? Math.min(DEFAULT_IMAGE_CLIP_DURATION_SECONDS, source.durationSeconds) : source.durationSeconds,
+    timelineStart: 0,
+    fitMode: "fit",
+    transform: { scale: 1, x: 0, y: 0, rotation: 0 },
+    volume: 1,
+    muted: isImage,
+    fadeInSeconds: 0,
+    fadeOutSeconds: 0,
+    speed: 1,
+    opacity: 1,
+    filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
+    transitionOutSeconds: 0,
+    transitionOutType: "dissolve",
+    gapBeforeSeconds: 0,
+    ...overrides,
+  };
+}
 
 function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: Clip): Clip[] {
   const trackClips = clips.filter((c) => c.trackId === trackId);
@@ -138,36 +179,70 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       };
     }
 
+    case "REMOVE_ALL_SOURCES": {
+      // Every clip references a source, so clearing sources clears every clip. Image overlays
+      // reference a source too; text overlays don't, so those survive.
+      const remainingOverlays = state.project.overlays.filter((o) => o.kind !== "image");
+      const selectedOverlayStillExists = remainingOverlays.some((o) => o.id === state.selectedOverlayId);
+      return {
+        ...state,
+        project: { ...state.project, sources: [], clips: [], overlays: remainingOverlays },
+        selectedClipId: null,
+        selectedOverlayId: selectedOverlayStillExists ? state.selectedOverlayId : null,
+      };
+    }
+
     case "ADD_CLIP": {
       const source = state.project.sources.find((s) => s.id === action.sourceId);
       if (!source) return state;
-      const isImage = source.kind === "image";
-      const newClip: Clip = {
-        id: crypto.randomUUID(),
-        sourceId: source.id,
-        trackId: action.trackId,
-        label: "",
-        inPoint: 0,
-        // A video/audio clip defaults to its full source length. An image has no intrinsic length
-        // (source.durationSeconds is just the trim ceiling), so it defaults to a short still instead.
-        outPoint: isImage ? Math.min(DEFAULT_IMAGE_CLIP_DURATION_SECONDS, source.durationSeconds) : source.durationSeconds,
-        timelineStart: 0,
-        fitMode: "fit",
-        transform: { scale: 1, x: 0, y: 0, rotation: 0 },
-        volume: 1,
-        muted: isImage,
-        fadeInSeconds: 0,
-        fadeOutSeconds: 0,
-        speed: 1,
-        opacity: 1,
-        filter: { preset: null, brightness: 0, contrast: 1, saturation: 1, hue: 0 },
-        transitionOutSeconds: 0,
-        transitionOutType: "dissolve",
-        gapBeforeSeconds: 0,
-      };
+      const newClip = buildClip(source, action.trackId);
       return {
         ...state,
         project: { ...state.project, clips: insertClipAt(state.project.clips, action.trackId, action.atIndex, newClip) },
+      };
+    }
+
+    case "CREATE_SLIDESHOW": {
+      const videoTrack = getTracksByKind(state.project, "video")[0];
+      if (!videoTrack) return state;
+      const sourceById = new Map(state.project.sources.map((s) => [s.id, s]));
+      // Keep each id's own duration alongside it as we drop any that don't resolve to an image.
+      const images = action.imageSourceIds
+        .map((id, i) => ({ source: sourceById.get(id), seconds: action.perImageSeconds[i] ?? DEFAULT_IMAGE_CLIP_DURATION_SECONDS }))
+        .filter((e): e is { source: MediaSource; seconds: number } => e.source?.kind === "image");
+      if (images.length === 0) return state;
+
+      const transitionSeconds = Math.max(0, action.transitionSeconds);
+      const slideClips = images.map(({ source, seconds }, i) => {
+        const clamped = Math.min(Math.max(seconds, MIN_CLIP_DURATION_SECONDS), source.durationSeconds);
+        return buildClip(source, videoTrack.id, {
+          outPoint: clamped,
+          // The last still has no clip after it to dissolve into — layoutSequentialClips ignores a
+          // trailing transitionOutSeconds anyway, but keep it 0 so the data says what it means.
+          transitionOutSeconds: i === images.length - 1 ? 0 : transitionSeconds,
+          transitionOutType: action.transitionType,
+        });
+      });
+
+      // Slideshow clips always go at the end of the video track's sequence. `replaceVideoTrack`
+      // clears whatever was there first; otherwise they append after the existing clips (which keep
+      // their relative array order, so the sequence stays intact).
+      const withoutReplaced = action.replaceVideoTrack
+        ? state.project.clips.filter((c) => c.trackId !== videoTrack.id)
+        : state.project.clips;
+      let clips = [...withoutReplaced, ...slideClips];
+
+      const musicSource = action.musicSourceId ? sourceById.get(action.musicSourceId) : undefined;
+      if (musicSource?.kind === "audio") {
+        const audioTrackId = state.activeAudioTrackId ?? getTracksByKind(state.project, "audio")[0]?.id;
+        if (audioTrackId) clips = [...clips, buildClip(musicSource, audioTrackId)];
+      }
+
+      return {
+        ...state,
+        project: { ...state.project, clips },
+        selectedClipId: slideClips[0].id,
+        selectedOverlayId: null,
       };
     }
 

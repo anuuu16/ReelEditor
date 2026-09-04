@@ -49,30 +49,41 @@ export function TrackRow({ trackId, label, accept, pixelsPerSecond, isActive, on
     setIsDragOver(false);
     const clipId = e.dataTransfer.getData("application/x-clip-id");
     const sourceId = e.dataTransfer.getData("application/x-source-id");
-    const atIndex = indexFromDropX(e.clientX, e.currentTarget);
     const rect = e.currentTarget.getBoundingClientRect();
-    const dropSeconds = Math.max(0, (e.clientX - rect.left) / pixelsPerSecond);
 
     if (clipId) {
       const movingClip = state.project.clips.find((c) => c.id === clipId);
       const movingSource = movingClip && state.project.sources.find((s) => s.id === movingClip.sourceId);
       if (movingClip && movingSource && trackKindAccepts(accept, movingSource.kind)) {
-        // Where this clip would sit with zero gap at the target index, so the drop's actual
-        // position relative to that becomes the new gap — drop it right where it would naturally
-        // land and there's no gap; drop it further right and that much empty space opens before it.
-        const otherTrackClips = state.project.clips.filter((c) => c.trackId === trackId && c.id !== clipId);
-        const hypothetical = [...otherTrackClips];
-        const insertIndex = Math.max(0, Math.min(atIndex, hypothetical.length));
-        hypothetical.splice(insertIndex, 0, { ...movingClip, gapBeforeSeconds: 0 });
-        const naturalStart = layoutSequentialClips(hypothetical)[insertIndex]?.timelineStart ?? 0;
-        const rawGap = Math.max(0, dropSeconds - naturalStart);
+        // Place the clip's *left edge* where the user dropped it — subtract how far into the clip
+        // they grabbed, so a mid-clip grab doesn't jump the clip's start to the cursor.
+        const grabOffsetPx = Number(e.dataTransfer.getData("application/x-clip-grab-offset")) || 0;
+        const clipLeftSeconds = Math.max(0, (e.clientX - rect.left - grabOffsetPx) / pixelsPerSecond);
+
+        // Insertion index among the *other* clips (the moving one already removed): it goes after
+        // every clip whose midpoint the drop cleared. This is the final index the reducer inserts
+        // at — no off-by-one, and no snapping to "right after the previous clip".
+        const otherClips = state.project.clips.filter((c) => c.trackId === trackId && c.id !== clipId);
+        const otherLaidOut = layoutSequentialClips(otherClips);
+        let targetIndex = 0;
+        for (const c of otherLaidOut) {
+          if (clipLeftSeconds >= c.timelineStart + c.duration / 2) targetIndex++;
+          else break;
+        }
+
+        // Where the clip would sit with no gap at that index; anything past that becomes empty space
+        // before it (snapped away if it's only a pixel or two).
+        const hypothetical = [...otherClips];
+        hypothetical.splice(targetIndex, 0, { ...movingClip, gapBeforeSeconds: 0 });
+        const naturalStart = layoutSequentialClips(hypothetical)[targetIndex]?.timelineStart ?? 0;
+        const rawGap = Math.max(0, clipLeftSeconds - naturalStart);
         const gapBeforeSeconds = rawGap * pixelsPerSecond < GAP_SNAP_PX ? 0 : rawGap;
-        dispatch({ type: "MOVE_CLIP", clipId, trackId, atIndex, gapBeforeSeconds });
+        dispatch({ type: "MOVE_CLIP", clipId, trackId, atIndex: targetIndex, gapBeforeSeconds });
       }
     } else if (sourceId) {
       const source = state.project.sources.find((s) => s.id === sourceId);
       if (source && trackKindAccepts(accept, source.kind)) {
-        dispatch({ type: "ADD_CLIP", trackId, sourceId, atIndex });
+        dispatch({ type: "ADD_CLIP", trackId, sourceId, atIndex: indexFromDropX(e.clientX, e.currentTarget) });
       }
     }
   }

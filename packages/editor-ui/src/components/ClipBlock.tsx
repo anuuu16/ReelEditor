@@ -1,4 +1,4 @@
-import { useRef, type DragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type DragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { LaidOutClip } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { MIN_CLIP_DURATION_SECONDS } from "../state/reducer.js";
@@ -24,9 +24,20 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
   const isSelected = state.selectedClipId === clip.id;
   const widthPx = Math.max(clip.duration * pixelsPerSecond, 4);
   const trimDragRef = useRef<TrimDragState | null>(null);
+  const [isTrimming, setIsTrimming] = useState(false);
 
   function handleDragStart(e: DragEvent<HTMLDivElement>) {
+    // A press on a trim handle (a child of this draggable block) would otherwise also kick off the
+    // native move-drag, which cancels the pointer events the resize relies on — and then the drop
+    // gets read as "move this clip". Refuse the drag while a trim is in progress.
+    if (trimDragRef.current) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData("application/x-clip-id", clip.id);
+    // How far into the clip (in px) the user grabbed, so the drop can place the clip's left edge
+    // where they expect instead of snapping the clip's start to the cursor.
+    e.dataTransfer.setData("application/x-clip-grab-offset", String(e.clientX - e.currentTarget.getBoundingClientRect().left));
     e.dataTransfer.effectAllowed = "move";
   }
 
@@ -47,8 +58,10 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
 
   function handleTrimPointerDown(edge: "left" | "right", e: ReactPointerEvent<HTMLDivElement>) {
     e.stopPropagation();
+    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     trimDragRef.current = { edge, startClientX: e.clientX, startValue: edge === "left" ? clip.inPoint : clip.outPoint };
+    setIsTrimming(true);
   }
 
   function handleTrimPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
@@ -68,13 +81,15 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
 
   function handleTrimPointerUp(e: ReactPointerEvent<HTMLDivElement>) {
     e.stopPropagation();
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     trimDragRef.current = null;
+    setIsTrimming(false);
   }
 
   return (
     <div
       className={`clip-block${isSelected ? " selected" : ""}`}
-      draggable
+      draggable={!isTrimming}
       onDragStart={handleDragStart}
       onClick={handleSelect}
       style={{ left: clip.timelineStart * pixelsPerSecond, width: widthPx }}
@@ -118,6 +133,7 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
         onPointerDown={(e) => handleTrimPointerDown("left", e)}
         onPointerMove={handleTrimPointerMove}
         onPointerUp={handleTrimPointerUp}
+        onPointerCancel={handleTrimPointerUp}
       />
       <div
         className="clip-trim-handle clip-trim-handle-right"
@@ -125,6 +141,7 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
         onPointerDown={(e) => handleTrimPointerDown("right", e)}
         onPointerMove={handleTrimPointerMove}
         onPointerUp={handleTrimPointerUp}
+        onPointerCancel={handleTrimPointerUp}
       />
     </div>
   );

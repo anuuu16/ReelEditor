@@ -197,6 +197,12 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   // supplies each label's laid-out timing and the overlap/transition type between consecutive
   // entries, and must be 1:1 with `labels`. Overlap and gap are mutually exclusive by construction
   // (getOverlapSeconds floors at 0), so a pair is never both at once.
+  //
+  // A maximal run of clips that are all plain hard cuts (no transition, no gap) is joined by ONE
+  // N-way `concat` rather than folded pairwise: a 100-still slideshow otherwise built ~100 nested
+  // `concat`+`fps` filters, and at 4K each of those buffers multi-MB frames — enough chained
+  // filters to push ffmpeg past available RAM and get it OOM-killed mid-encode. One `concat=n=100`
+  // consumes its inputs sequentially and keeps memory flat.
   function chainSequential(
     labels: string[],
     clips: LaidOutClip[],
@@ -204,7 +210,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     labelPrefix: string,
     buildGapFiller: (durationSeconds: number, label: string) => string
   ): string {
-    const concatArgs = kind === "video" ? "n=2:v=1:a=0" : "n=2:v=0:a=1";
+    const streamArgs = kind === "video" ? "v=1:a=0" : "v=0:a=1";
     // concat's output timebase isn't guaranteed to match the 1/frameRate timebase every per-clip
     // chain gets from its own `fps=` filter — it can come out as a generic microsecond timebase
     // instead. That's invisible until the concat's output later feeds an xfade alongside a plain
@@ -215,48 +221,81 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     // equivalent timebase coupling with acrossfade, so this is video-only.
     const retimebase = kind === "video" ? `,fps=${frameRate}` : "";
 
-    // Splices a gap-filler in next to `label`'s existing content. `gapFirst` controls play order:
-    // true for the leading gap (empty space plays before anything else on the track), false for a
-    // gap opened up between two clips (the accumulated content-so-far still plays first, then the
-    // gap, then whatever gets concatenated after this call returns).
-    function spliceGap(label: string, durationSeconds: number, gapLabel: string, gapFirst: boolean): string {
-      filterChains.push(buildGapFiller(durationSeconds, gapLabel));
-      const splicedLabel = `${gapLabel}spliced`;
-      const ordered = gapFirst ? `[${gapLabel}]${label}` : `${label}[${gapLabel}]`;
-      filterChains.push(`${ordered}concat=${concatArgs}${retimebase}[${splicedLabel}]`);
-      return `[${splicedLabel}]`;
-    }
+    let labelCounter = 0;
+    const nextLabel = () => `${labelPrefix}${labelCounter++}`;
 
-    let prevLabel = labels[0];
-    if (clips[0].timelineStart > 0.0005) {
-      prevLabel = spliceGap(prevLabel, clips[0].timelineStart, `${labelPrefix}leadgap`, true);
+    // Partition the sequence into "chunks" of clips joined by nothing but plain hard cuts, with a
+    // separator (a gap, or an overlap/transition) sitting between each adjacent pair of chunks.
+    interface Chunk {
+      labels: string[];
+      durationSeconds: number;
     }
+    type Separator = { kind: "gap"; seconds: number } | { kind: "xfade"; transition: TransitionType; overlap: number };
 
-    let cumulative = clips[0].duration;
+    const chunks: Chunk[] = [{ labels: [labels[0]], durationSeconds: clips[0].duration }];
+    const separators: Separator[] = [];
     for (let i = 1; i < labels.length; i++) {
       const gap = Math.max(0, clips[i].timelineStart - (clips[i - 1].timelineStart + clips[i - 1].duration));
-      if (gap > 0.0005) {
-        prevLabel = spliceGap(prevLabel, gap, `${labelPrefix}gap${i}`, false);
-        cumulative += gap;
-      }
-
       const overlap = getOverlapSeconds(clips[i - 1], clips[i]);
-      const outLabel = `${labelPrefix}${i}`;
-      if (overlap > 0) {
-        const offset = cumulative - overlap;
+      if (gap > 0.0005) {
+        separators.push({ kind: "gap", seconds: gap });
+        chunks.push({ labels: [labels[i]], durationSeconds: clips[i].duration });
+      } else if (overlap > 0) {
+        separators.push({ kind: "xfade", transition: clips[i - 1].transitionOutType, overlap });
+        chunks.push({ labels: [labels[i]], durationSeconds: clips[i].duration });
+      } else {
+        const chunk = chunks[chunks.length - 1];
+        chunk.labels.push(labels[i]);
+        chunk.durationSeconds += clips[i].duration;
+      }
+    }
+
+    // Collapse a chunk to a single label — a lone clip passes through untouched, a run is concat'd.
+    const renderChunk = (chunk: Chunk): string => {
+      if (chunk.labels.length === 1) return chunk.labels[0];
+      const out = nextLabel();
+      filterChains.push(`${chunk.labels.join("")}concat=n=${chunk.labels.length}:${streamArgs}${retimebase}[${out}]`);
+      return `[${out}]`;
+    };
+
+    let acc = renderChunk(chunks[0]);
+    let cumulative = chunks[0].durationSeconds;
+
+    // Leading gap: empty space that plays before any clip on the track.
+    if (clips[0].timelineStart > 0.0005) {
+      const gapLabel = nextLabel();
+      filterChains.push(buildGapFiller(clips[0].timelineStart, gapLabel));
+      const spliced = nextLabel();
+      filterChains.push(`[${gapLabel}]${acc}concat=n=2:${streamArgs}${retimebase}[${spliced}]`);
+      acc = `[${spliced}]`;
+      cumulative += clips[0].timelineStart;
+    }
+
+    for (let k = 0; k < separators.length; k++) {
+      const separator = separators[k];
+      const chunkLabel = renderChunk(chunks[k + 1]);
+      const chunkDuration = chunks[k + 1].durationSeconds;
+      if (separator.kind === "gap") {
+        const gapLabel = nextLabel();
+        filterChains.push(buildGapFiller(separator.seconds, gapLabel));
+        const out = nextLabel();
+        filterChains.push(`${acc}[${gapLabel}]${chunkLabel}concat=n=3:${streamArgs}${retimebase}[${out}]`);
+        acc = `[${out}]`;
+        cumulative += separator.seconds + chunkDuration;
+      } else {
+        const offset = cumulative - separator.overlap;
         const transitionFilter =
           kind === "video"
-            ? `xfade=transition=${XFADE_TRANSITION_NAMES[clips[i - 1].transitionOutType]}:duration=${overlap.toFixed(3)}:offset=${offset.toFixed(3)}`
-            : `acrossfade=d=${overlap.toFixed(3)}`;
-        filterChains.push(`${prevLabel}${labels[i]}${transitionFilter}[${outLabel}]`);
-        cumulative += clips[i].duration - overlap;
-      } else {
-        filterChains.push(`${prevLabel}${labels[i]}concat=${concatArgs}${retimebase}[${outLabel}]`);
-        cumulative += clips[i].duration;
+            ? `xfade=transition=${XFADE_TRANSITION_NAMES[separator.transition]}:duration=${separator.overlap.toFixed(3)}:offset=${offset.toFixed(3)}`
+            : `acrossfade=d=${separator.overlap.toFixed(3)}`;
+        const out = nextLabel();
+        filterChains.push(`${acc}${chunkLabel}${transitionFilter}[${out}]`);
+        acc = `[${out}]`;
+        cumulative += chunkDuration - separator.overlap;
       }
-      prevLabel = `[${outLabel}]`;
     }
-    return prevLabel;
+
+    return acc;
   }
 
   function buildVideoGapFiller(durationSeconds: number, label: string): string {
