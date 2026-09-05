@@ -1824,10 +1824,19 @@ body {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
+  /* .ie-preview centers+shrinks its child by default (fine for the image editor's fixed canvas) —
+     override so the audio editor's timeline instead fills the whole pane, not just a content-sized
+     box floating in the middle of it. align-self:stretch (not height:100%) is what actually does
+     it: this element's own height comes from flexbox stretch already, and a percentage height
+     here doesn't reliably resolve against an ancestor whose height is itself flex-derived. */
+  align-self: stretch;
+  min-height: 0;
 }
 
 .ae-stage {
   width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1837,6 +1846,10 @@ body {
 
 .ae-timeline {
   width: 100%;
+  flex: 1;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
   background: #0b0c0f;
   border: 1px solid #2a2b31;
   border-radius: 6px;
@@ -1844,14 +1857,15 @@ body {
 }
 
 .ae-timeline-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  max-width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .ae-ruler {
   position: relative;
-  background: #16171c;
+  flex-shrink: 0;
+  background: #1a1c22;
   border-bottom: 1px solid #2a2b31;
   cursor: text;
   touch-action: none;
@@ -1911,6 +1925,17 @@ body {
   max-width: calc(100% - 12px);
 }
 
+.ae-clip-index {
+  display: inline-block;
+  min-width: 13px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(125, 162, 255, 0.35);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .ae-clip-edge {
   position: absolute;
   top: 0;
@@ -1925,6 +1950,141 @@ body {
 
 .ae-clip-edge-right {
   right: 0;
+}
+
+.ae-clip-menu-button {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 18px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0;
+  font-size: 12px;
+  color: #dfe6f5;
+  background: rgba(10, 11, 14, 0.35);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.ae-clip-menu-button:hover {
+  background: rgba(10, 11, 14, 0.65);
+}
+
+.ae-clip-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  background: #1e1f26;
+  border: 1px solid #34353d;
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.ae-clip-menu button {
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: #e6e6e9;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ae-clip-menu button:hover:not(:disabled) {
+  background: #292a33;
+}
+
+.ae-clip-menu button:disabled {
+  color: #6b6d78;
+  cursor: default;
+}
+
+.ae-clip-menu button.ae-danger:hover {
+  background: #3a2225;
+}
+
+.ae-gap-highlight {
+  position: absolute;
+  background: rgba(125, 162, 255, 0.14);
+  border: 1px dashed #7da2ff;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ae-notes-strip {
+  position: relative;
+  border-bottom: 1px solid #1c1d22;
+}
+
+.ae-note {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+.ae-note-flag {
+  display: block;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0;
+  text-align: center;
+  font-size: 11px;
+  color: #6b6d78;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.ae-note-flag.has-text {
+  color: #ffd479;
+}
+
+.ae-note-flag:hover {
+  color: #7da2ff;
+}
+
+.ae-note-popover {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  transform: translateX(-50%);
+  width: 220px;
+  background: #1e1f26;
+  border: 1px solid #34353d;
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+}
+
+.ae-note-popover textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12px;
+  background: #14151a;
+  color: #e6e6e9;
+  border: 1px solid #2a2b31;
+  border-radius: 4px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.ae-note-popover-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
 }
 
 .ae-playhead {
@@ -1950,6 +2110,24 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  padding: 3px 4px;
+  border-radius: 5px;
+  cursor: grab;
+}
+
+.ae-source-list li:hover {
+  background: #1e1f26;
+}
+
+.ae-source-remove {
+  color: #9294a1;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.ae-source-remove:hover {
+  color: #ff9d9d;
 }
 
 .ae-source-name {
@@ -1981,6 +2159,30 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.ae-transport-spacer {
+  flex: 1;
+}
+
+.ae-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ae-zoom button {
+  width: 26px;
+  padding: 4px 0;
+  text-align: center;
+}
+
+.ae-zoom-value {
+  font-size: 12px;
+  color: #9294a1;
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: center;
 }
 
 .ae-time {

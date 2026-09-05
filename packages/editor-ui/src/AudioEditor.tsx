@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SliderField } from "./imageEditor/SliderField.js";
-import { saveAudioToGallery } from "./persistence/db.js";
+import {
+  deleteAudioMediaBlob,
+  loadAudioMediaBlob,
+  loadAudioProject,
+  saveAudioMediaBlob,
+  saveAudioProject,
+  saveAudioToGallery,
+} from "./persistence/db.js";
 import { decodeAudioFile } from "./audioEditor/decodeAudio.js";
 import { audioBufferToWav } from "./audioEditor/audioBufferToWav.js";
 import { mixdown } from "./audioEditor/mixdown.js";
@@ -11,20 +18,27 @@ import { useAudioTimelineHistory } from "./audioEditor/useAudioTimelineHistory.j
 import {
   clipEnd,
   clipVisibleDuration,
+  closeTimelineGap,
   DEFAULT_LANE_COUNT,
   makeClip,
+  MIN_PX_PER_SEC,
+  MAX_PX_PER_SEC,
+  rippleDeleteClip,
+  SOURCE_DRAG_TYPE,
   splitClipAt,
   timelineDuration,
   type AudioClip,
   type AudioSource,
   type AudioTimeline as AudioTimelineModel,
+  type Gap,
+  type TimelineNote,
 } from "./audioEditor/timeline.js";
 
 interface AudioEditorProps {
   onBack: () => void;
 }
 
-const EMPTY: AudioTimelineModel = { sources: [], clips: [], laneCount: DEFAULT_LANE_COUNT };
+const EMPTY: AudioTimelineModel = { sources: [], clips: [], notes: [], laneCount: DEFAULT_LANE_COUNT };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -42,8 +56,11 @@ function formatClock(seconds: number): string {
 }
 
 export function AudioEditor({ onBack }: AudioEditorProps) {
-  const { timeline, commit, checkpoint, live, undo, redo, canUndo, canRedo } = useAudioTimelineHistory(EMPTY);
+  const { timeline, commit, checkpoint, live, load, undo, redo, canUndo, canRedo } = useAudioTimelineHistory(EMPTY);
+  const [projectLoaded, setProjectLoaded] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [selectedGap, setSelectedGap] = useState<Gap | null>(null);
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [pxPerSec, setPxPerSec] = useState(80);
   const [format, setFormat] = useState<AudioExportFormat>("mp3");
   const [bitrateKbps, setBitrateKbps] = useState(192);
@@ -64,6 +81,12 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
   const totalDur = timelineDuration(timeline);
   const selectedClip = timeline.clips.find((c) => c.id === selectedClipId) ?? null;
   const selectedSource = selectedClip ? timeline.sources.find((s) => s.id === selectedClip.sourceId) ?? null : null;
+  const selectedOrderIndex = selectedClip
+    ? timeline.clips
+        .filter((c) => c.laneIndex === selectedClip.laneIndex)
+        .sort((a, b) => a.startSec - b.startSec)
+        .findIndex((c) => c.id === selectedClip.id) + 1
+    : 0;
 
   const flash = useCallback((message: string) => {
     setStatus(message);
@@ -133,11 +156,80 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     };
   }, [timeline]);
 
-  // Any timeline edit stops playback (the mixed buffer is now stale).
+  // Any timeline edit stops playback (the mixed buffer is now stale) and drops a selected gap —
+  // clips may have moved, so its bounds could no longer point at an actual empty stretch.
   useEffect(() => {
     stopPlayback();
+    setSelectedGap(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline]);
+
+  // Restores the previously-persisted audio project (if any) on mount — without this, refreshing
+  // the page silently discards whatever was being worked on.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const persisted = await loadAudioProject().catch(() => null);
+      // A cancelled instance (React StrictMode double-invokes this effect in dev, or the component
+      // unmounted) must do NOTHING more — critically, must not flip projectLoaded, which would let
+      // the autosave effect below fire against the still-EMPTY starting timeline and overwrite the
+      // real persisted project before the other (non-cancelled) instance finishes restoring it.
+      if (cancelled) return;
+      if (!persisted) {
+        setProjectLoaded(true);
+        return;
+      }
+      const sources: AudioSource[] = [];
+      for (const meta of persisted.sourceMeta) {
+        const blob = await loadAudioMediaBlob(meta.id).catch(() => null);
+        if (!blob) continue; // its file is gone from storage — any clips referencing it are dropped below
+        try {
+          sources.push({ id: meta.id, name: meta.name, buffer: await decodeAudioFile(blob) });
+        } catch {
+          /* unreadable — skip this source */
+        }
+      }
+      if (cancelled) return;
+      const validIds = new Set(sources.map((s) => s.id));
+      load({
+        sources,
+        clips: persisted.clips.filter((c) => validIds.has(c.sourceId)),
+        notes: persisted.notes ?? [],
+        laneCount: persisted.laneCount,
+      });
+      setProjectLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosaves (debounced) on every change, once the restore above has finished — otherwise this
+  // would immediately overwrite the persisted project with the blank starting state while the real
+  // one is still loading.
+  useEffect(() => {
+    if (!projectLoaded) return;
+    const handle = window.setTimeout(() => {
+      void saveAudioProject({
+        sourceMeta: timeline.sources.map((s) => ({ id: s.id, name: s.name })),
+        clips: timeline.clips,
+        notes: timeline.notes,
+        laneCount: timeline.laneCount,
+      });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [timeline, projectLoaded]);
+
+  function selectClip(id: string | null) {
+    setSelectedClipId(id);
+    setSelectedGap(null);
+  }
+
+  function selectGap(gap: Gap | null) {
+    setSelectedGap(gap);
+    setSelectedClipId(null);
+  }
 
   const addFiles = useCallback(
     async (files: File[], laneIndex?: number, startSec?: number) => {
@@ -155,6 +247,9 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
         }
       }
       if (decoded.length === 0) return;
+      // Persisted immediately, while the original file is still on hand — by autosave time only
+      // the decoded AudioBuffer remains in state, which isn't what gets re-decoded on reload.
+      for (const { source, file } of decoded) void saveAudioMediaBlob(source.id, file);
       commit((t) => {
         const sources = [...t.sources, ...decoded.map((d) => d.source)];
         let cursor = startSec ?? t.clips.filter((c) => c.laneIndex === 0).reduce((m, c) => Math.max(m, clipEnd(c)), 0);
@@ -184,17 +279,76 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     if (selectedClipId === id) setSelectedClipId(null);
   }
 
-  function splitSelected() {
-    if (!selectedClip) return;
-    const parts = splitClipAt(selectedClip, playheadSec);
+  // Inserts a copy of `id` immediately after it, same lane — a quick way to repeat a clip without
+  // re-importing or re-dragging it from Sources.
+  function duplicateClip(id: string) {
+    const clip = timeline.clips.find((c) => c.id === id);
+    if (!clip) return;
+    const copy: AudioClip = { ...clip, id: crypto.randomUUID(), startSec: clipEnd(clip) };
+    commit((t) => ({ ...t, clips: [...t.clips, copy] }));
+    setSelectedClipId(copy.id);
+  }
+
+  // Removes a source AND every clip built from it — an orphaned clip has nothing to play or draw.
+  function removeSource(sourceId: string) {
+    void deleteAudioMediaBlob(sourceId);
+    commit((t) => ({
+      ...t,
+      sources: t.sources.filter((s) => s.id !== sourceId),
+      clips: t.clips.filter((c) => c.sourceId !== sourceId),
+    }));
+    if (selectedClip?.sourceId === sourceId) setSelectedClipId(null);
+  }
+
+  function dropExistingSource(sourceId: string, laneIndex: number, startSec: number) {
+    commit((t) => {
+      const source = t.sources.find((s) => s.id === sourceId);
+      if (!source) return t;
+      return { ...t, clips: [...t.clips, makeClip(source, laneIndex, startSec)] };
+    });
+  }
+
+  // Deletes the clip AND closes the hole it leaves behind (every lane shifts left) — for cutting
+  // an unwanted clip out of the middle of a track without leaving a gap in its place.
+  function rippleDelete(id: string) {
+    commit((t) => rippleDeleteClip(t, id));
+    if (selectedClipId === id) setSelectedClipId(null);
+  }
+
+  // Cuts the selected empty stretch out of the whole timeline, shifting every clip after it left —
+  // e.g. an AI-extended music track with a silent gap in the middle: select the gap, close it.
+  function closeSelectedGap() {
+    if (!selectedGap) return;
+    commit((t) => closeTimelineGap(t, selectedGap));
+  }
+
+  function addNoteAtPlayhead() {
+    const note: TimelineNote = { id: crypto.randomUUID(), atSec: playheadSec, text: "" };
+    commit((t) => ({ ...t, notes: [...t.notes, note] }));
+    setOpenNoteId(note.id);
+  }
+
+  function updateNoteText(id: string, text: string) {
+    commit((t) => ({ ...t, notes: t.notes.map((n) => (n.id === id ? { ...n, text } : n)) }));
+  }
+
+  function deleteNote(id: string) {
+    commit((t) => ({ ...t, notes: t.notes.filter((n) => n.id !== id) }));
+    if (openNoteId === id) setOpenNoteId(null);
+  }
+
+  // Splits whichever clip `id` names at the current playhead — used both by the inspector's
+  // "Split at playhead" (always the selected clip) and the clip's own quick-action menu (whichever
+  // clip that menu belongs to, selected or not).
+  function splitClip(id: string) {
+    const clip = timeline.clips.find((c) => c.id === id);
+    if (!clip) return;
+    const parts = splitClipAt(clip, playheadSec);
     if (!parts) {
       flash("Move the playhead inside the clip first");
       return;
     }
-    commit((t) => ({
-      ...t,
-      clips: t.clips.flatMap((c) => (c.id === selectedClip.id ? parts : [c])),
-    }));
+    commit((t) => ({ ...t, clips: t.clips.flatMap((c) => (c.id === id ? parts : [c])) }));
     setSelectedClipId(parts[0].id);
   }
 
@@ -335,6 +489,23 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     }
   }
 
+  if (!projectLoaded) {
+    return (
+      <div className="dashboard">
+        <header className="dashboard-header">
+          <button type="button" className="add-title-button" onClick={onBack} title="Back to Dashboard">
+            ← Dashboard
+          </button>
+          <h1>Audio Editor</h1>
+          <div className="inline-fields" />
+        </header>
+        <p className="hint" style={{ padding: 24 }}>
+          Restoring your last session…
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -379,9 +550,10 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
               />
             </label>
             {timeline.sources.length === 0 && <p className="hint">Import or drop audio files. Each becomes a clip you can drag, trim, overlap, and mix.</p>}
+            {timeline.sources.length > 0 && <p className="hint">Drag a source onto the timeline to place it, or use + to append it to lane 1.</p>}
             <ul className="ae-source-list">
               {timeline.sources.map((s) => (
-                <li key={s.id}>
+                <li key={s.id} draggable onDragStart={(e) => e.dataTransfer.setData(SOURCE_DRAG_TYPE, s.id)} title="Drag onto the timeline to place">
                   <span className="ae-source-name">{s.name}</span>
                   <span className="ae-source-dur">{formatClock(s.buffer.duration)}</span>
                   <button
@@ -396,6 +568,9 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                     }}
                   >
                     +
+                  </button>
+                  <button type="button" className="ae-source-remove" title="Remove source" onClick={() => removeSource(s.id)}>
+                    ×
                   </button>
                 </li>
               ))}
@@ -444,12 +619,30 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
             <ClipInspector
               clip={selectedClip}
               source={selectedSource}
+              orderIndex={selectedOrderIndex}
               laneCount={timeline.laneCount}
               playheadSec={playheadSec}
               onChange={(patch) => updateClip(selectedClip.id, patch)}
-              onSplit={splitSelected}
+              onSplit={() => splitClip(selectedClip.id)}
+              onDuplicate={() => duplicateClip(selectedClip.id)}
               onDelete={() => deleteClip(selectedClip.id)}
+              onRippleDelete={() => rippleDelete(selectedClip.id)}
             />
+          )}
+
+          {selectedGap && !selectedClip && (
+            <Section title="Gap">
+              <p className="hint">
+                {formatClock(selectedGap.startSec)} – {formatClock(selectedGap.endSec)} · lane {selectedGap.laneIndex + 1} ·{" "}
+                {(selectedGap.endSec - selectedGap.startSec).toFixed(1)}s empty
+              </p>
+              <div className="inline-fields inline-fields-wrap">
+                <button type="button" className="ie-primary" onClick={closeSelectedGap}>
+                  Close gap
+                </button>
+              </div>
+              <p className="hint">Removes this stretch and shifts every clip after it left, across all lanes.</p>
+            </Section>
           )}
         </div>
 
@@ -468,9 +661,12 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
               <AudioTimeline
                 timeline={timeline}
                 pxPerSec={pxPerSec}
+                onZoomChange={setPxPerSec}
                 playheadSec={playheadSec}
                 selectedClipId={selectedClipId}
-                onSelectClip={setSelectedClipId}
+                onSelectClip={selectClip}
+                selectedGap={selectedGap}
+                onSelectGap={selectGap}
                 onScrub={(sec) => {
                   setPlayheadSec(sec);
                   if (isPlaying) stopPlayback();
@@ -478,6 +674,16 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                 onGestureStart={beginEdit}
                 onClipLive={(id, patch) => updateClip(id, patch, { continuous: true })}
                 onDropFiles={(files, laneIndex, startSec) => void addFiles(files, laneIndex, startSec)}
+                onDropSourceId={dropExistingSource}
+                onSplitClip={splitClip}
+                onDuplicateClip={duplicateClip}
+                onDeleteClip={deleteClip}
+                onRippleDeleteClip={rippleDelete}
+                notes={timeline.notes}
+                openNoteId={openNoteId}
+                onToggleNote={(id) => setOpenNoteId((current) => (current === id ? null : id))}
+                onUpdateNoteText={updateNoteText}
+                onDeleteNote={deleteNote}
               />
               <div className="ae-transport">
                 <button type="button" onClick={() => (isPlaying ? stopPlayback() : play())} disabled={!mixBuffer}>
@@ -495,6 +701,27 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                 <span className="ae-time">
                   {formatClock(playheadSec)} / {formatClock(totalDur)}
                 </span>
+                <button type="button" onClick={addNoteAtPlayhead} title="Add a note at the playhead">
+                  + Note
+                </button>
+                <span className="ae-transport-spacer" />
+                <div className="ae-zoom">
+                  <button
+                    type="button"
+                    title="Zoom out (or Ctrl/Cmd+scroll on the timeline)"
+                    onClick={() => setPxPerSec((z) => Math.max(MIN_PX_PER_SEC, Math.round(z / 1.25)))}
+                  >
+                    −
+                  </button>
+                  <span className="ae-zoom-value">{Math.round(pxPerSec)} px/s</span>
+                  <button
+                    type="button"
+                    title="Zoom in (or Ctrl/Cmd+scroll on the timeline)"
+                    onClick={() => setPxPerSec((z) => Math.min(MAX_PX_PER_SEC, Math.round(z * 1.25)))}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
           )}

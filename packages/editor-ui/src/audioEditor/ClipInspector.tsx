@@ -8,19 +8,36 @@ import { clipVisibleDuration, MIN_CLIP_SEC, type AudioClip, type AudioSource } f
 interface ClipInspectorProps {
   clip: AudioClip;
   source: AudioSource;
+  /** This clip's 1-based position among its lane's clips in timeline order — shown so a stack of
+   * clips on one lane can be told apart at a glance ("2 of 5") independent of their names. */
+  orderIndex: number;
   laneCount: number;
   playheadSec: number;
   onChange: (patch: Partial<AudioClip>) => void;
   onSplit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
+  onRippleDelete: () => void;
 }
 
 function gainToDb(gain: number): number {
   return 20 * Math.log10(Math.max(gain, 1e-6));
 }
 
-export function ClipInspector({ clip, source, laneCount, playheadSec, onChange, onSplit, onDelete }: ClipInspectorProps) {
+export function ClipInspector({
+  clip,
+  source,
+  orderIndex,
+  laneCount,
+  playheadSec,
+  onChange,
+  onSplit,
+  onDuplicate,
+  onDelete,
+  onRippleDelete,
+}: ClipInspectorProps) {
   const [silenceThresholdDb, setSilenceThresholdDb] = useState(-45);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const dur = source.buffer.duration;
   const region = clip.trimEndSec - clip.trimStartSec;
   const visible = clipVisibleDuration(clip);
@@ -38,7 +55,24 @@ export function ClipInspector({ clip, source, laneCount, playheadSec, onChange, 
 
   return (
     <section className="ie-section ae-inspector">
-      <h3>Clip — {clip.name}</h3>
+      <h3>Clip {orderIndex} — {source.name}</h3>
+
+      <label className="field">
+        <span>Name</span>
+        <input
+          type="text"
+          value={nameDraft ?? clip.name}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={() => {
+            if (nameDraft !== null) onChange({ name: nameDraft.trim() || source.name });
+            setNameDraft(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setNameDraft(null);
+          }}
+        />
+      </label>
 
       <div className="inline-fields ae-fields">
         <TimeField
@@ -86,6 +120,9 @@ export function ClipInspector({ clip, source, laneCount, playheadSec, onChange, 
         </button>
         <button type="button" onClick={onSplit} disabled={!canSplit} title={canSplit ? "" : "Move the playhead inside this clip"}>
           Split at playhead
+        </button>
+        <button type="button" onClick={onDuplicate} title="Insert a copy of this clip right after it, same lane">
+          Duplicate
         </button>
       </div>
       <SliderField
@@ -150,6 +187,9 @@ export function ClipInspector({ clip, source, laneCount, playheadSec, onChange, 
       <div className="inline-fields inline-fields-wrap">
         <button type="button" className="ae-danger" onClick={onDelete}>
           Delete clip
+        </button>
+        <button type="button" className="ae-danger" onClick={onRippleDelete} title="Delete this clip and shift everything after it left, across all lanes">
+          Ripple delete
         </button>
       </div>
     </section>

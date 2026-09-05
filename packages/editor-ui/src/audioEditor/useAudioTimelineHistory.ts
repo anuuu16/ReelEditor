@@ -11,6 +11,9 @@ interface History {
   checkpoint: () => void;
   /** Update state without touching history — for the moves within a gesture that `checkpoint` opened. */
   live: (next: AudioTimeline | ((prev: AudioTimeline) => AudioTimeline)) => void;
+  /** Replaces the whole timeline AND wipes undo/redo history — for restoring a persisted project
+   * on load, which isn't something a user should be able to "undo" back out of. */
+  load: (next: AudioTimeline) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -51,6 +54,13 @@ export function useAudioTimelineHistory(initial: AudioTimeline): History {
     });
   }, []);
 
+  const load = useCallback((next: AudioTimeline) => {
+    past.current = [];
+    future.current = [];
+    rerender();
+    setTimeline(next);
+  }, []);
+
   const undo = useCallback(() => {
     setTimeline((prev) => {
       if (past.current.length === 0) return prev;
@@ -78,6 +88,7 @@ export function useAudioTimelineHistory(initial: AudioTimeline): History {
     commit,
     checkpoint,
     live,
+    load,
     undo,
     redo,
     canUndo: past.current.length > 0,

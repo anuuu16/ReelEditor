@@ -1,13 +1,16 @@
 import type { ProjectModel } from "@reel-studio/shared-types";
+import type { AudioClip, TimelineNote } from "../audioEditor/timeline.js";
 
 const DB_NAME = "reel-studio";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const PROJECT_STORE = "project";
 const MEDIA_STORE = "media";
 const IMAGE_STORE = "savedImages";
 const AUDIO_STORE = "savedAudio";
+const AUDIO_PROJECT_STORE = "audioProject";
+const AUDIO_MEDIA_STORE = "audioMedia";
 const PROJECT_KEY = "current";
-const EXPECTED_STORES = [PROJECT_STORE, MEDIA_STORE, IMAGE_STORE, AUDIO_STORE];
+const EXPECTED_STORES = [PROJECT_STORE, MEDIA_STORE, IMAGE_STORE, AUDIO_STORE, AUDIO_PROJECT_STORE, AUDIO_MEDIA_STORE];
 
 function applySchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains(PROJECT_STORE)) db.createObjectStore(PROJECT_STORE);
@@ -17,6 +20,11 @@ function applySchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains(IMAGE_STORE)) db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
   // v3: audio exported from the Audio Editor — same "outlives any project" reasoning as images.
   if (!db.objectStoreNames.contains(AUDIO_STORE)) db.createObjectStore(AUDIO_STORE, { keyPath: "id" });
+  // v4: the Audio Editor's own in-progress timeline (distinct from AUDIO_STORE's finished mixes) —
+  // same "current" single-slot autosave as PROJECT_STORE, plus its own media store since a source's
+  // original file blob (re-decoded on reload) has nothing to do with the video editor's media.
+  if (!db.objectStoreNames.contains(AUDIO_PROJECT_STORE)) db.createObjectStore(AUDIO_PROJECT_STORE);
+  if (!db.objectStoreNames.contains(AUDIO_MEDIA_STORE)) db.createObjectStore(AUDIO_MEDIA_STORE);
 }
 
 function open(version?: number): Promise<IDBDatabase> {
@@ -123,4 +131,39 @@ export async function listSavedAudio(): Promise<SavedAudio[]> {
 
 export async function deleteSavedAudio(id: string): Promise<void> {
   await runTransaction(AUDIO_STORE, "readwrite", (store) => store.delete(id));
+}
+
+// The Audio Editor's own working project: clips are plain serializable data already, but each
+// source's AudioBuffer is not what gets persisted — its original file blob goes into
+// AUDIO_MEDIA_STORE (below) keyed by source id, and gets re-decoded back into an AudioBuffer on
+// load. Only the source's id/name need to travel with the project record itself.
+export interface PersistedAudioProject {
+  sourceMeta: Array<{ id: string; name: string }>;
+  clips: AudioClip[];
+  notes: TimelineNote[];
+  laneCount: number;
+}
+
+export async function saveAudioProject(project: PersistedAudioProject): Promise<void> {
+  await runTransaction(AUDIO_PROJECT_STORE, "readwrite", (store) => store.put(project, PROJECT_KEY));
+}
+
+export async function loadAudioProject(): Promise<PersistedAudioProject | null> {
+  const result = await runTransaction<PersistedAudioProject | undefined>(AUDIO_PROJECT_STORE, "readonly", (store) =>
+    store.get(PROJECT_KEY)
+  );
+  return result ?? null;
+}
+
+export async function saveAudioMediaBlob(id: string, blob: Blob): Promise<void> {
+  await runTransaction(AUDIO_MEDIA_STORE, "readwrite", (store) => store.put(blob, id));
+}
+
+export async function loadAudioMediaBlob(id: string): Promise<Blob | null> {
+  const result = await runTransaction<Blob | undefined>(AUDIO_MEDIA_STORE, "readonly", (store) => store.get(id));
+  return result ?? null;
+}
+
+export async function deleteAudioMediaBlob(id: string): Promise<void> {
+  await runTransaction(AUDIO_MEDIA_STORE, "readwrite", (store) => store.delete(id));
 }
