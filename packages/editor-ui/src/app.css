@@ -1246,9 +1246,16 @@ body {
   gap: 8px;
 }
 
-.slideshow-image-row input[type="range"] {
-  flex: 1;
-  min-width: 0;
+.slideshow-image-row input[type="number"] {
+  width: 64px;
+  flex-shrink: 0;
+  background: #1e1f26;
+  border: 1px solid #34353d;
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  color: #e6e6e9;
 }
 
 .slideshow-apply-all {

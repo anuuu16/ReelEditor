@@ -6,6 +6,7 @@ import { trackKindAccepts } from "../media/trackAccepts.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { getOrCreate } from "../thumbnails/cache.js";
 import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
+import { TimeField } from "../audioEditor/TimeField.js";
 
 const FILTER_PRESET_NAMES: FilterPresetName[] = ["none", "warm", "cool", "mono", "vintage"];
 const TRANSITION_TYPE_NAMES: TransitionType[] = ["dissolve", "slide", "wipe", "zoom"];
@@ -242,17 +243,13 @@ export function ClipInspector() {
       {isVisual && (
         <>
           {source?.kind === "image" && (
-            <label className="field">
-              <span>Duration — {duration.toFixed(1)}s</span>
-              <input
-                type="range"
-                min={0.5}
-                max={30}
-                step={0.5}
-                value={duration}
-                onChange={(e) => update({ outPoint: clip.inPoint + Number(e.target.value) * clip.speed })}
-              />
-            </label>
+            <TimeField
+              label="Duration (s)"
+              seconds={duration}
+              min={0.1}
+              max={100000}
+              onCommit={(v) => update({ outPoint: clip.inPoint + v * clip.speed })}
+            />
           )}
 
           <div className="field">

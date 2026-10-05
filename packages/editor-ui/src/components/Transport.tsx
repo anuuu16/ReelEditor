@@ -48,6 +48,12 @@ export function Transport() {
     dispatch({ type: "MERGE_CLIP", clipId: state.selectedClipId });
   }
 
+  function handleTruncate() {
+    dispatch({ type: "TRUNCATE_AT_PLAYHEAD", atTime: state.playhead });
+  }
+
+  const hasContentAfterPlayhead = totalDuration > state.playhead + frameDuration / 2;
+
   function toggleFullscreen() {
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
@@ -95,6 +101,15 @@ export function Transport() {
         title="Merge with next clip"
       >
         Merge
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={handleTruncate}
+        disabled={!hasContentAfterPlayhead}
+        title="Delete everything after the playhead — clips, audio, titles and logos — so the playhead becomes the new end"
+      >
+        Cut end
       </button>
       <button
         type="button"

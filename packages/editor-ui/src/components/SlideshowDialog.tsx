@@ -12,7 +12,6 @@ const TRANSITION_OPTIONS: { value: TransitionType | "none"; label: string }[] = 
 
 const DEFAULT_SECONDS = 4;
 const MIN_SECONDS = 0.5;
-const MAX_SECONDS = 20;
 
 interface SlideshowDialogProps {
   onClose: () => void;
@@ -115,13 +114,19 @@ export function SlideshowDialog({ onClose }: SlideshowDialogProps) {
                 </label>
                 <div className="slideshow-image-row">
                   <input
-                    type="range"
+                    type="number"
+                    step={0.1}
                     min={MIN_SECONDS}
-                    max={MAX_SECONDS}
-                    step={0.5}
-                    value={Math.min(MAX_SECONDS, durationFor(id))}
+                    key={`${id}-${durationFor(id)}`}
+                    defaultValue={durationFor(id).toFixed(1)}
                     disabled={durationsLocked || !selected.has(id)}
-                    onChange={(e) => setDuration(id, Number(e.target.value))}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isFinite(v)) setDuration(id, Math.max(MIN_SECONDS, v));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
                   />
                   <span className="slideshow-reorder">
                     <button type="button" disabled={i === 0} onClick={() => move(id, -1)} title="Move up">
@@ -141,13 +146,19 @@ export function SlideshowDialog({ onClose }: SlideshowDialogProps) {
           <span>Set all to — {applyAll.toFixed(1)}s</span>
           <div className="slideshow-image-row">
             <input
-              type="range"
+              type="number"
+              step={0.1}
               min={MIN_SECONDS}
-              max={MAX_SECONDS}
-              step={0.5}
-              value={applyAll}
+              key={applyAll}
+              defaultValue={applyAll.toFixed(1)}
               disabled={durationsLocked}
-              onChange={(e) => setApplyAll(Number(e.target.value))}
+              onBlur={(e) => {
+                const v = Number(e.target.value);
+                if (Number.isFinite(v)) setApplyAll(Math.max(MIN_SECONDS, v));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
             />
             <button
               type="button"

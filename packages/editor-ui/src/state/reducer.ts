@@ -48,6 +48,7 @@ export type Action =
   | { type: "UPDATE_CLIP"; clipId: string; patch: Partial<Clip> }
   | { type: "SPLIT_CLIP"; clipId: string; atTime: number }
   | { type: "MERGE_CLIP"; clipId: string }
+  | { type: "TRUNCATE_AT_PLAYHEAD"; atTime: number }
   | { type: "DUPLICATE_CLIP"; clipId: string }
   | { type: "REPLACE_CLIP_SOURCE"; clipId: string; sourceId: string }
   | { type: "BULK_MUTE"; trackId: string; muted: boolean }
@@ -427,6 +428,71 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       const clips = state.project.clips.filter((c) => c.id !== next.id).map((c) => (c.id === clip.id ? merged : c));
 
       return { ...state, project: { ...state.project, clips }, selectedClipId: merged.id };
+    }
+
+    case "TRUNCATE_AT_PLAYHEAD": {
+      const cut = action.atTime;
+      const EPS = 1e-6;
+
+      // Each track lays its clips out sequentially, so a clip's on-timeline start/end is only known
+      // after layout. Anything starting at or after the cut is removed; a clip the cut lands inside is
+      // shortened to end exactly there. That clip also loses its outgoing transition, since the clip it
+      // was transitioning into is now gone. Clips ending before the cut are untouched.
+      const layoutById = new Map<string, { timelineStart: number; duration: number }>();
+      for (const track of state.project.tracks) {
+        for (const laid of layoutSequentialClips(state.project.clips.filter((c) => c.trackId === track.id))) {
+          layoutById.set(laid.id, laid);
+        }
+      }
+
+      // Once a track's clip is cut, nothing after it on that track survives, so the cut clip's own
+      // length is solved against the layout it will have: its start depends on the previous clip's
+      // dissolve, which is clamped by this clip's new length. Solving that directly lands its end on
+      // the cut exactly, instead of relying on the old (longer) layout.
+      const clips: Clip[] = [];
+      const lastKeptInTrack = new Map<string, Clip>();
+      const endedTracks = new Set<string>();
+      for (const clip of state.project.clips) {
+        const laid = layoutById.get(clip.id);
+        if (!laid) {
+          clips.push(clip);
+          continue;
+        }
+        if (endedTracks.has(clip.trackId) || laid.timelineStart >= cut - EPS) continue;
+        if (laid.timelineStart + laid.duration <= cut + EPS) {
+          clips.push(clip);
+          lastKeptInTrack.set(clip.trackId, clip);
+          continue;
+        }
+
+        const prev = lastKeptInTrack.get(clip.trackId);
+        const prevLaid = prev ? layoutById.get(prev.id) : undefined;
+        const prevEnd = prevLaid ? prevLaid.timelineStart + prevLaid.duration : 0;
+        const pFull = prevEnd + clip.gapBeforeSeconds;
+        const overlapRequest = prev && prevLaid ? Math.min(prev.transitionOutSeconds, prevLaid.duration / 2) : 0;
+        const d = cut - pFull;
+        const keptSeconds = d >= overlapRequest ? d + overlapRequest : 2 * d;
+        endedTracks.add(clip.trackId);
+        if (keptSeconds < MIN_CLIP_DURATION_SECONDS) continue;
+        clips.push({ ...clip, outPoint: clip.inPoint + keptSeconds * clip.speed, transitionOutSeconds: 0 });
+      }
+
+      // Overlays (titles and logos) are trimmed the same way: starts at/after the cut are removed, and
+      // any that run past it are clamped to end at the cut. One that would be shorter than the minimum
+      // overlay length after clamping is dropped.
+      const overlays = state.project.overlays.filter((o) => {
+        if (o.start >= cut - EPS) return false;
+        return Math.min(o.end, cut) - o.start >= MIN_OVERLAY_DURATION_SECONDS;
+      }).map((o) => (o.end > cut ? { ...o, end: cut } : o));
+
+      const selectedClipStillExists = clips.some((c) => c.id === state.selectedClipId);
+      const selectedOverlayStillExists = overlays.some((o) => o.id === state.selectedOverlayId);
+      return {
+        ...state,
+        project: { ...state.project, clips, overlays },
+        selectedClipId: selectedClipStillExists ? state.selectedClipId : null,
+        selectedOverlayId: selectedOverlayStillExists ? state.selectedOverlayId : null,
+      };
     }
 
     case "DUPLICATE_CLIP": {

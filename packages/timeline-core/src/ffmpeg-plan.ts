@@ -219,6 +219,16 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return index;
   }
 
+  // Every per-clip input decodes single-threaded (see PER_INPUT_THREAD_ARGS below): a project with
+  // hundreds of clips each gets its own `-i` (see addVideoInput's note), and ffmpeg's default decoder
+  // thread count is ~one per CPU core *per input*. At a few hundred inputs that's thousands of OS
+  // threads competing for the same process thread-limit ffmpeg itself needs for its filter graph and
+  // encoder, and libavfilter's own scaler init starts failing with EAGAIN ("Resource temporarily
+  // unavailable") well before any frame is decoded. Pinning each input to one decode thread keeps the
+  // total thread count proportional to input count instead of input count × core count; aggregate
+  // throughput barely changes since there are already as many branches as cores to keep busy.
+  const PER_INPUT_THREAD_ARGS = ["-threads", "1"];
+
   // Video clips deliberately bypass inputIndexFor's sourceId cache too: when the same source is
   // placed on the timeline more than once, sharing one decoded input means ffmpeg auto-splits it
   // into as many consumers, all pulling from the *same* physical decode range at once. Each
@@ -231,7 +241,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const path = sourcePaths[sourceId];
     if (!path) throw new Error(`Missing local file for source ${sourceId}`);
     const index = inputs.length;
-    inputs.push({ path, extraArgs: [] });
+    inputs.push({ path, extraArgs: [...PER_INPUT_THREAD_ARGS] });
     return index;
   }
 
@@ -241,7 +251,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const path = sourcePaths[sourceId];
     if (!path) throw new Error(`Missing local file for source ${sourceId}`);
     const index = inputs.length;
-    inputs.push({ path, extraArgs: ["-loop", "1", "-t", durationSeconds.toFixed(3)] });
+    inputs.push({ path, extraArgs: [...PER_INPUT_THREAD_ARGS, "-loop", "1", "-t", durationSeconds.toFixed(3)] });
     return index;
   }
 
@@ -517,7 +527,12 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   }
 
   const outputFileName = "output.mp4";
-  const args: string[] = ["-y"];
+  // Caps the filter graph's own thread pool the same way PER_INPUT_THREAD_ARGS caps decoders: a
+  // graph with hundreds of nodes (one scale/xfade chain per clip) otherwise gets a pool sized to
+  // the core count for the graph *plus* per-decoder threads for every input, multiplying the same
+  // thread-exhaustion risk described above. 4 keeps the graph itself responsive without adding to
+  // that total materially.
+  const args: string[] = ["-y", "-filter_complex_threads", "4"];
   for (const input of inputs) {
     args.push(...input.extraArgs, "-i", input.path);
   }
