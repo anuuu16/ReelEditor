@@ -21,7 +21,7 @@ refuses to finish unless all checks pass:
 - no agent files and no `.sandbox/`
 - no private-registry URLs and no API keys
 - no `engines` pin
-- no media files
+- no media files except the 3 in `samples/`
 
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`.
 
@@ -34,6 +34,10 @@ Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`
 - MIT `LICENSE` with your contact email
 
 If the Taiga npm mirror lacks a version, downgrade it here and commit, as in reactive-resume.
+
+## Samples
+`samples/` (on this branch only): `clip-landscape-4s.mp4`, `clip-portrait-3s-silent.mp4` (no audio track),
+`music-9s.m4a`. They're generated test patterns. They're also in `Code Behaviors/Task 10/files/` to attach.
 
 ## Start a task branch
 ```bash
