@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Request, RequestHandler, Response } from "express";
 import multer from "multer";
+import { FFMPEG_PATH } from "./ffmpegBinary.js";
 import { buildAudioEditFilterArgs, buildAudioEditInputArgs, type AudioEditSpec } from "@reel-studio/timeline-core";
 
 const TMP_ROOT = path.join(os.tmpdir(), "reel-studio-audio-edit");
@@ -93,7 +94,7 @@ export async function handleAudioEdit(req: Request, res: Response): Promise<void
     outputName,
   ];
 
-  const ffmpeg = spawn("ffmpeg", args, { cwd: workDir });
+  const ffmpeg = spawn(FFMPEG_PATH, args, { cwd: workDir });
   let stderrTail = "";
   ffmpeg.stderr.on("data", (chunk: Buffer) => {
     stderrTail += chunk.toString("utf8");

@@ -20,7 +20,7 @@ pnpm typecheck
 
 ## Export
 
-Exporting requires [ffmpeg](https://ffmpeg.org) on your `PATH` (`brew install ffmpeg` on macOS) and the render service running:
+Exporting needs ffmpeg and the render service running. The service uses, in order: `FFMPEG_PATH` if set, `ffmpeg` on your `PATH` (`brew install ffmpeg` on macOS), or the binary from the optional `@ffmpeg-installer/ffmpeg` package that `pnpm install` adds (no system install needed):
 
 ```bash
 pnpm --filter @reel-studio/render-service dev
