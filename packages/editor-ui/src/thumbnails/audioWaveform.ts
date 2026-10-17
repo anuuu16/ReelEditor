@@ -2,7 +2,7 @@ export async function generateAudioWaveformPeaks(
   previewUrl: string,
   inPoint: number,
   outPoint: number,
-  bucketCount: number
+  bucketCount: number,
 ): Promise<number[]> {
   if (!previewUrl || bucketCount <= 0) return [];
 

@@ -4,8 +4,7 @@
 // ../thumbnails/audioWaveform.ts).
 export async function decodeAudioFile(file: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await file.arrayBuffer();
-  const AudioContextCtor =
-    window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const AudioContextCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const audioCtx = new AudioContextCtor();
   try {
     // decodeAudioData detaches the ArrayBuffer, so hand it a copy — the caller may still want the raw

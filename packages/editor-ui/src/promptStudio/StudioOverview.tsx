@@ -83,7 +83,9 @@ export function StudioOverview({ project, onNavigate, onProjectUpdated }: Studio
             title="Set in Settings"
           >
             <span className="prompt-studio-stat-value">{totalLengthSeconds}s</span>
-            <span className="prompt-studio-stat-label">target length ({clipLengthSeconds}s/clip → {targetClipCount} clips)</span>
+            <span className="prompt-studio-stat-label">
+              target length ({clipLengthSeconds}s/clip → {targetClipCount} clips)
+            </span>
           </button>
           <div className="prompt-studio-stat">
             <span className="prompt-studio-stat-value">{slots.length}</span>

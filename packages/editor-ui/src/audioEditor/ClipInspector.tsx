@@ -55,7 +55,9 @@ export function ClipInspector({
 
   return (
     <section className="ie-section ae-inspector">
-      <h3>Clip {orderIndex} — {source.name}</h3>
+      <h3>
+        Clip {orderIndex} — {source.name}
+      </h3>
 
       <label className="field">
         <span>Name</span>
@@ -75,19 +77,10 @@ export function ClipInspector({
       </label>
 
       <div className="inline-fields ae-fields">
-        <TimeField
-          label="Start (s)"
-          seconds={clip.startSec}
-          min={0}
-          max={100000}
-          onCommit={(v) => onChange({ startSec: v })}
-        />
+        <TimeField label="Start (s)" seconds={clip.startSec} min={0} max={100000} onCommit={(v) => onChange({ startSec: v })} />
         <label className="field">
           <span>Lane</span>
-          <select
-            value={clip.laneIndex}
-            onChange={(e) => onChange({ laneIndex: Number(e.target.value) })}
-          >
+          <select value={clip.laneIndex} onChange={(e) => onChange({ laneIndex: Number(e.target.value) })}>
             {Array.from({ length: laneCount }, (_, i) => (
               <option key={i} value={i}>
                 {i + 1}
@@ -188,7 +181,12 @@ export function ClipInspector({
         <button type="button" className="ae-danger" onClick={onDelete}>
           Delete clip
         </button>
-        <button type="button" className="ae-danger" onClick={onRippleDelete} title="Delete this clip and shift everything after it left, across all lanes">
+        <button
+          type="button"
+          className="ae-danger"
+          onClick={onRippleDelete}
+          title="Delete this clip and shift everything after it left, across all lanes"
+        >
           Ripple delete
         </button>
       </div>

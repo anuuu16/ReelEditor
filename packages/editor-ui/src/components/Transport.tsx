@@ -84,22 +84,10 @@ export function Transport() {
       >
         ↷
       </button>
-      <button
-        type="button"
-        className="icon-button"
-        onClick={handleSplit}
-        disabled={!state.selectedClipId}
-        title="Split at playhead (S)"
-      >
+      <button type="button" className="icon-button" onClick={handleSplit} disabled={!state.selectedClipId} title="Split at playhead (S)">
         Split
       </button>
-      <button
-        type="button"
-        className="icon-button"
-        onClick={handleMerge}
-        disabled={!canMerge}
-        title="Merge with next clip"
-      >
+      <button type="button" className="icon-button" onClick={handleMerge} disabled={!canMerge} title="Merge with next clip">
         Merge
       </button>
       <button

@@ -25,11 +25,7 @@ function parseFrame(rawFrame: string, onEvent: (type: string, data: unknown) => 
   }
 }
 
-export async function streamStudioGenerate(
-  url: string,
-  body: unknown,
-  handlers: StreamStudioGenerateHandlers
-): Promise<void> {
+export async function streamStudioGenerate(url: string, body: unknown, handlers: StreamStudioGenerateHandlers): Promise<void> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

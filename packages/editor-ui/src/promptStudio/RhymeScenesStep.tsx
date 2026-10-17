@@ -53,7 +53,7 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
   // some, then removes it" symptom.
   function applyReel(reel: RhymeReel) {
     const versions = slot.versions.map((v, idx) =>
-      idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: reel } } : v
+      idx === slot.activeVersionIndex ? { ...v, reels: { ...v.reels, [reelLanguage]: reel } } : v,
     );
     onChange({ ...slot, versions });
   }
@@ -151,150 +151,156 @@ export function RhymeScenesStep({ project, slot, onChange }: RhymeScenesStepProp
 
   return (
     <>
-    <Card>
-      <div className="mb-3.5 flex flex-wrap items-end gap-3">
-        <SelectField
-          label="Build reel for"
-          value={reelLanguage}
-          onChange={setReelLanguage}
-          options={languages.map((language) => ({ value: language, label: language }))}
-          className="min-w-[160px]"
-        />
-        <Button variant="primary" disabled={isBuildingReel} onClick={handleMakeReel}>
-          {isBuildingReel ? reelProgress || "Building..." : currentReel ? "Regenerate scenes" : "Generate scenes"}
-        </Button>
-      </div>
-
-      {accounts.length > 0 && (
-        <div className="mb-3.5 flex flex-col gap-1.5">
-          <p className="text-xs text-ps-muted">
-            {timed.length} scene{timed.length === 1 ? "" : "s"} across {accounts.length} Flow account{accounts.length === 1 ? "" : "s"}
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {accounts.map((a) => {
-              const accountPrompts = currentReel?.scenePrompts.slice(a.sceneRange[0] - 1, a.sceneRange[1]) ?? [];
-              return (
-                <div key={a.account} className="flex items-center gap-1.5 rounded-ps border border-ps-border px-2 py-1 text-xs text-ps-muted">
-                  <span>
-                    Account {a.account}: scenes {a.sceneRange[0]}-{a.sceneRange[1]} ({a.clips})
-                  </span>
-                  <CopyButton text={accountPrompts.join("\n\n")} label="Copy" disabled={accountPrompts.length === 0} />
-                </div>
-              );
-            })}
-          </div>
+      <Card>
+        <div className="mb-3.5 flex flex-wrap items-end gap-3">
+          <SelectField
+            label="Build reel for"
+            value={reelLanguage}
+            onChange={setReelLanguage}
+            options={languages.map((language) => ({ value: language, label: language }))}
+            className="min-w-[160px]"
+          />
+          <Button variant="primary" disabled={isBuildingReel} onClick={handleMakeReel}>
+            {isBuildingReel ? reelProgress || "Building..." : currentReel ? "Regenerate scenes" : "Generate scenes"}
+          </Button>
         </div>
-      )}
 
-      {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
-
-      {currentReel ? (
-        <div className="rhyme-reel">
-          <div className="rhyme-reel-card rhyme-reel-master">
-            <div className="rhyme-reel-card-header">
-              <span>Master style bible</span>
-              <CopyButton text={currentReel.master} label="Copy" />
+        {accounts.length > 0 && (
+          <div className="mb-3.5 flex flex-col gap-1.5">
+            <p className="text-xs text-ps-muted">
+              {timed.length} scene{timed.length === 1 ? "" : "s"} across {accounts.length} Flow account{accounts.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {accounts.map((a) => {
+                const accountPrompts = currentReel?.scenePrompts.slice(a.sceneRange[0] - 1, a.sceneRange[1]) ?? [];
+                return (
+                  <div
+                    key={a.account}
+                    className="flex items-center gap-1.5 rounded-ps border border-ps-border px-2 py-1 text-xs text-ps-muted"
+                  >
+                    <span>
+                      Account {a.account}: scenes {a.sceneRange[0]}-{a.sceneRange[1]} ({a.clips})
+                    </span>
+                    <CopyButton text={accountPrompts.join("\n\n")} label="Copy" disabled={accountPrompts.length === 0} />
+                  </div>
+                );
+              })}
             </div>
-            <TextareaField
-              label=""
-              rows={4}
-              value={currentReel.master}
-              onChange={(value) => updateReelField({ master: value })}
+          </div>
+        )}
+
+        {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
+
+        {currentReel ? (
+          <div className="rhyme-reel">
+            <div className="rhyme-reel-card rhyme-reel-master">
+              <div className="rhyme-reel-card-header">
+                <span>Master style bible</span>
+                <CopyButton text={currentReel.master} label="Copy" />
+              </div>
+              <TextareaField label="" rows={4} value={currentReel.master} onChange={(value) => updateReelField({ master: value })} />
+            </div>
+
+            {currentReel.characterPrompt && (
+              <div className="rhyme-reel-card rhyme-reel-character">
+                <div className="rhyme-reel-card-header">
+                  <span>Character reference</span>
+                  <CopyButton text={currentReel.characterPrompt} label="Copy" />
+                </div>
+                <TextareaField
+                  label=""
+                  rows={4}
+                  value={currentReel.characterPrompt}
+                  onChange={(value) => updateReelField({ characterPrompt: value })}
+                />
+              </div>
+            )}
+
+            {currentReel.coverPrompt && (
+              <div className="rhyme-reel-card rhyme-reel-cover">
+                <div className="rhyme-reel-card-header">
+                  <span>Cover / thumbnail</span>
+                  <CopyButton text={currentReel.coverPrompt} label="Copy" />
+                </div>
+                <TextareaField
+                  label=""
+                  rows={4}
+                  value={currentReel.coverPrompt}
+                  onChange={(value) => updateReelField({ coverPrompt: value })}
+                />
+              </div>
+            )}
+
+            {currentReel.scenePrompts.map((prompt, i) => (
+              <div key={i} className="rhyme-reel-card rhyme-reel-scene">
+                <div className="rhyme-reel-card-header">
+                  <span>
+                    Scene {i + 1} ({formatMmSs(timed[i]?.start ?? 0)} - {formatMmSs(timed[i]?.end ?? 0)}) · Account{" "}
+                    {accountForScene(accounts, i + 1)}
+                  </span>
+                  <CopyButton text={prompt} label="Copy" />
+                </div>
+                <p className="text-xs text-ps-muted">{timed[i]?.lines[reelLanguage]}</p>
+                <TextareaField label="" rows={3} value={prompt} onChange={(value) => updateScenePrompt(i, value)} />
+              </div>
+            ))}
+
+            {currentReel.caption && (
+              <div className="rhyme-reel-card rhyme-reel-caption">
+                <div className="rhyme-reel-card-header">
+                  <span>Caption</span>
+                  <CopyButton text={currentReel.caption} label="Copy" />
+                </div>
+                <TextareaField label="" rows={2} value={currentReel.caption} onChange={(value) => updateReelField({ caption: value })} />
+              </div>
+            )}
+
+            <CopyButton
+              text={[
+                currentReel.master,
+                currentReel.characterPrompt,
+                currentReel.coverPrompt,
+                ...currentReel.scenePrompts,
+                currentReel.caption,
+              ]
+                .filter(Boolean)
+                .join("\n\n")}
+              label="Copy full reel brief"
             />
           </div>
+        ) : (
+          <p className="text-xs text-ps-muted">No scene prompts yet for {reelLanguage} — generate them from the lyrics above.</p>
+        )}
+      </Card>
 
-          {currentReel.characterPrompt && (
-            <div className="rhyme-reel-card rhyme-reel-character">
-              <div className="rhyme-reel-card-header">
-                <span>Character reference</span>
-                <CopyButton text={currentReel.characterPrompt} label="Copy" />
-              </div>
-              <TextareaField
-                label=""
-                rows={4}
-                value={currentReel.characterPrompt}
-                onChange={(value) => updateReelField({ characterPrompt: value })}
-              />
-            </div>
-          )}
-
-          {currentReel.coverPrompt && (
-            <div className="rhyme-reel-card rhyme-reel-cover">
-              <div className="rhyme-reel-card-header">
-                <span>Cover / thumbnail</span>
-                <CopyButton text={currentReel.coverPrompt} label="Copy" />
-              </div>
-              <TextareaField
-                label=""
-                rows={4}
-                value={currentReel.coverPrompt}
-                onChange={(value) => updateReelField({ coverPrompt: value })}
-              />
-            </div>
-          )}
-
-          {currentReel.scenePrompts.map((prompt, i) => (
-            <div key={i} className="rhyme-reel-card rhyme-reel-scene">
-              <div className="rhyme-reel-card-header">
-                <span>
-                  Scene {i + 1} ({formatMmSs(timed[i]?.start ?? 0)} - {formatMmSs(timed[i]?.end ?? 0)}) · Account{" "}
-                  {accountForScene(accounts, i + 1)}
-                </span>
-                <CopyButton text={prompt} label="Copy" />
-              </div>
-              <p className="text-xs text-ps-muted">{timed[i]?.lines[reelLanguage]}</p>
-              <TextareaField label="" rows={3} value={prompt} onChange={(value) => updateScenePrompt(i, value)} />
-            </div>
-          ))}
-
-          {currentReel.caption && (
-            <div className="rhyme-reel-card rhyme-reel-caption">
-              <div className="rhyme-reel-card-header">
-                <span>Caption</span>
-                <CopyButton text={currentReel.caption} label="Copy" />
-              </div>
-              <TextareaField
-                label=""
-                rows={2}
-                value={currentReel.caption}
-                onChange={(value) => updateReelField({ caption: value })}
-              />
-            </div>
-          )}
-
-          <CopyButton
-            text={[currentReel.master, currentReel.characterPrompt, currentReel.coverPrompt, ...currentReel.scenePrompts, currentReel.caption]
-              .filter(Boolean)
-              .join("\n\n")}
-            label="Copy full reel brief"
-          />
+      <Card
+        title="Use any AI chat"
+        hint="Copy this prompt into Claude, ChatGPT, or anywhere else, then paste back the JSON it gives you as the reel for this language."
+      >
+        <TextareaField
+          label="Prompt to copy into any AI chat"
+          rows={6}
+          readOnly
+          value={reelPromptTemplate}
+          onChange={() => {}}
+          className="mb-2"
+        />
+        <div className="mb-3.5">
+          <CopyButton text={reelPromptTemplate} label="Copy prompt" />
         </div>
-      ) : (
-        <p className="text-xs text-ps-muted">No scene prompts yet for {reelLanguage} — generate them from the lyrics above.</p>
-      )}
-    </Card>
-
-    <Card
-      title="Use any AI chat"
-      hint="Copy this prompt into Claude, ChatGPT, or anywhere else, then paste back the JSON it gives you as the reel for this language."
-    >
-      <TextareaField label="Prompt to copy into any AI chat" rows={6} readOnly value={reelPromptTemplate} onChange={() => {}} className="mb-2" />
-      <div className="mb-3.5">
-        <CopyButton text={reelPromptTemplate} label="Copy prompt" />
-      </div>
-      <TextareaField
-        label="Paste the JSON it gives you back"
-        rows={6}
-        value={pasteText}
-        onChange={setPasteText}
-        placeholder='{"master":"...","characterPrompt":"...","coverPrompt":"...","scenePrompts":["...", ...],"caption":"..."}'
-        className="mb-3.5"
-      />
-      <Button variant="primary" onClick={handleImportReel} disabled={!pasteText.trim()}>
-        Import reel
-      </Button>
-      {pasteError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{pasteError}</p>}
-    </Card>
+        <TextareaField
+          label="Paste the JSON it gives you back"
+          rows={6}
+          value={pasteText}
+          onChange={setPasteText}
+          placeholder='{"master":"...","characterPrompt":"...","coverPrompt":"...","scenePrompts":["...", ...],"caption":"..."}'
+          className="mb-3.5"
+        />
+        <Button variant="primary" onClick={handleImportReel} disabled={!pasteText.trim()}>
+          Import reel
+        </Button>
+        {pasteError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{pasteError}</p>}
+      </Card>
     </>
   );
 }

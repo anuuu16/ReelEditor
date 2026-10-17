@@ -87,13 +87,7 @@ export function CropStage({ src, crop, onChange }: CropStageProps) {
   return (
     <div className="crop-stage" ref={stageRef}>
       <img src={src} alt="" draggable={false} />
-      <div
-        className="crop-rect"
-        style={style}
-        onPointerDown={(e) => begin("move", e)}
-        onPointerMove={handleMove}
-        onPointerUp={handleUp}
-      >
+      <div className="crop-rect" style={style} onPointerDown={(e) => begin("move", e)} onPointerMove={handleMove} onPointerUp={handleUp}>
         {(["nw", "ne", "sw", "se"] as DragMode[]).map((corner) => (
           <span
             key={corner}

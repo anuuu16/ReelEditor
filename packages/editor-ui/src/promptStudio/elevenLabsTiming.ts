@@ -17,10 +17,7 @@ interface ElevenLabsTimestampsResponse {
 function isAlignment(v: unknown): v is ElevenLabsAlignment {
   const a = v as ElevenLabsAlignment | null;
   return (
-    !!a &&
-    Array.isArray(a.characters) &&
-    Array.isArray(a.character_start_times_seconds) &&
-    Array.isArray(a.character_end_times_seconds)
+    !!a && Array.isArray(a.characters) && Array.isArray(a.character_start_times_seconds) && Array.isArray(a.character_end_times_seconds)
   );
 }
 

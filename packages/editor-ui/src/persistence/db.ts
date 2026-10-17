@@ -48,11 +48,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-async function runTransaction<T>(
-  storeName: string,
-  mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest<T>
-): Promise<T> {
+async function runTransaction<T>(storeName: string, mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
@@ -150,7 +146,7 @@ export async function saveAudioProject(project: PersistedAudioProject): Promise<
 
 export async function loadAudioProject(): Promise<PersistedAudioProject | null> {
   const result = await runTransaction<PersistedAudioProject | undefined>(AUDIO_PROJECT_STORE, "readonly", (store) =>
-    store.get(PROJECT_KEY)
+    store.get(PROJECT_KEY),
   );
   return result ?? null;
 }

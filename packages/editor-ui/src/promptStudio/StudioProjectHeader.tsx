@@ -119,7 +119,9 @@ export function StudioProjectHeader({ project, onPatch }: StudioProjectHeaderPro
           className="min-w-[180px] flex-1"
         />
 
-        <p className="text-xs text-ps-muted">≈ {clipCount} clip{clipCount === 1 ? "" : "s"}</p>
+        <p className="text-xs text-ps-muted">
+          ≈ {clipCount} clip{clipCount === 1 ? "" : "s"}
+        </p>
       </div>
 
       <div className="mb-3.5 flex flex-wrap gap-3">

@@ -8,8 +8,7 @@
     "build": "tsc -b",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0",
-    "lint": "echo \"no lint config yet\" && exit 0"
+    "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
@@ -25,8 +24,5 @@
     "@types/node": "^22.9.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
-  },
-  "optionalDependencies": {
-    "@ffmpeg-installer/ffmpeg": "^1.1.0"
   }
 }

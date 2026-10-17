@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type { ClipFilter, FitMode } from "@reel-studio/shared-types";
-import {
-  ASPECT_RATIO_PRESETS,
-  applyFilterPreset,
-  NEUTRAL_FILTER,
-  type FilterPresetName,
-} from "@reel-studio/timeline-core";
+import { ASPECT_RATIO_PRESETS, applyFilterPreset, NEUTRAL_FILTER, type FilterPresetName } from "@reel-studio/timeline-core";
 import { saveImageToGallery } from "./persistence/db.js";
 import { CropStage, FULL_CROP } from "./imageEditor/CropStage.js";
 import { SliderField } from "./imageEditor/SliderField.js";
@@ -119,9 +114,7 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
 
-  const croppedLongEdge = imageEl
-    ? Math.max(imageEl.naturalWidth * crop.width, imageEl.naturalHeight * crop.height)
-    : 0;
+  const croppedLongEdge = imageEl ? Math.max(imageEl.naturalWidth * crop.width, imageEl.naturalHeight * crop.height) : 0;
   const targetLongEdge = Math.max(width, height);
   const willUpscale = croppedLongEdge > 0 && targetLongEdge > croppedLongEdge;
 
@@ -596,7 +589,15 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
             </label>
 
             {backgroundMode === "blur" && (
-              <SliderField label="Blur amount" value={backgroundBlur} min={0} max={80} step={1} onChange={setBackgroundBlur} format={(v) => `${v}px`} />
+              <SliderField
+                label="Blur amount"
+                value={backgroundBlur}
+                min={0}
+                max={80}
+                step={1}
+                onChange={setBackgroundBlur}
+                format={(v) => `${v}px`}
+              />
             )}
 
             {backgroundMode === "image" && (
@@ -655,8 +656,24 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
               onChange={(v) => updateFilter({ saturation: v })}
               format={(v) => `${Math.round(v * 100)}%`}
             />
-            <SliderField label="Hue" value={filter.hue} min={-180} max={180} step={1} onChange={(v) => updateFilter({ hue: v })} format={(v) => `${v}°`} />
-            <SliderField label="Blur" value={extras.blur} min={0} max={20} step={0.5} onChange={(v) => updateExtras({ blur: v })} format={(v) => `${v}px`} />
+            <SliderField
+              label="Hue"
+              value={filter.hue}
+              min={-180}
+              max={180}
+              step={1}
+              onChange={(v) => updateFilter({ hue: v })}
+              format={(v) => `${v}°`}
+            />
+            <SliderField
+              label="Blur"
+              value={extras.blur}
+              min={0}
+              max={20}
+              step={0.5}
+              onChange={(v) => updateExtras({ blur: v })}
+              format={(v) => `${v}px`}
+            />
             <SliderField
               label="Sepia"
               value={extras.sepia}
@@ -696,12 +713,28 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
           </Section>
 
           <Section title="Frame">
-            <SliderField label="Border width" value={borderWidth} min={0} max={80} step={1} onChange={setBorderWidth} format={(v) => `${v}px`} />
+            <SliderField
+              label="Border width"
+              value={borderWidth}
+              min={0}
+              max={80}
+              step={1}
+              onChange={setBorderWidth}
+              format={(v) => `${v}px`}
+            />
             <label className="field">
               <span>Border color</span>
               <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)} />
             </label>
-            <SliderField label="Corner radius" value={cornerRadius} min={0} max={100} step={1} onChange={setCornerRadius} format={(v) => `${v}%`} />
+            <SliderField
+              label="Corner radius"
+              value={cornerRadius}
+              min={0}
+              max={100}
+              step={1}
+              onChange={setCornerRadius}
+              format={(v) => `${v}%`}
+            />
           </Section>
 
           <Section title="Watermark">
@@ -761,7 +794,15 @@ export function ImageEditor({ onBack }: ImageEditorProps) {
               ))}
             </div>
             {FORMAT_INFO[format].lossy && (
-              <SliderField label="Quality" value={quality} min={0.1} max={1} step={0.01} onChange={setQuality} format={(v) => `${Math.round(v * 100)}%`} />
+              <SliderField
+                label="Quality"
+                value={quality}
+                min={0.1}
+                max={1}
+                step={0.01}
+                onChange={setQuality}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
             )}
             <p className="hint">
               Output: {width}×{height} {FORMAT_INFO[format].label}

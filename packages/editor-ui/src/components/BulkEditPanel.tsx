@@ -56,7 +56,7 @@ export function BulkEditPanel() {
   const commonFitMode = clips.length && clips.every((c) => c.fitMode === clips[0].fitMode) ? clips[0].fitMode : null;
   const commonPreset =
     clips.length && clips.every((c) => (c.filter.preset ?? "none") === (clips[0].filter.preset ?? "none"))
-      ? clips[0].filter.preset ?? "none"
+      ? (clips[0].filter.preset ?? "none")
       : null;
   // A track's last clip has no next clip to transition into, so it's excluded from this average/common
   // calculation the same way ClipInspector hides the field entirely for a single last clip.
@@ -94,7 +94,9 @@ export function BulkEditPanel() {
         </div>
       </div>
 
-      <p className="hint">{clips.length} clip{clips.length === 1 ? "" : "s"} on this track.</p>
+      <p className="hint">
+        {clips.length} clip{clips.length === 1 ? "" : "s"} on this track.
+      </p>
 
       <div className="field">
         <span>Mute</span>
@@ -102,11 +104,7 @@ export function BulkEditPanel() {
           <button type="button" disabled={clips.length === 0} onClick={() => dispatch({ type: "BULK_MUTE", trackId, muted: true })}>
             Mute all
           </button>
-          <button
-            type="button"
-            disabled={clips.length === 0}
-            onClick={() => dispatch({ type: "BULK_MUTE", trackId, muted: false })}
-          >
+          <button type="button" disabled={clips.length === 0} onClick={() => dispatch({ type: "BULK_MUTE", trackId, muted: false })}>
             Unmute all
           </button>
         </div>
@@ -243,7 +241,10 @@ export function BulkEditPanel() {
           </div>
 
           <label className="field">
-            <span>Brightness (all) — {avgBrightness > 0 ? "+" : ""}{Math.round(avgBrightness * 100)}</span>
+            <span>
+              Brightness (all) — {avgBrightness > 0 ? "+" : ""}
+              {Math.round(avgBrightness * 100)}
+            </span>
             <input
               type="range"
               min={-0.5}

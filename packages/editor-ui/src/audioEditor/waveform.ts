@@ -66,11 +66,7 @@ export function computePeakAmplitude(buffer: AudioBuffer, startSec = 0, endSec =
 // First/last sample times (seconds) whose level rises above `thresholdDb` (relative to full scale),
 // with a small pad so a hard onset isn't clipped. Returns the whole buffer's span when it never
 // crosses the threshold. Drives "trim leading/trailing silence".
-export function detectSilenceBounds(
-  buffer: AudioBuffer,
-  thresholdDb: number,
-  padSeconds = 0.05
-): { startSec: number; endSec: number } {
+export function detectSilenceBounds(buffer: AudioBuffer, thresholdDb: number, padSeconds = 0.05): { startSec: number; endSec: number } {
   const threshold = Math.pow(10, thresholdDb / 20);
   const sampleRate = buffer.sampleRate;
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));

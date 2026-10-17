@@ -60,9 +60,7 @@ export function ProjectsPanel() {
   }
 
   function handleNew() {
-    const proceed = window.confirm(
-      "Start a new project? Save the current one first if you want to keep it in a folder."
-    );
+    const proceed = window.confirm("Start a new project? Save the current one first if you want to keep it in a folder.");
     if (!proceed) return;
     dispatch({ type: "LOAD_PROJECT", project: createInitialProject() });
     setIsOpen(false);
@@ -110,9 +108,7 @@ export function ProjectsPanel() {
           {realProjects.length === 0 && <p className="hint">No saved projects yet.</p>}
           {realProjects.map((p) => (
             <li key={p.id} className="project-list-item">
-              <div className="project-list-thumb">
-                {p.thumbnailDataUrl && <img src={p.thumbnailDataUrl} alt="" />}
-              </div>
+              <div className="project-list-thumb">{p.thumbnailDataUrl && <img src={p.thumbnailDataUrl} alt="" />}</div>
               <div className="project-list-info">
                 <span className="project-list-name">{p.name || "Untitled reel"}</span>
                 <span className="project-list-meta">
@@ -141,9 +137,7 @@ export function ProjectsPanel() {
           {templates.length === 0 && <p className="hint">No saved templates yet — "Save as template" turns any project into one.</p>}
           {templates.map((p) => (
             <li key={p.id} className="project-list-item">
-              <div className="project-list-thumb">
-                {p.thumbnailDataUrl && <img src={p.thumbnailDataUrl} alt="" />}
-              </div>
+              <div className="project-list-thumb">{p.thumbnailDataUrl && <img src={p.thumbnailDataUrl} alt="" />}</div>
               <div className="project-list-info">
                 <span className="project-list-name">{p.name || "Untitled template"}</span>
                 <span className="project-list-meta">

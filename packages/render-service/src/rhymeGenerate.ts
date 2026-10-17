@@ -299,7 +299,7 @@ export async function fixPoemTimeline(p: FixTimelineParams): Promise<{ scenes: S
     buildFixTimelinePrompt(p),
     makeIsScenesResult(p.scenes),
     3,
-    estimateFixTimelineMaxTokens(p)
+    estimateFixTimelineMaxTokens(p),
   );
   return { scenes: forceSceneDurations(result.scenes, p.clipLengthSeconds) };
 }
@@ -342,7 +342,7 @@ export async function generateReelMaster(p: ReelMasterParams): Promise<{ master:
   return callLlmJson<{ master: string }>(
     RHYME_SYSTEM,
     buildReelMasterPrompt(p),
-    (o): o is { master: string } => !!(o && typeof (o as { master?: unknown }).master === "string")
+    (o): o is { master: string } => !!(o && typeof (o as { master?: unknown }).master === "string"),
   );
 }
 
@@ -366,7 +366,7 @@ export async function generateReelCharacter(p: ReelCharacterParams): Promise<{ p
   return callLlmJson<{ prompt: string }>(
     RHYME_SYSTEM,
     buildReelCharacterPrompt(p),
-    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string")
+    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string"),
   );
 }
 
@@ -383,7 +383,7 @@ export async function generateReelCover(p: ReelCoverParams): Promise<{ prompt: s
   return callLlmJson<{ prompt: string }>(
     RHYME_SYSTEM,
     buildReelCoverPrompt(p),
-    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string")
+    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string"),
   );
 }
 
@@ -410,7 +410,7 @@ export async function generateReelScene(p: ReelSceneParams): Promise<{ prompt: s
   return callLlmJson<{ prompt: string }>(
     RHYME_SYSTEM,
     buildReelScenePrompt(p),
-    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string")
+    (o): o is { prompt: string } => !!(o && typeof (o as { prompt?: unknown }).prompt === "string"),
   );
 }
 
@@ -425,6 +425,6 @@ export async function generateReelCaption(p: ReelCaptionParams): Promise<{ capti
   return callLlmJson<{ caption: string }>(
     RHYME_SYSTEM,
     buildReelCaptionPrompt(p),
-    (o): o is { caption: string } => !!(o && typeof (o as { caption?: unknown }).caption === "string")
+    (o): o is { caption: string } => !!(o && typeof (o as { caption?: unknown }).caption === "string"),
   );
 }

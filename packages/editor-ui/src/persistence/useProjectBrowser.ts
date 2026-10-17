@@ -1,11 +1,6 @@
 import { useState } from "react";
 import type { ProjectModel } from "@reel-studio/shared-types";
-import {
-  deleteProjectFromServer,
-  listProjectsFromServer,
-  loadProjectFromServer,
-  type ProjectSummary,
-} from "./projectServer.js";
+import { deleteProjectFromServer, listProjectsFromServer, loadProjectFromServer, type ProjectSummary } from "./projectServer.js";
 
 export function formatProjectDate(ms: number): string {
   if (!ms) return "";

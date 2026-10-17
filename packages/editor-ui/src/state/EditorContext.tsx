@@ -35,7 +35,7 @@ export function EditorProvider({ children, initialProject }: EditorProviderProps
       masterMuted: false,
       masterVolume: 1,
       activeAudioTrackId: AUDIO_TRACK_ID,
-    })
+    }),
   );
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function EditorProvider({ children, initialProject }: EditorProviderProps
             return { ...source, previewUrl: "" };
           }
           return { ...source, previewUrl: URL.createObjectURL(blob) };
-        })
+        }),
       );
       dispatch({ type: "LOAD_PROJECT", project: { ...saved, sources: hydratedSources } });
     })().catch((err) => console.error("Failed to load saved project", err));

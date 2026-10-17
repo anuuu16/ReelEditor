@@ -26,8 +26,7 @@ export function OverlayBlock({ overlay, pixelsPerSecond }: OverlayBlockProps) {
   const dispatch = useEditorDispatch();
   const isSelected = state.selectedOverlayId === overlay.id;
   const dragRef = useRef<DragState | null>(null);
-  const imageSource =
-    overlay.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
+  const imageSource = overlay.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
 
   function handleSelect(e: MouseEvent) {
     e.stopPropagation();

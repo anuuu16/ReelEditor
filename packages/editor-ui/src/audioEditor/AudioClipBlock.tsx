@@ -85,7 +85,7 @@ export function AudioClipBlock({
 
   const peaks = useMemo(
     () => peaksFromChannel(sliceChannelData(source, clip.trimStartSec, clip.trimEndSec), canvasCols),
-    [source, clip.trimStartSec, clip.trimEndSec, canvasCols]
+    [source, clip.trimStartSec, clip.trimEndSec, canvasCols],
   );
 
   useEffect(() => {
@@ -285,7 +285,7 @@ export function AudioClipBlock({
               Delete
             </button>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );

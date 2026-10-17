@@ -7,7 +7,7 @@ const sourcePaths = { "src-1": "/tmp/clip.mp4" };
 describe("buildFfmpegPlan", () => {
   it("refuses a project with no video clips", () => {
     expect(() => buildFfmpegPlan({ project: makeProject({ clips: [] }), sourcePaths })).toThrow(
-      "Add at least one video clip before exporting."
+      "Add at least one video clip before exporting.",
     );
   });
 

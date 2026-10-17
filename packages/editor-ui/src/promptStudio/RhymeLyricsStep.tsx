@@ -77,7 +77,9 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
   // scene blocks as the video timeline (joined by a pause cue) with each block tagged for tone —
   // chorus lines consistently, everything else by the poem's style — instead of one untagged blob.
   function wholePoemPromptText(language: string): string {
-    return timed.map((seg) => voicePromptText(seg.lines[language] ?? "", slot.params.style, isChorusLine(language, seg.lines[language] ?? ""))).join(SCENE_BOUNDARY_PAUSE);
+    return timed
+      .map((seg) => voicePromptText(seg.lines[language] ?? "", slot.params.style, isChorusLine(language, seg.lines[language] ?? "")))
+      .join(SCENE_BOUNDARY_PAUSE);
   }
 
   function updatePoemField(patch: { titles?: Record<string, string>; poems?: Record<string, string> }) {
@@ -91,7 +93,7 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
               poems: patch.poems ? { ...v.poem.poems, ...patch.poems } : v.poem.poems,
             },
           }
-        : v
+        : v,
     );
     onChange({ ...slot, versions });
   }
@@ -182,7 +184,7 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
       setTimingResult(
         unmatchedCount === 0
           ? `Retimed all ${matchedCount} scenes from the real audio.`
-          : `Retimed ${matchedCount} scene${matchedCount === 1 ? "" : "s"}; ${unmatchedCount} couldn't be found in the audio (kept its existing timing) — likely the lyrics were edited after this audio was generated.`
+          : `Retimed ${matchedCount} scene${matchedCount === 1 ? "" : "s"}; ${unmatchedCount} couldn't be found in the audio (kept its existing timing) — likely the lyrics were edited after this audio was generated.`,
       );
       setTimingPasteText("");
     } catch (err) {
@@ -192,156 +194,156 @@ export function RhymeLyricsStep({ slot, onChange }: RhymeLyricsStepProps) {
 
   return (
     <>
-    <Card>
-      <div className="rhyme-poem-card-header">
-        <input
-          className="flex-1 rounded-ps border border-transparent bg-transparent px-1.5 py-1 text-base font-semibold text-ps-text hover:border-ps-border hover:bg-ps-elevated focus:border-ps-border focus:bg-ps-elevated focus:outline-none"
-          type="text"
-          value={primaryTitle}
-          onChange={(e) => updatePoemField({ titles: { [languages[0]]: e.target.value } })}
-          placeholder="Untitled poem"
-        />
-        {slot.versions.length > 1 && (
-          <div className="rhyme-version-pager">
-            <Button
-              variant="ghost"
-              className="!px-1.5 !py-1"
-              disabled={slot.activeVersionIndex === 0}
-              onClick={() => setActiveVersionIndex(slot.activeVersionIndex - 1)}
-            >
-              ‹
-            </Button>
-            <span>
-              {version.label} ({slot.activeVersionIndex + 1}/{slot.versions.length})
-            </span>
-            <Button
-              variant="ghost"
-              className="!px-1.5 !py-1"
-              disabled={slot.activeVersionIndex === slot.versions.length - 1}
-              onClick={() => setActiveVersionIndex(slot.activeVersionIndex + 1)}
-            >
-              ›
-            </Button>
-            <Button
-              variant="ghost"
-              className="!px-1.5 !py-1"
-              title="Delete this version"
-              onClick={() => {
-                if (window.confirm(`Delete the "${version.label}" version? This can't be undone.`)) {
-                  deleteVersion(slot.activeVersionIndex);
-                }
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        )}
-      </div>
+      <Card>
+        <div className="rhyme-poem-card-header">
+          <input
+            className="flex-1 rounded-ps border border-transparent bg-transparent px-1.5 py-1 text-base font-semibold text-ps-text hover:border-ps-border hover:bg-ps-elevated focus:border-ps-border focus:bg-ps-elevated focus:outline-none"
+            type="text"
+            value={primaryTitle}
+            onChange={(e) => updatePoemField({ titles: { [languages[0]]: e.target.value } })}
+            placeholder="Untitled poem"
+          />
+          {slot.versions.length > 1 && (
+            <div className="rhyme-version-pager">
+              <Button
+                variant="ghost"
+                className="!px-1.5 !py-1"
+                disabled={slot.activeVersionIndex === 0}
+                onClick={() => setActiveVersionIndex(slot.activeVersionIndex - 1)}
+              >
+                ‹
+              </Button>
+              <span>
+                {version.label} ({slot.activeVersionIndex + 1}/{slot.versions.length})
+              </span>
+              <Button
+                variant="ghost"
+                className="!px-1.5 !py-1"
+                disabled={slot.activeVersionIndex === slot.versions.length - 1}
+                onClick={() => setActiveVersionIndex(slot.activeVersionIndex + 1)}
+              >
+                ›
+              </Button>
+              <Button
+                variant="ghost"
+                className="!px-1.5 !py-1"
+                title="Delete this version"
+                onClick={() => {
+                  if (window.confirm(`Delete the "${version.label}" version? This can't be undone.`)) {
+                    deleteVersion(slot.activeVersionIndex);
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
+        </div>
 
-      {languages.map((language) => (
-        <TextareaField
-          key={language}
-          label={`Poem (${language})`}
-          rows={6}
-          value={poem.poems[language] ?? ""}
-          onChange={(value) => updatePoemField({ poems: { [language]: value } })}
-          className="mb-3.5"
-        />
-      ))}
+        {languages.map((language) => (
+          <TextareaField
+            key={language}
+            label={`Poem (${language})`}
+            rows={6}
+            value={poem.poems[language] ?? ""}
+            onChange={(value) => updatePoemField({ poems: { [language]: value } })}
+            className="mb-3.5"
+          />
+        ))}
 
-      {/* Whole-poem copy, for pasting into ElevenLabs (or any TTS) as one continuous narration —
+        {/* Whole-poem copy, for pasting into ElevenLabs (or any TTS) as one continuous narration —
           separate from the per-scene copies below, which are for generating audio scene by scene
           so each clip lines up with its matching video scene in the timeline. "Copy prompt" adds an
           [emotion] tag ElevenLabs' v3 model reads as delivery direction (not spoken aloud) — on any
           other TTS those brackets would be read out literally, so "Copy lyrics" (plain text, no
           tag) is the safe default and "Copy prompt" is opt-in for v3 specifically. */}
-      <div className="mb-1.5 flex flex-wrap gap-1.5">
-        {languages.map((language) => (
-          <CopyButton
-            key={language}
-            text={poem.poems[language] ?? ""}
-            label={`Copy ${language} lyrics`}
-            disabled={!(poem.poems[language] ?? "").trim()}
-          />
-        ))}
-        {languages.map((language) => (
-          <CopyButton
-            key={`${language}-prompt`}
-            text={wholePoemPromptText(language)}
-            label={`Copy ${language} prompt`}
-            title={`${language} lyrics split into the same scene blocks as the video timeline (pause cue between each), chorus lines consistently tagged — ElevenLabs v3 only, other TTS engines would read the [tags] aloud`}
-            disabled={!(poem.poems[language] ?? "").trim()}
-          />
-        ))}
-      </div>
-      <p className="mb-3.5 text-xs text-ps-muted">
-        "Prompt" splits the poem into the same scene blocks as the timeline below (pause cue between each) with
-        chorus lines consistently tagged for ElevenLabs v3 — use plain "lyrics" for any other TTS.
-      </p>
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
+          {languages.map((language) => (
+            <CopyButton
+              key={language}
+              text={poem.poems[language] ?? ""}
+              label={`Copy ${language} lyrics`}
+              disabled={!(poem.poems[language] ?? "").trim()}
+            />
+          ))}
+          {languages.map((language) => (
+            <CopyButton
+              key={`${language}-prompt`}
+              text={wholePoemPromptText(language)}
+              label={`Copy ${language} prompt`}
+              title={`${language} lyrics split into the same scene blocks as the video timeline (pause cue between each), chorus lines consistently tagged — ElevenLabs v3 only, other TTS engines would read the [tags] aloud`}
+              disabled={!(poem.poems[language] ?? "").trim()}
+            />
+          ))}
+        </div>
+        <p className="mb-3.5 text-xs text-ps-muted">
+          "Prompt" splits the poem into the same scene blocks as the timeline below (pause cue between each) with chorus lines consistently
+          tagged for ElevenLabs v3 — use plain "lyrics" for any other TTS.
+        </p>
 
-      <div className="rhyme-timeline">
-        <h4>Scenes ({formatMmSs(total)} total)</h4>
-        {timed.map((seg, i) => (
-          <div key={i} className="rhyme-timeline-row">
-            <span className="rhyme-timeline-range">
-              {formatMmSs(seg.start)} - {formatMmSs(seg.end)}
-            </span>
-            <div className="rhyme-timeline-lines">
-              {languages.map((language, langIndex) => (
-                <span key={language} className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>
-                  {seg.lines[language] ?? ""}
-                </span>
-              ))}
+        <div className="rhyme-timeline">
+          <h4>Scenes ({formatMmSs(total)} total)</h4>
+          {timed.map((seg, i) => (
+            <div key={i} className="rhyme-timeline-row">
+              <span className="rhyme-timeline-range">
+                {formatMmSs(seg.start)} - {formatMmSs(seg.end)}
+              </span>
+              <div className="rhyme-timeline-lines">
+                {languages.map((language, langIndex) => (
+                  <span key={language} className={langIndex > 0 ? "rhyme-timeline-lines2" : undefined}>
+                    {seg.lines[language] ?? ""}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
-        <Button disabled={isReworking !== null} onClick={() => handleRework("regenerate")}>
-          {isReworking === "regenerate" ? "Regenerating..." : "Regenerate"}
-        </Button>
-        <Button disabled={isReworking !== null} onClick={() => handleRework("optimize")}>
-          {isReworking === "optimize" ? "Optimizing..." : "Optimize rhythm"}
-        </Button>
-        <Button disabled={isReworking !== null} onClick={() => handleRework("enhance")}>
-          {isReworking === "enhance" ? "Enhancing..." : "Enhance"}
-        </Button>
-        <Button disabled={isFixingTimeline} onClick={handleFixTimeline} title="Re-splits into scenes without changing any words">
-          {isFixingTimeline ? "Fixing timeline..." : "Fix timeline"}
-        </Button>
-      </div>
+        <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
+          <Button disabled={isReworking !== null} onClick={() => handleRework("regenerate")}>
+            {isReworking === "regenerate" ? "Regenerating..." : "Regenerate"}
+          </Button>
+          <Button disabled={isReworking !== null} onClick={() => handleRework("optimize")}>
+            {isReworking === "optimize" ? "Optimizing..." : "Optimize rhythm"}
+          </Button>
+          <Button disabled={isReworking !== null} onClick={() => handleRework("enhance")}>
+            {isReworking === "enhance" ? "Enhancing..." : "Enhance"}
+          </Button>
+          <Button disabled={isFixingTimeline} onClick={handleFixTimeline} title="Re-splits into scenes without changing any words">
+            {isFixingTimeline ? "Fixing timeline..." : "Fix timeline"}
+          </Button>
+        </div>
 
-      {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
-    </Card>
+        {error && <p className="mb-3.5 whitespace-pre-wrap text-xs text-ps-danger">{error}</p>}
+      </Card>
 
-    <Card
-      title="Sync from real audio"
-      hint="Once you've generated audio from the prompt above and called ElevenLabs' with-timestamps endpoint, paste the response here to retime scenes to the real audio instead of a guess."
-    >
-      <div className="mb-3.5 flex flex-wrap items-end gap-3">
-        <SelectField
-          label="Language this audio is in"
-          value={timingLanguage}
-          onChange={setTimingLanguage}
-          options={languages.map((language) => ({ value: language, label: language }))}
-          className="min-w-[160px]"
+      <Card
+        title="Sync from real audio"
+        hint="Once you've generated audio from the prompt above and called ElevenLabs' with-timestamps endpoint, paste the response here to retime scenes to the real audio instead of a guess."
+      >
+        <div className="mb-3.5 flex flex-wrap items-end gap-3">
+          <SelectField
+            label="Language this audio is in"
+            value={timingLanguage}
+            onChange={setTimingLanguage}
+            options={languages.map((language) => ({ value: language, label: language }))}
+            className="min-w-[160px]"
+          />
+        </div>
+        <TextareaField
+          label="Paste ElevenLabs' with-timestamps response"
+          rows={6}
+          value={timingPasteText}
+          onChange={setTimingPasteText}
+          placeholder='{"alignment":{"characters":[...],"character_start_times_seconds":[...],"character_end_times_seconds":[...]}}'
+          className="mb-3.5"
         />
-      </div>
-      <TextareaField
-        label="Paste ElevenLabs' with-timestamps response"
-        rows={6}
-        value={timingPasteText}
-        onChange={setTimingPasteText}
-        placeholder='{"alignment":{"characters":[...],"character_start_times_seconds":[...],"character_end_times_seconds":[...]}}'
-        className="mb-3.5"
-      />
-      <Button variant="primary" onClick={handleImportTiming} disabled={!timingPasteText.trim()}>
-        Retime scenes from this audio
-      </Button>
-      {timingResult && <p className="mt-3 text-xs text-ps-muted">{timingResult}</p>}
-      {timingError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{timingError}</p>}
-    </Card>
+        <Button variant="primary" onClick={handleImportTiming} disabled={!timingPasteText.trim()}>
+          Retime scenes from this audio
+        </Button>
+        {timingResult && <p className="mt-3 text-xs text-ps-muted">{timingResult}</p>}
+        {timingError && <p className="mt-3 whitespace-pre-wrap text-xs text-ps-danger">{timingError}</p>}
+      </Card>
     </>
   );
 }

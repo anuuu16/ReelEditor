@@ -107,12 +107,8 @@ export function ClipBlock({ clip, index, pixelsPerSecond }: ClipBlockProps) {
       onClick={handleSelect}
       style={{ left: clip.timelineStart * pixelsPerSecond, width: widthPx }}
     >
-      {source?.kind === "video" && (
-        <ClipThumbnailStrip source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
-      )}
-      {source?.kind === "audio" && (
-        <ClipWaveform source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />
-      )}
+      {source?.kind === "video" && <ClipThumbnailStrip source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />}
+      {source?.kind === "audio" && <ClipWaveform source={source} inPoint={clip.inPoint} outPoint={clip.outPoint} widthPx={widthPx} />}
       {source?.kind === "image" && !source.isPlaceholder && (
         <div className="clip-image-fill">
           <img src={source.previewUrl} draggable={false} alt="" />

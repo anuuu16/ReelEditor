@@ -16,8 +16,7 @@ export function OverlayInspector() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const overlay = state.project.overlays.find((o) => o.id === state.selectedOverlayId) ?? null;
-  const imageSource =
-    overlay?.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
+  const imageSource = overlay?.kind === "image" ? state.project.sources.find((s) => s.id === overlay.imageSourceId) : undefined;
 
   if (!overlay) return null;
 
@@ -33,9 +32,7 @@ export function OverlayInspector() {
     <div className="clip-inspector">
       <h2>{overlay.kind === "image" ? "Logo / image" : "Title"}</h2>
 
-      {overlay.kind === "image" && (
-        <div className="clip-preview-thumb">{imageSource && <img src={imageSource.previewUrl} alt="" />}</div>
-      )}
+      {overlay.kind === "image" && <div className="clip-preview-thumb">{imageSource && <img src={imageSource.previewUrl} alt="" />}</div>}
 
       {overlay.kind === "text" && (
         <label className="field">
@@ -147,11 +144,7 @@ export function OverlayInspector() {
               <button type="button" title="Use brand primary color" onClick={() => updateStyle({ color: loadBrandKit().primaryColor })}>
                 Primary
               </button>
-              <button
-                type="button"
-                title="Use brand secondary color"
-                onClick={() => updateStyle({ color: loadBrandKit().secondaryColor })}
-              >
+              <button type="button" title="Use brand secondary color" onClick={() => updateStyle({ color: loadBrandKit().secondaryColor })}>
                 Secondary
               </button>
             </div>

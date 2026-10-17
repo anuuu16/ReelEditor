@@ -9,8 +9,7 @@
     "build": "tsc -b",
     "dev": "tsc -b --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "lint": "echo \"no lint config yet\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@reel-studio/shared-types": "workspace:*"

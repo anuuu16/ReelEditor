@@ -24,15 +24,7 @@ export function studioResourcesDir(studioId: string): string {
   return path.join(studioDir(studioId), "resources");
 }
 
-export type StudioResourceKind =
-  | "cover"
-  | "logo"
-  | "banner"
-  | "character"
-  | "sceneVideo"
-  | "sceneAudio"
-  | "finalExport"
-  | "other";
+export type StudioResourceKind = "cover" | "logo" | "banner" | "character" | "sceneVideo" | "sceneAudio" | "finalExport" | "other";
 
 export interface MetadataVariant {
   label?: string;

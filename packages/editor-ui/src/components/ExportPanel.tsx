@@ -43,14 +43,12 @@ export function ExportPanel() {
 
   const usedVideoSourceIds = new Set(videoClips.map((c) => c.sourceId));
   const usedVideoSources = state.project.sources.filter((s) => s.kind === "video" && usedVideoSourceIds.has(s.id));
-  const maxSourceLongEdge = usedVideoSources.length
-    ? Math.max(...usedVideoSources.map((s) => Math.max(s.width, s.height)))
-    : 0;
+  const maxSourceLongEdge = usedVideoSources.length ? Math.max(...usedVideoSources.map((s) => Math.max(s.width, s.height))) : 0;
   const targetLongEdge = Math.max(exportDimensions.width, exportDimensions.height);
   const willUpscale = maxSourceLongEdge > 0 && targetLongEdge > maxSourceLongEdge;
 
   const placeholderClipCount = getUsedSourceIds(state.project).filter(
-    (id) => state.project.sources.find((s) => s.id === id)?.isPlaceholder
+    (id) => state.project.sources.find((s) => s.id === id)?.isPlaceholder,
   ).length;
 
   function reset() {
@@ -113,7 +111,7 @@ export function ExportPanel() {
     } catch {
       setPhase("error");
       setErrorMessage(
-        `Couldn't reach the render service at ${RENDER_SERVICE_URL}. Make sure it's running (pnpm --filter @reel-studio/render-service dev).`
+        `Couldn't reach the render service at ${RENDER_SERVICE_URL}. Make sure it's running (pnpm --filter @reel-studio/render-service dev).`,
       );
       return;
     }
@@ -208,10 +206,8 @@ export function ExportPanel() {
 
             {overDuration && (
               <p className="export-warning">
-                This reel is {formatSeconds(totalDuration)}, longer than {selectedPreset!.label}'s
-                {" "}
-                {formatSeconds(selectedPreset!.maxDurationSeconds!)} limit. It will still export — trim it first if it needs
-                to fit.
+                This reel is {formatSeconds(totalDuration)}, longer than {selectedPreset!.label}'s{" "}
+                {formatSeconds(selectedPreset!.maxDurationSeconds!)} limit. It will still export — trim it first if it needs to fit.
               </p>
             )}
 
@@ -233,22 +229,22 @@ export function ExportPanel() {
 
             {willUpscale && (
               <p className="export-warning">
-                Your source footage tops out around {maxSourceLongEdge}px, lower than the {targetLongEdge}px this quality
-                renders at — video will be upscaled and may look soft. Pick a lower quality for a crisper result, or keep
-                this one if file size/resolution matters more than sharpness.
+                Your source footage tops out around {maxSourceLongEdge}px, lower than the {targetLongEdge}px this quality renders at — video
+                will be upscaled and may look soft. Pick a lower quality for a crisper result, or keep this one if file size/resolution
+                matters more than sharpness.
               </p>
             )}
 
             {placeholderClipCount > 0 && (
               <p className="export-warning">
-                This project has {placeholderClipCount} placeholder clip{placeholderClipCount === 1 ? "" : "s"} from a
-                template — use each one's "Replace media" control to add your own footage before exporting.
+                This project has {placeholderClipCount} placeholder clip{placeholderClipCount === 1 ? "" : "s"} from a template — use each
+                one's "Replace media" control to add your own footage before exporting.
               </p>
             )}
 
             <p className="hint">
-              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height}{" "}
-              ({qualityTier.label}).
+              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height} ({qualityTier.label}
+              ).
             </p>
             <button type="button" onClick={startExport} disabled={placeholderClipCount > 0}>
               Start export

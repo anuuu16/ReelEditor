@@ -67,7 +67,7 @@ function buildClip(trackId: string, source: MediaSource): Clip {
 async function buildSourceFromResource(
   studioProject: StudioProject,
   resource: StudioResource,
-  kind: "video" | "audio"
+  kind: "video" | "audio",
 ): Promise<MediaSource> {
   const previewUrl = studioResourceUrl(studioProject.id, resource.id);
   const metadata = await loadMediaMetadata(previewUrl, kind);
@@ -98,7 +98,7 @@ export async function buildEditorProjectForLanguage(studioProject: StudioProject
 
   const sceneVideoResources = sortBySceneThenUpload(studioProject.resources.filter((r) => r.kind === "sceneVideo"));
   const sceneAudioResources = sortBySceneThenUpload(
-    studioProject.resources.filter((r) => r.kind === "sceneAudio" && r.language === language)
+    studioProject.resources.filter((r) => r.kind === "sceneAudio" && r.language === language),
   );
 
   const videoSources = await Promise.all(sceneVideoResources.map((r) => buildSourceFromResource(studioProject, r, "video")));

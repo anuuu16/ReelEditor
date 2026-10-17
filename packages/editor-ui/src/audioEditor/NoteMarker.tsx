@@ -17,12 +17,7 @@ export function NoteMarker({ note, leftPx, open, onToggle, onChangeText, onDelet
 
   return (
     <div className="ae-note" style={{ left: leftPx }} onPointerDown={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className={`ae-note-flag${note.text ? " has-text" : ""}`}
-        onClick={onToggle}
-        title={note.text || "Note"}
-      >
+      <button type="button" className={`ae-note-flag${note.text ? " has-text" : ""}`} onClick={onToggle} title={note.text || "Note"}>
         ⚑
       </button>
       {open && (

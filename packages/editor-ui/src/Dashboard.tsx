@@ -2,14 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createInitialProject } from "./state/initialProject.js";
 import { formatProjectDate, useProjectBrowser } from "./persistence/useProjectBrowser.js";
-import {
-  deleteSavedAudio,
-  deleteSavedImage,
-  listSavedAudio,
-  listSavedImages,
-  type SavedAudio,
-  type SavedImage,
-} from "./persistence/db.js";
+import { deleteSavedAudio, deleteSavedImage, listSavedAudio, listSavedImages, type SavedAudio, type SavedImage } from "./persistence/db.js";
 import { createStudioProject, deleteStudioProject, listStudioProjects } from "./promptStudio/api.js";
 import type { StudioProjectSummary } from "./promptStudio/types.js";
 
@@ -202,7 +195,9 @@ export function Dashboard() {
 
         <section className="dashboard-section">
           <h2>Templates</h2>
-          <p className="hint">Pre-arranged reels with placeholder clips — pick one, then replace each clip's media with your own footage.</p>
+          <p className="hint">
+            Pre-arranged reels with placeholder clips — pick one, then replace each clip's media with your own footage.
+          </p>
           <ul className="project-list">
             {templates.length === 0 && <p className="hint">No saved templates yet — save any project as one from within the editor.</p>}
             {templates.map((p) => (
@@ -237,9 +232,7 @@ export function Dashboard() {
               {isCreatingStudio ? "Creating..." : "+ New Studio project"}
             </button>
           </div>
-          <p className="hint">
-            Poems, Flow video prompts, uploaded resources, and language-specific editor projects, all in one place.
-          </p>
+          <p className="hint">Poems, Flow video prompts, uploaded resources, and language-specific editor projects, all in one place.</p>
           {studioError && <p className="export-error">{studioError}</p>}
           <ul className="project-list">
             {studioProjects.length === 0 && <p className="hint">No Studio projects yet — start one above.</p>}

@@ -46,7 +46,7 @@ function spawnFfmpeg(job: Job, plan: RenderPlan, workDir: string): void {
         job,
         "This project has title overlays, but ffmpeg was built without drawtext (libfreetype) support — " +
           "Homebrew's plain ffmpeg formula excludes it. Run `brew install ffmpeg-full && brew link --overwrite ffmpeg-full` " +
-          "to get a build that supports titles, then retry."
+          "to get a build that supports titles, then retry.",
       );
       return;
     }
@@ -59,7 +59,7 @@ export function startRenderJob(
   project: ProjectModel,
   sourcePaths: Record<string, string>,
   workDir: string,
-  output?: { width: number; height: number }
+  output?: { width: number; height: number },
 ): Job {
   const plan = buildFfmpegPlan({ project, sourcePaths, output });
   const job = createJob(jobId, workDir, plan.totalDurationSeconds);

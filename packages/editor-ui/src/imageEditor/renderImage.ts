@@ -82,14 +82,7 @@ function tracePath(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 // Draws an image scaled to cover the whole output (center-cropped), used for both background modes.
 // `overscan` grows the draw slightly so a blurred background doesn't fade to transparent at the edges.
-function drawCover(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  width: number,
-  height: number,
-  filter: string,
-  overscan = 1
-) {
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, width: number, height: number, filter: string, overscan = 1) {
   const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight) * overscan;
   const dw = img.naturalWidth * scale;
   const dh = img.naturalHeight * scale;
