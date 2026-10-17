@@ -45,9 +45,15 @@ git switch -c task_N sandbox-base
 ## In the sandbox (`/workspace/reel-editor`)
 ```bash
 pnpm install
-pnpm --filter @reel-studio/editor-ui dev        # the editor (Vite)
-pnpm --filter @reel-studio/render-service dev   # export service, port 4310; needs ffmpeg on PATH
-pnpm typecheck
+pnpm check                                       # typecheck + lint + format check + tests (timeline-core: 43)
+pnpm fix                                         # lint --fix + format
+pnpm --filter @reel-studio/editor-ui dev         # the editor (Vite), http://localhost:5173
+pnpm --filter @reel-studio/render-service dev    # export service, port 4310
 ```
-- No tests exist yet: every package's `test` script prints "no tests yet".
+- **ffmpeg isn't installed by `pnpm install`.** The service uses `FFMPEG_PATH`, then `ffmpeg` on `PATH`, then
+  `@ffmpeg-installer/ffmpeg` if it was added. The model can install ffmpeg itself (for example `apt-get install ffmpeg`), or
+  add the package as a fallback: `pnpm --filter @reel-studio/render-service add @ffmpeg-installer/ffmpeg`. The README says the same.
+- `ffprobe` only comes with a system install.
+- Tests exist only in `packages/timeline-core` (43). `render-service` and `editor-ui` have none.
 - The prompt studio needs `OPENAI_API_KEY`. Don't use it in tasks, and never upload a `.env`.
+- Projects are saved in `~/ReelStudioProjects`, outside the repo.
