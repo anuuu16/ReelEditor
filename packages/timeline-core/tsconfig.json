@@ -4,6 +4,16 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"],
-  "references": [{ "path": "../shared-types" }]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../shared-types"
+    }
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/test-fixtures.ts"
+  ]
 }
