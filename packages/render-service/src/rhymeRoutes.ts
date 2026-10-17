@@ -121,7 +121,13 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/master", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelMasterParams>;
-    const params: ReelMasterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, aspectRatio: body.aspectRatio };
+    const params: ReelMasterParams = {
+      title: body.title,
+      topic: body.topic,
+      age: body.age ?? "Preschool (4-6)",
+      poemText: body.poemText,
+      aspectRatio: body.aspectRatio,
+    };
     try {
       res.json(await generateReelMaster(params));
     } catch (err) {
@@ -162,7 +168,14 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/character", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelCharacterParams>;
-    const params: ReelCharacterParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master, aspectRatio: body.aspectRatio };
+    const params: ReelCharacterParams = {
+      title: body.title,
+      topic: body.topic,
+      age: body.age ?? "Preschool (4-6)",
+      poemText: body.poemText,
+      master: body.master,
+      aspectRatio: body.aspectRatio,
+    };
     try {
       res.json(await generateReelCharacter(params));
     } catch (err) {
@@ -172,7 +185,14 @@ export function createRhymeRouter(): Router {
 
   router.post("/reel/cover", async (req: Request, res: Response) => {
     const body = req.body as Partial<ReelCoverParams>;
-    const params: ReelCoverParams = { title: body.title, topic: body.topic, age: body.age ?? "Preschool (4-6)", poemText: body.poemText, master: body.master, aspectRatio: body.aspectRatio };
+    const params: ReelCoverParams = {
+      title: body.title,
+      topic: body.topic,
+      age: body.age ?? "Preschool (4-6)",
+      poemText: body.poemText,
+      master: body.master,
+      aspectRatio: body.aspectRatio,
+    };
     try {
       res.json(await generateReelCover(params));
     } catch (err) {

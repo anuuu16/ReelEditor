@@ -110,7 +110,7 @@ export async function loadProjectFromServer(projectId: string): Promise<ProjectM
         console.warn(`Missing stored media for "${source.name}" — re-import it to restore this clip.`);
         return { ...source, previewUrl: "" };
       }
-    })
+    }),
   );
 
   return { ...project, sources: hydratedSources };

@@ -21,20 +21,12 @@ export function SlideshowDialog({ onClose }: SlideshowDialogProps) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
 
-  const images = useMemo(
-    () => state.project.sources.filter((s) => s.kind === "image" && !s.isPlaceholder),
-    [state.project.sources]
-  );
-  const audioSources = useMemo(
-    () => state.project.sources.filter((s) => s.kind === "audio" && !s.isPlaceholder),
-    [state.project.sources]
-  );
+  const images = useMemo(() => state.project.sources.filter((s) => s.kind === "image" && !s.isPlaceholder), [state.project.sources]);
+  const audioSources = useMemo(() => state.project.sources.filter((s) => s.kind === "audio" && !s.isPlaceholder), [state.project.sources]);
 
   const [order, setOrder] = useState<string[]>(() => images.map((s) => s.id));
   const [selected, setSelected] = useState<Set<string>>(() => new Set(images.map((s) => s.id)));
-  const [durations, setDurations] = useState<Record<string, number>>(() =>
-    Object.fromEntries(images.map((s) => [s.id, DEFAULT_SECONDS]))
-  );
+  const [durations, setDurations] = useState<Record<string, number>>(() => Object.fromEntries(images.map((s) => [s.id, DEFAULT_SECONDS])));
   const [applyAll, setApplyAll] = useState(DEFAULT_SECONDS);
   const [transition, setTransition] = useState<TransitionType | "none">("dissolve");
   const [transitionSeconds, setTransitionSeconds] = useState(0.5);
@@ -212,8 +204,8 @@ export function SlideshowDialog({ onClose }: SlideshowDialogProps) {
           <label className="slideshow-check">
             <input type="checkbox" checked={fitToMusic} onChange={(e) => setFitToMusic(e.target.checked)} />
             <span>
-              Fit all images evenly to music length ({music.durationSeconds.toFixed(1)}s ÷ {chosen.length || 1} ={" "}
-              {fitSeconds.toFixed(1)}s each)
+              Fit all images evenly to music length ({music.durationSeconds.toFixed(1)}s ÷ {chosen.length || 1} = {fitSeconds.toFixed(1)}s
+              each)
             </span>
           </label>
         )}

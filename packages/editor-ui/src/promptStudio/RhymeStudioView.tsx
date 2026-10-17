@@ -64,9 +64,7 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   // in sync rather than becoming two separate "video length" concepts that can drift apart.
   const lengthSeconds = project.totalLengthSeconds ?? 32;
   const clipLengthSeconds = project.clipLengthSeconds ?? 8;
-  const [languages, setLanguages] = useState<string[]>(
-    project.languages.length ? normalizeLanguageList(project.languages) : ["English"]
-  );
+  const [languages, setLanguages] = useState<string[]>(project.languages.length ? normalizeLanguageList(project.languages) : ["English"]);
   const [customLanguage, setCustomLanguage] = useState("");
   const [contentType, setContentType] = useState<RhymeContentType>("poem");
   const [age, setAge] = useState(AGE_OPTIONS[1]);
@@ -130,7 +128,16 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
   }
 
   function toggleExtraPreset(preset: string) {
-    setExtra((prev) => (prev.includes(preset) ? prev.replace(preset, "").replace(/^, |, $/g, "").trim() : prev ? `${prev}, ${preset}` : preset));
+    setExtra((prev) =>
+      prev.includes(preset)
+        ? prev
+            .replace(preset, "")
+            .replace(/^, |, $/g, "")
+            .trim()
+        : prev
+          ? `${prev}, ${preset}`
+          : preset,
+    );
   }
 
   // Every language a rhyme was actually generated/imported in must stay available project-wide
@@ -423,7 +430,10 @@ export function RhymeStudioView({ project, onPatch, onOpenProject }: RhymeStudio
             const version = slot.versions[slot.activeVersionIndex];
             const title = Object.values(version.poem.titles)[0] || "Untitled poem";
             return (
-              <div key={slot.id} className="mb-1.5 flex flex-wrap items-center justify-between gap-3 rounded-ps border border-ps-border px-3 py-2">
+              <div
+                key={slot.id}
+                className="mb-1.5 flex flex-wrap items-center justify-between gap-3 rounded-ps border border-ps-border px-3 py-2"
+              >
                 <div>
                   <p className="font-semibold text-ps-text">{title}</p>
                   <p className="text-xs text-ps-muted">

@@ -455,7 +455,7 @@ app.post(
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
-  }
+  },
 );
 
 app.get("/studio/:studioId/resources/:resourceId", requireValidStudioId, async (req: Request, res: Response) => {

@@ -80,7 +80,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
 
   const totalDur = timelineDuration(timeline);
   const selectedClip = timeline.clips.find((c) => c.id === selectedClipId) ?? null;
-  const selectedSource = selectedClip ? timeline.sources.find((s) => s.id === selectedClip.sourceId) ?? null : null;
+  const selectedSource = selectedClip ? (timeline.sources.find((s) => s.id === selectedClip.sourceId) ?? null) : null;
   const selectedOrderIndex = selectedClip
     ? timeline.clips
         .filter((c) => c.laneIndex === selectedClip.laneIndex)
@@ -262,7 +262,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
         return { ...t, sources, clips };
       });
     },
-    [commit, flash]
+    [commit, flash],
   );
 
   function updateClip(id: string, patch: Partial<AudioClip>, opts?: { continuous?: boolean }) {
@@ -368,7 +368,8 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        e.shiftKey ? redo() : undo();
+        if (e.shiftKey) redo();
+        else undo();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedClipId) {
           e.preventDefault();
@@ -376,7 +377,8 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
         }
       } else if (e.key === " ") {
         e.preventDefault();
-        isPlaying ? stopPlayback() : play();
+        if (isPlaying) stopPlayback();
+        else play();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -387,8 +389,9 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
   function play() {
     if (!mixBuffer) return;
     stopPlayback();
-    const ctx = (audioCtxRef.current ??= new (window.AudioContext ??
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)());
+    const ctx = (audioCtxRef.current ??= new (
+      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    )());
     void ctx.resume();
     const from = Math.min(Math.max(0, playheadSec), Math.max(0, mixBuffer.duration - 0.01));
     const node = ctx.createBufferSource();
@@ -549,11 +552,20 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                 }}
               />
             </label>
-            {timeline.sources.length === 0 && <p className="hint">Import or drop audio files. Each becomes a clip you can drag, trim, overlap, and mix.</p>}
-            {timeline.sources.length > 0 && <p className="hint">Drag a source onto the timeline to place it, or use + to append it to lane 1.</p>}
+            {timeline.sources.length === 0 && (
+              <p className="hint">Import or drop audio files. Each becomes a clip you can drag, trim, overlap, and mix.</p>
+            )}
+            {timeline.sources.length > 0 && (
+              <p className="hint">Drag a source onto the timeline to place it, or use + to append it to lane 1.</p>
+            )}
             <ul className="ae-source-list">
               {timeline.sources.map((s) => (
-                <li key={s.id} draggable onDragStart={(e) => e.dataTransfer.setData(SOURCE_DRAG_TYPE, s.id)} title="Drag onto the timeline to place">
+                <li
+                  key={s.id}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData(SOURCE_DRAG_TYPE, s.id)}
+                  title="Drag onto the timeline to place"
+                >
                   <span className="ae-source-name">{s.name}</span>
                   <span className="ae-source-dur">{formatClock(s.buffer.duration)}</span>
                   <button

@@ -322,9 +322,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         ...state,
         project: {
           ...state.project,
-          clips: state.project.clips.map((c) =>
-            c.trackId === action.trackId ? { ...c, filter: { ...c.filter, ...action.patch } } : c
-          ),
+          clips: state.project.clips.map((c) => (c.trackId === action.trackId ? { ...c, filter: { ...c.filter, ...action.patch } } : c)),
         },
       };
 
@@ -334,7 +332,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         project: {
           ...state.project,
           clips: state.project.clips.map((c) =>
-            c.trackId === action.trackId ? { ...c, transform: { ...c.transform, ...action.patch } } : c
+            c.trackId === action.trackId ? { ...c, transform: { ...c.transform, ...action.patch } } : c,
           ),
         },
       };
@@ -377,7 +375,13 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
             const outPoint = Math.max(minOut, Math.min(maxOut, c.inPoint + targetDuration));
             const speed = (outPoint - c.inPoint) / targetDuration;
 
-            return { ...c, outPoint, speed, transitionOutSeconds: action.transitionOutSeconds, transitionOutType: action.transitionOutType };
+            return {
+              ...c,
+              outPoint,
+              speed,
+              transitionOutSeconds: action.transitionOutSeconds,
+              transitionOutType: action.transitionOutType,
+            };
           }),
         },
       };
@@ -391,10 +395,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       if (!laidOut) return state;
 
       const splitSourceTime = clip.inPoint + (action.atTime - laidOut.timelineStart) * clip.speed;
-      if (
-        splitSourceTime <= clip.inPoint + MIN_CLIP_DURATION_SECONDS ||
-        splitSourceTime >= clip.outPoint - MIN_CLIP_DURATION_SECONDS
-      ) {
+      if (splitSourceTime <= clip.inPoint + MIN_CLIP_DURATION_SECONDS || splitSourceTime >= clip.outPoint - MIN_CLIP_DURATION_SECONDS) {
         return state;
       }
 
@@ -480,10 +481,12 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       // Overlays (titles and logos) are trimmed the same way: starts at/after the cut are removed, and
       // any that run past it are clamped to end at the cut. One that would be shorter than the minimum
       // overlay length after clamping is dropped.
-      const overlays = state.project.overlays.filter((o) => {
-        if (o.start >= cut - EPS) return false;
-        return Math.min(o.end, cut) - o.start >= MIN_OVERLAY_DURATION_SECONDS;
-      }).map((o) => (o.end > cut ? { ...o, end: cut } : o));
+      const overlays = state.project.overlays
+        .filter((o) => {
+          if (o.start >= cut - EPS) return false;
+          return Math.min(o.end, cut) - o.start >= MIN_OVERLAY_DURATION_SECONDS;
+        })
+        .map((o) => (o.end > cut ? { ...o, end: cut } : o));
 
       const selectedClipStillExists = clips.some((c) => c.id === state.selectedClipId);
       const selectedOverlayStillExists = overlays.some((o) => o.id === state.selectedOverlayId);
@@ -519,9 +522,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         ...state,
         project: {
           ...state.project,
-          clips: state.project.clips.map((c) =>
-            c.id === action.clipId ? { ...c, sourceId: action.sourceId, inPoint: 0, outPoint } : c
-          ),
+          clips: state.project.clips.map((c) => (c.id === action.clipId ? { ...c, sourceId: action.sourceId, inPoint: 0, outPoint } : c)),
         },
       };
     }
@@ -553,7 +554,9 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         ...state,
         project: { ...state.project, tracks: remainingTracks, clips: remainingClips },
         selectedClipId: selectedClipRemoved ? null : state.selectedClipId,
-        activeAudioTrackId: wasActive ? getTracksByKind({ ...state.project, tracks: remainingTracks }, "audio")[0]?.id ?? null : state.activeAudioTrackId,
+        activeAudioTrackId: wasActive
+          ? (getTracksByKind({ ...state.project, tracks: remainingTracks }, "audio")[0]?.id ?? null)
+          : state.activeAudioTrackId,
       };
     }
 

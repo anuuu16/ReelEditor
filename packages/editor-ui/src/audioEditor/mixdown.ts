@@ -16,8 +16,7 @@ export function normalizeScalar(clip: AudioClip, buffer: AudioBuffer): number {
 
 function offlineCtor(): typeof OfflineAudioContext {
   return (
-    window.OfflineAudioContext ??
-    (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext
+    window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext
   );
 }
 

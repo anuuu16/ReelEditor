@@ -56,12 +56,7 @@ function computeImageOverlayRect(overlay: Overlay, canvas: HTMLCanvasElement): I
   };
 }
 
-function drawOverlays(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  s: EditorState,
-  imageEls: Map<string, HTMLImageElement>
-) {
+function drawOverlays(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, s: EditorState, imageEls: Map<string, HTMLImageElement>) {
   const scale = canvas.width / s.project.canvas.width;
 
   for (const overlay of s.project.overlays) {
@@ -88,7 +83,7 @@ function drawOverlays(
           rect.x + rect.width - RESIZE_HANDLE_SIZE / 2,
           rect.y + rect.height - RESIZE_HANDLE_SIZE / 2,
           RESIZE_HANDLE_SIZE,
-          RESIZE_HANDLE_SIZE
+          RESIZE_HANDLE_SIZE,
         );
         ctx.restore();
       }
@@ -184,12 +179,7 @@ export function PreviewCanvas() {
     let raf: number;
     let lastTs: number | null = null;
 
-    function renderFrame(
-      s: EditorState,
-      laidOutVideo: LaidOutClip[],
-      laidOutAudioTracks: LaidOutClip[][],
-      totalDuration: number
-    ) {
+    function renderFrame(s: EditorState, laidOutVideo: LaidOutClip[], laidOutAudioTracks: LaidOutClip[][], totalDuration: number) {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       if (!canvas || !ctx) return;
@@ -234,8 +224,9 @@ export function PreviewCanvas() {
           }
           // Crossfade this clip's own (embedded) audio in lockstep with the visual dissolve.
           const crossfade = transition ? (transition.outgoing.clip.id === clip.id ? 1 - transition.progress : transition.progress) : 1;
-          el.volume =
-            s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume * crossfade;
+          el.volume = s.masterMuted
+            ? 0
+            : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume * crossfade;
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
         } else {
@@ -275,7 +266,7 @@ export function PreviewCanvas() {
           activeInfo.clip.fadeInSeconds,
           activeInfo.clip.fadeOutSeconds,
           s.playhead - activeInfo.clip.timelineStart,
-          activeInfo.clip.duration
+          activeInfo.clip.duration,
         );
         context.save();
         if (clipRectPx) {
@@ -354,7 +345,7 @@ export function PreviewCanvas() {
       const totalDuration = Math.max(
         getSequenceDuration(laidOutVideo),
         ...laidOutAudioTracks.map((clips) => getSequenceDuration(clips)),
-        overlaysEnd
+        overlaysEnd,
       );
 
       if (current.isPlaying && lastTs !== null) {

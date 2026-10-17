@@ -4,15 +4,7 @@
 
 import type { RhymePoemSlot } from "./rhymeTypes.js";
 
-export type StudioResourceKind =
-  | "cover"
-  | "logo"
-  | "banner"
-  | "character"
-  | "sceneVideo"
-  | "sceneAudio"
-  | "finalExport"
-  | "other";
+export type StudioResourceKind = "cover" | "logo" | "banner" | "character" | "sceneVideo" | "sceneAudio" | "finalExport" | "other";
 
 export interface MetadataVariant {
   label?: string;

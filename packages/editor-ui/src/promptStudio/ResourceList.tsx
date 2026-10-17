@@ -86,8 +86,14 @@ function ResourceCard({
       <ResourcePreview studioId={studioId} resource={resource} />
       <div className="prompt-studio-resource-meta">
         {resource.language && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">{resource.language}</span>}
-        {resource.sceneN !== null && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">scene {resource.sceneN}</span>}
-        {variants.length > 0 && <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">{variants.length} variant{variants.length === 1 ? "" : "s"}</span>}
+        {resource.sceneN !== null && (
+          <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">scene {resource.sceneN}</span>
+        )}
+        {variants.length > 0 && (
+          <span className="rounded bg-ps-elevated px-1.5 py-0.5 text-[11px] text-ps-muted">
+            {variants.length} variant{variants.length === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
       <p className="prompt-studio-resource-filename text-xs text-ps-muted">{resource.filename}</p>
 

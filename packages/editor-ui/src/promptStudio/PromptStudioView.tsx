@@ -71,9 +71,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
 
   function handleLinkAdded(link: StudioEditorProjectLink) {
     setProject((prev) =>
-      prev
-        ? { ...prev, editorProjects: [...prev.editorProjects.filter((l) => l.language !== link.language), link] }
-        : prev
+      prev ? { ...prev, editorProjects: [...prev.editorProjects.filter((l) => l.language !== link.language), link] } : prev,
     );
   }
 
@@ -111,12 +109,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
       <div className="prompt-studio-layout">
         <nav className="prompt-studio-sidenav">
           {DETAIL_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={activeTab === tab.id ? "active" : ""}
-              onClick={() => onTabChange(tab.id)}
-            >
+            <button key={tab.id} type="button" className={activeTab === tab.id ? "active" : ""} onClick={() => onTabChange(tab.id)}>
               {tab.label}
             </button>
           ))}
@@ -133,9 +126,7 @@ export function PromptStudioView({ studioId, activeTab: rawTab, onTabChange, onB
             <ResourcesPanel project={project} onUploaded={handleResourceUploaded} onChanged={handleResourcesChanged} />
           )}
 
-          {activeTab === "editors" && (
-            <LaunchEditorPanel project={project} onLinkAdded={handleLinkAdded} onOpenProject={onOpenProject} />
-          )}
+          {activeTab === "editors" && <LaunchEditorPanel project={project} onLinkAdded={handleLinkAdded} onOpenProject={onOpenProject} />}
         </div>
       </div>
     </div>

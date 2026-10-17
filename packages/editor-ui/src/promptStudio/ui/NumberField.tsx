@@ -25,9 +25,7 @@ export function NumberField({ label, hint, value, onChange, min, max, className 
 
   function commit() {
     const parsed = Math.round(Number(draft));
-    const clamped = Number.isFinite(parsed)
-      ? Math.max(min ?? -Infinity, Math.min(max ?? Infinity, parsed))
-      : value;
+    const clamped = Number.isFinite(parsed) ? Math.max(min ?? -Infinity, Math.min(max ?? Infinity, parsed)) : value;
     setDraft(String(clamped));
     if (clamped !== value) onChange(clamped);
   }

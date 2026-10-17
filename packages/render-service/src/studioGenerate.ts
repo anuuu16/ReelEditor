@@ -153,7 +153,7 @@ export async function runBaseCall(params: GenerateParams): Promise<BaseResult> {
   return callLlmJson<BaseResult>(
     system,
     buildBaseUserMessage(params),
-    (o): o is BaseResult => !!(o && typeof (o as BaseResult).master_prompt === "string")
+    (o): o is BaseResult => !!(o && typeof (o as BaseResult).master_prompt === "string"),
   );
 }
 
@@ -169,7 +169,7 @@ export async function runSceneCall(params: GenerateParams, i: number, masterProm
     return await callLlmJson<SceneResult>(
       system,
       userMessage,
-      (o): o is SceneResult => !!(o && typeof (o as SceneResult).prompt === "string")
+      (o): o is SceneResult => !!(o && typeof (o as SceneResult).prompt === "string"),
     );
   } catch {
     // A single scene failing after all retries must not sink the whole generation — the person

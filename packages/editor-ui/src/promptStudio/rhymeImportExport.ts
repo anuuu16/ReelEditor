@@ -63,7 +63,9 @@ export function parseRhymePoemJson(raw: string): RhymePoem {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const scene = s as any;
       const lines: Record<string, string> =
-        scene?.lines && typeof scene.lines === "object" ? scene.lines : { [Object.keys(poems)[0] ?? "English"]: String(scene?.lines ?? "") };
+        scene?.lines && typeof scene.lines === "object"
+          ? scene.lines
+          : { [Object.keys(poems)[0] ?? "English"]: String(scene?.lines ?? "") };
       return {
         lines,
         seconds: Number.isFinite(scene?.seconds) ? Number(scene.seconds) : 8,

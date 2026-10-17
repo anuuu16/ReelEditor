@@ -78,7 +78,9 @@ export function MediaLibrary() {
   async function handleRemoveAll() {
     const sources = state.project.sources;
     if (sources.length === 0) return;
-    if (!window.confirm(`Remove all ${sources.length} media item${sources.length === 1 ? "" : "s"}? This also clears every clip using them.`)) {
+    if (
+      !window.confirm(`Remove all ${sources.length} media item${sources.length === 1 ? "" : "s"}? This also clears every clip using them.`)
+    ) {
       return;
     }
     dispatch({ type: "REMOVE_ALL_SOURCES" });

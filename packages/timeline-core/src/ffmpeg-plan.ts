@@ -69,7 +69,9 @@ function transformsEqual(a: Transform, b: Transform): boolean {
 }
 
 function clipFiltersEqual(a: ClipFilter, b: ClipFilter): boolean {
-  return a.preset === b.preset && a.brightness === b.brightness && a.contrast === b.contrast && a.saturation === b.saturation && a.hue === b.hue;
+  return (
+    a.preset === b.preset && a.brightness === b.brightness && a.contrast === b.contrast && a.saturation === b.saturation && a.hue === b.hue
+  );
 }
 
 // `-stream_loop` repeats a source's ENTIRE file, so folding a clip into a repeat block is only
@@ -298,7 +300,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     clips: LaidOutClip[],
     kind: "video" | "audio",
     labelPrefix: string,
-    buildGapFiller: (durationSeconds: number, label: string) => string
+    buildGapFiller: (durationSeconds: number, label: string) => string,
   ): string {
     const streamArgs = kind === "video" ? "v=1:a=0" : "v=0:a=1";
     // concat's output timebase isn't guaranteed to match the 1/frameRate timebase every per-clip
@@ -420,7 +422,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},`;
     filterChains.push(
-      `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`
+      `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`,
     );
     filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, aLabel, isImageClip));
   }
@@ -437,13 +439,13 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const colorFilter = buildFfmpegColorFilter(first.filter);
     const inputIdx = addLoopedInput(first.sourceId, repeatCount - 1);
     filterChains.push(
-      `[${inputIdx}:v]setpts=(PTS-STARTPTS)/${first.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`
+      `[${inputIdx}:v]setpts=(PTS-STARTPTS)/${first.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`,
     );
     const totalDuration = first.duration * repeatCount;
     filterChains.push(
       first.muted
         ? `anullsrc=r=48000:cl=stereo,atrim=duration=${totalDuration.toFixed(3)}[${aLabel}]`
-        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`
+        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`,
     );
   }
 
@@ -467,7 +469,12 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     if (unit.length === 1) return unit[0];
     const first = unit[0];
     const last = unit[unit.length - 1];
-    return { ...first, transitionOutType: last.transitionOutType, transitionOutSeconds: last.transitionOutSeconds, duration: first.duration * unit.length };
+    return {
+      ...first,
+      transitionOutType: last.transitionOutType,
+      transitionOutSeconds: last.transitionOutSeconds,
+      duration: first.duration * unit.length,
+    };
   });
 
   const musicTrackLabels: string[] = [];
@@ -502,7 +509,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
       const yExpr = `${overlay.position.y}*main_h-overlay_h/2`;
       const nextLabel = `vimg${i}`;
       filterChains.push(
-        `${finalVideoLabel}[${scaledLabel}]overlay=x=${xExpr}:y=${yExpr}:enable='between(t,${overlay.start},${overlay.end})'[${nextLabel}]`
+        `${finalVideoLabel}[${scaledLabel}]overlay=x=${xExpr}:y=${yExpr}:enable='between(t,${overlay.start},${overlay.end})'[${nextLabel}]`,
       );
       finalVideoLabel = `[${nextLabel}]`;
       return;
@@ -560,7 +567,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     "-progress",
     "pipe:1",
     "-nostats",
-    outputFileName
+    outputFileName,
   );
 
   return {

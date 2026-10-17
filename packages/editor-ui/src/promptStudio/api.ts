@@ -57,11 +57,7 @@ export async function deleteStudioProject(studioId: string): Promise<{ status: "
   return readJson(response, "Failed to delete Studio project");
 }
 
-export async function uploadStudioResource(
-  studioId: string,
-  file: File,
-  fields: UploadStudioResourceFields
-): Promise<StudioResource> {
+export async function uploadStudioResource(studioId: string, file: File, fields: UploadStudioResourceFields): Promise<StudioResource> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("kind", fields.kind);
@@ -75,11 +71,7 @@ export async function uploadStudioResource(
   return readJson(response, "Failed to upload resource");
 }
 
-export async function patchStudioResource(
-  studioId: string,
-  resourceId: string,
-  patch: PatchStudioResourceBody
-): Promise<StudioResource> {
+export async function patchStudioResource(studioId: string, resourceId: string, patch: PatchStudioResourceBody): Promise<StudioResource> {
   const response = await fetch(`${RENDER_SERVICE_URL}/studio/${studioId}/resources/${resourceId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -95,7 +87,7 @@ export async function deleteStudioResource(studioId: string, resourceId: string)
 
 export async function generateStudioMetadata(
   studioId: string,
-  body: { language: string; topic?: string; title?: string }
+  body: { language: string; topic?: string; title?: string },
 ): Promise<StudioProject> {
   const response = await fetch(`${RENDER_SERVICE_URL}/studio/${studioId}/metadata`, {
     method: "POST",

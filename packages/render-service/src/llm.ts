@@ -83,7 +83,7 @@ export async function callLlmJson<T>(
   userMessage: string,
   validate: (o: unknown) => boolean,
   attempts = 3,
-  maxTokens = DEFAULT_MAX_TOKENS
+  maxTokens = DEFAULT_MAX_TOKENS,
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {

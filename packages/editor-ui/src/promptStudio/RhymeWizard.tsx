@@ -23,13 +23,37 @@ interface RhymeWizardProps {
 type WizardStep = "lyrics" | "scenes" | "audio" | "assets" | "video" | "editor" | "final";
 
 const STEPS: Array<{ id: WizardStep; label: string; hint: string }> = [
-  { id: "lyrics", label: "1. Lyrics", hint: "Write or paste the rhyme, then edit it per language. The concept you set on the previous screen is the input here." },
-  { id: "scenes", label: "2. Scene prompts", hint: "Uses the topic and the lyrics above as input to write a Flow master style bible and one prompt per timed scene." },
-  { id: "audio", label: "3. Upload audio", hint: "Upload the voiceover or music for this rhyme, per language, once you've generated it from the prompts." },
-  { id: "assets", label: "4. Cover & characters", hint: "Upload the cover, logo, banner, and character reference images that keep every scene consistent." },
+  {
+    id: "lyrics",
+    label: "1. Lyrics",
+    hint: "Write or paste the rhyme, then edit it per language. The concept you set on the previous screen is the input here.",
+  },
+  {
+    id: "scenes",
+    label: "2. Scene prompts",
+    hint: "Uses the topic and the lyrics above as input to write a Flow master style bible and one prompt per timed scene.",
+  },
+  {
+    id: "audio",
+    label: "3. Upload audio",
+    hint: "Upload the voiceover or music for this rhyme, per language, once you've generated it from the prompts.",
+  },
+  {
+    id: "assets",
+    label: "4. Cover & characters",
+    hint: "Upload the cover, logo, banner, and character reference images that keep every scene consistent.",
+  },
   { id: "video", label: "5. Upload video", hint: "Upload the scene video clips Flow generated from the prompts, one per scene." },
-  { id: "editor", label: "6. Editor", hint: "Launch (or reopen) a full timeline project per language, built from the video and audio above." },
-  { id: "final", label: "7. Save final", hint: "Once you've exported from the editor, upload the finished video here, tagged by language." },
+  {
+    id: "editor",
+    label: "6. Editor",
+    hint: "Launch (or reopen) a full timeline project per language, built from the video and audio above.",
+  },
+  {
+    id: "final",
+    label: "7. Save final",
+    hint: "Once you've exported from the editor, upload the finished video here, tagged by language.",
+  },
 ];
 
 export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProject, onExit, initialStep }: RhymeWizardProps) {
@@ -90,11 +114,7 @@ export function RhymeWizard({ project, slot, onSlotChange, onPatch, onOpenProjec
 
       {step === "assets" && (
         <Card>
-          <ResourceUploader
-            project={project}
-            onUploaded={handleResourceUploaded}
-            allowedKinds={["cover", "logo", "banner", "character"]}
-          />
+          <ResourceUploader project={project} onUploaded={handleResourceUploaded} allowedKinds={["cover", "logo", "banner", "character"]} />
           <ResourceList project={project} onChanged={handleResourcesChanged} allowedKinds={["cover", "logo", "banner", "character"]} />
         </Card>
       )}

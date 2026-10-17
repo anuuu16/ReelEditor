@@ -181,7 +181,11 @@ export function ResourceUploader({ project, onUploaded, allowedKinds }: Resource
                       reorderWithinKind(section.kind, draggedId, item.id);
                     }}
                   >
-                    {section.needsSceneN && <span className="prompt-studio-drag-handle" title="Drag to reorder">⠿</span>}
+                    {section.needsSceneN && (
+                      <span className="prompt-studio-drag-handle" title="Drag to reorder">
+                        ⠿
+                      </span>
+                    )}
                     <span className="prompt-studio-pending-name" title={item.file.name}>
                       {item.file.name}
                     </span>

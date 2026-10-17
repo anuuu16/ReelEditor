@@ -43,9 +43,7 @@ export function ClipInspector() {
 
   const duration = (clip.outPoint - clip.inPoint) / clip.speed;
   const maxFade = Math.max(duration / 2, 0.1);
-  const replaceCandidates = state.project.sources.filter(
-    (s) => s.kind === source?.kind && s.id !== clip.sourceId && !s.isPlaceholder
-  );
+  const replaceCandidates = state.project.sources.filter((s) => s.kind === source?.kind && s.id !== clip.sourceId && !s.isPlaceholder);
   const trackClips = state.project.clips.filter((c) => c.trackId === clip.trackId);
   const clipIndex = trackClips.findIndex((c) => c.id === clip.id);
   const hasNextClip = clipIndex !== -1 && clipIndex < trackClips.length - 1;
@@ -85,11 +83,7 @@ export function ClipInspector() {
       </div>
 
       <div className="field">
-        <button
-          type="button"
-          title="Duplicate (Cmd/Ctrl+D)"
-          onClick={() => dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })}
-        >
+        <button type="button" title="Duplicate (Cmd/Ctrl+D)" onClick={() => dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })}>
           Duplicate clip
         </button>
       </div>
@@ -162,8 +156,7 @@ export function ClipInspector() {
           <select
             value=""
             onChange={(e) => {
-              if (e.target.value)
-                dispatch({ type: "ADD_CLIP", trackId: clip.trackId, sourceId: e.target.value, atIndex: clipIndex + 1 });
+              if (e.target.value) dispatch({ type: "ADD_CLIP", trackId: clip.trackId, sourceId: e.target.value, atIndex: clipIndex + 1 });
             }}
           >
             <option value="" disabled>
@@ -335,7 +328,10 @@ export function ClipInspector() {
           </div>
 
           <label className="field">
-            <span>Brightness — {clip.filter.brightness > 0 ? "+" : ""}{Math.round(clip.filter.brightness * 100)}</span>
+            <span>
+              Brightness — {clip.filter.brightness > 0 ? "+" : ""}
+              {Math.round(clip.filter.brightness * 100)}
+            </span>
             <input
               type="range"
               min={-0.5}
@@ -399,7 +395,10 @@ export function ClipInspector() {
                     type="button"
                     className={clip.transitionOutSeconds > 0 && clip.transitionOutType === type ? "active" : ""}
                     onClick={() =>
-                      update({ transitionOutSeconds: clip.transitionOutSeconds > 0 ? clip.transitionOutSeconds : 0.5, transitionOutType: type })
+                      update({
+                        transitionOutSeconds: clip.transitionOutSeconds > 0 ? clip.transitionOutSeconds : 0.5,
+                        transitionOutType: type,
+                      })
                     }
                   >
                     {TRANSITION_TYPE_LABELS[type]}

@@ -3,14 +3,7 @@ import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { OVERLAY_TRACK_ID } from "../state/initialProject.js";
 import { MAX_IMAGE_CLIP_DURATION_SECONDS } from "../media/trackAccepts.js";
 import { saveMediaBlob } from "../persistence/db.js";
-import {
-  clearBrandLogo,
-  loadBrandKit,
-  loadBrandLogoBlob,
-  saveBrandKit,
-  saveBrandLogo,
-  type BrandKit,
-} from "../persistence/brandKit.js";
+import { clearBrandLogo, loadBrandKit, loadBrandLogoBlob, saveBrandKit, saveBrandLogo, type BrandKit } from "../persistence/brandKit.js";
 
 const DEFAULT_LOGO_DURATION_SECONDS = 5;
 

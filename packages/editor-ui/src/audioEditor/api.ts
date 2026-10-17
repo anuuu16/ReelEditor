@@ -41,7 +41,7 @@ export async function encodeAudio({ file, spec, format, bitrateKbps, name }: Enc
     response = await fetch(`${RENDER_SERVICE_URL}/audio/edit`, { method: "POST", body: formData });
   } catch {
     throw new Error(
-      `Couldn't reach the render service at ${RENDER_SERVICE_URL}. Make sure it's running (pnpm --filter @reel-studio/render-service dev).`
+      `Couldn't reach the render service at ${RENDER_SERVICE_URL}. Make sure it's running (pnpm --filter @reel-studio/render-service dev).`,
     );
   }
 

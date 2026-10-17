@@ -7,13 +7,7 @@ export interface Rect {
   height: number;
 }
 
-export function computeFitRect(
-  canvasWidth: number,
-  canvasHeight: number,
-  clipWidth: number,
-  clipHeight: number,
-  mode: FitMode
-): Rect {
+export function computeFitRect(canvasWidth: number, canvasHeight: number, clipWidth: number, clipHeight: number, mode: FitMode): Rect {
   const ratioW = canvasWidth / clipWidth;
   const ratioH = canvasHeight / clipHeight;
 
