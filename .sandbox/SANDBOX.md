@@ -3,7 +3,7 @@
 Lives in `.sandbox/` on branch `sandbox-base`. The upload script leaves this folder out, so the model never sees it.
 
 ```
-PersonalProjects/
+<parent folder>/
 ├── ReelEditor/                      ← the git repo (branches: main, sandbox-base, task_*)
 │   └── .sandbox/                    ← on sandbox-base only, never uploaded
 │       ├── make-sandbox-zip.sh      ← builds + verifies the upload
@@ -13,9 +13,8 @@ PersonalProjects/
 
 ## Build the upload (always use the script)
 ```bash
-bash /Users/anu/Desktop/PersonalProjects/ReelEditor/.sandbox/make-sandbox-zip.sh           # from sandbox-base
-git -C /Users/anu/Desktop/PersonalProjects/ReelEditor show sandbox-base:.sandbox/make-sandbox-zip.sh \
-  | REPO=/Users/anu/Desktop/PersonalProjects/ReelEditor bash -s -- task_1                 # from another branch
+bash .sandbox/make-sandbox-zip.sh                         # from the repo root; packs sandbox-base
+git show sandbox-base:.sandbox/make-sandbox-zip.sh | REPO=. bash -s -- task_1   # with another branch checked out
 ```
 It uses `git archive` (committed files only, so `.git`, `node_modules`, `.env`, `dist/` and `.turbo/` are never included) and
 refuses to finish unless all checks pass:
@@ -38,7 +37,7 @@ If the Taiga npm mirror lacks a version, downgrade it here and commit, as in rea
 
 ## Start a task branch
 ```bash
-cd /Users/anu/Desktop/PersonalProjects/ReelEditor
+cd ReelEditor
 git switch -c task_N sandbox-base
 ```
 
