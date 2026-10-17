@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { buildFfmpegPlan, type OverlayTextFile, type RenderPlan } from "@reel-studio/timeline-core";
+import { FFMPEG_PATH } from "./ffmpegBinary.js";
 import { createProgressParser } from "./ffmpegProgress.js";
 import { completeJob, createJob, failJob, updateJobProgress, type Job } from "./jobs.js";
 
@@ -13,7 +14,7 @@ async function writeOverlayTextFiles(workDir: string, files: OverlayTextFile[]):
 }
 
 function spawnFfmpeg(job: Job, plan: RenderPlan, workDir: string): void {
-  const ffmpeg = spawn("ffmpeg", plan.args, { cwd: workDir });
+  const ffmpeg = spawn(FFMPEG_PATH, plan.args, { cwd: workDir });
   job.process = ffmpeg;
 
   const feed = createProgressParser((update) => {

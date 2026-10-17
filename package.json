@@ -17,5 +17,13 @@
   "packageManager": "pnpm@10.10.0",
   "engines": {
     "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@ffmpeg-installer/darwin-arm64",
+      "@ffmpeg-installer/darwin-x64",
+      "@ffmpeg-installer/linux-arm64",
+      "@ffmpeg-installer/linux-x64"
+    ]
   }
 }
