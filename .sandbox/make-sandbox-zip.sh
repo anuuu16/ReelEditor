@@ -56,7 +56,8 @@ check "this .sandbox folder"    "$(grep -c "^$NAME/\.sandbox/" <<<"$list" || tru
 check ".gitignore present"      "$(grep -c "^$NAME/\.gitignore$" <<<"$list" || true)" 1
 check "private registry URLs"   "$(unzip -p "$ZIP" | grep -ac 'artifactory' || true)" 0
 check "API keys"                "$(unzip -p "$ZIP" | grep -acE 'sk-[A-Za-z0-9_-]{20,}|sk-ant-|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|BEGIN [A-Z ]*PRIVATE KEY' || true)" 0
-check "packageManager/engines pins" "$(unzip -p "$ZIP" "$NAME/package.json" | grep -cE '"packageManager"|"engines"' || true)" 0
+check "no engines pin"          "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"engines"' || true)" 0
+check "packageManager kept (turbo needs it)" "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"packageManager"' || true)" 1
 check "media files"             "$(grep -ciE '\.(mp4|mov|mp3|wav|m4a)$' <<<"$list" || true)" 0
 
 ls -lh "$ZIP" | awk '{print "Size:", $5, " ->", $9}'

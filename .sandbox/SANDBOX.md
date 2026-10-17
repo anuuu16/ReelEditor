@@ -21,13 +21,13 @@ It uses `git archive` (committed files only, so `.git`, `node_modules`, `.env`, 
 refuses to finish unless all checks pass:
 - no agent files and no `.sandbox/`
 - no private-registry URLs and no API keys
-- no `packageManager`/`engines` pins
+- no `engines` pin
 - no media files
 
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`.
 
 ## What's in `sandbox-base`
-`main` + `packageManager`/`engines` removed from the root `package.json` + `"dangerouslyDisablePackageManagerCheck": true` in `turbo.json` (turbo refuses to run without a pin otherwise).
+`main` + `engines` removed from the root `package.json`. `packageManager` (`pnpm@10.10.0`) is kept: turbo 2.10 can't find the workspace without it.
 
 `main` itself:
 - the lockfile uses the public npm registry (`654a30e`)
