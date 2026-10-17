@@ -27,7 +27,7 @@ refuses to finish unless all checks pass:
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`.
 
 ## What's in `sandbox-base`
-`main` + `packageManager`/`engines` removed from the root `package.json`.
+`main` + `packageManager`/`engines` removed from the root `package.json` + `"dangerouslyDisablePackageManagerCheck": true` in `turbo.json` (turbo refuses to run without a pin otherwise).
 
 `main` itself:
 - the lockfile uses the public npm registry (`654a30e`)
