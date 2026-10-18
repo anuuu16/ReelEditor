@@ -12,7 +12,7 @@ import {
   computeOverlaySlideOffsetRatio,
   findActiveClip,
   findTransitionAt,
-  getSequenceDuration,
+  getProjectDuration,
   getTracksByKind,
   isOverlayActive,
   layoutSequentialClips,
@@ -341,12 +341,9 @@ export function PreviewCanvas() {
       const current = stateRef.current;
       const laidOutVideo = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
       const laidOutAudioTracks = getTracksByKind(current.project, "audio").map((track) => layoutTrackClips(current.project, track.id));
-      const overlaysEnd = current.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-      const totalDuration = Math.max(
-        getSequenceDuration(laidOutVideo),
-        ...laidOutAudioTracks.map((clips) => getSequenceDuration(clips)),
-        overlaysEnd,
-      );
+      // The same definition of "how long is this reel" the timeline, transport and ffmpeg export
+      // plan use, so playback stops exactly where the exported file ends.
+      const totalDuration = getProjectDuration(current.project);
 
       if (current.isPlaying && lastTs !== null) {
         const dt = (ts - lastTs) / 1000;

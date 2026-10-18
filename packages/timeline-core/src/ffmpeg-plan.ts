@@ -4,13 +4,30 @@ import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type Lai
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
 import { buildPanZoomFilter } from "./fit-rect.js";
-import { getTracksByKind } from "./track-utils.js";
+import { getProjectDuration, getTracksByKind } from "./track-utils.js";
+
+// How far past the project end the video lane is padded before being trimmed back to it — see
+// padVideoToProjectEnd. Generous enough to absorb any metadata-vs-real-frames shortfall, cheap
+// enough (a few dozen generated black frames, dropped by the trim) not to matter.
+export const VIDEO_PAD_SLACK_SECONDS = 1;
 
 export interface RenderPlanInput {
   project: ProjectModel;
   sourcePaths: Record<string, string>;
   /** Overrides the project canvas size for the final render (e.g. a 4K/2K/720p export quality choice). */
   output?: { width: number; height: number };
+  /**
+   * Audio channel count of each source's file, as probed by the render service (the browser can't
+   * reliably tell): 0 = no audio stream at all, 1 = mono, 2 or more = stereo or wider. A source
+   * missing from the map is assumed to carry audio of an unknown layout.
+   *
+   * 0 matters most: a screen recording, a clip shot with the mic off, a GIF-turned-mp4… has no
+   * audio stream, and referencing `[N:a]` on such an input makes ffmpeg abort the whole export
+   * ("Stream specifier ':a' ... matches no streams"). Those clips get generated silence instead,
+   * which is exactly what the preview plays for them. 1 is used to copy a mono file to both output
+   * channels at full level, the way the browser plays it (see buildStereoLayoutSuffix).
+   */
+  sourceAudioChannels?: Record<string, number>;
 }
 
 export interface OverlayTextFile {
@@ -192,17 +209,22 @@ function buildImageScaleChain(overlay: Overlay, canvasWidth: number, canvasHeigh
 
 export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const { project, sourcePaths } = input;
+  const audioChannelsOf = (sourceId: string): number | undefined => input.sourceAudioChannels?.[sourceId];
   const trackKindById = new Map(project.tracks.map((t) => [t.id, t.kind] as const));
   const videoClips = layoutSequentialClips(project.clips.filter((c) => trackKindById.get(c.trackId) === "video"));
   // Each audio track is its own independent sequential lane; tracks are mixed together (not
   // concatenated) so clips on different tracks can overlap in time.
   const audioTracks = getTracksByKind(project, "audio");
 
-  if (videoClips.length === 0) {
-    throw new Error("Add at least one video clip before exporting.");
+  // The export is exactly as long as the editor's timeline/preview says the reel is — the longest
+  // of the video track, every audio track and the last title/logo — never just the video track.
+  // Whatever ends early is padded out: black frames after the last video clip, silence after the
+  // last audio clip, both of which is precisely what the preview shows/plays there.
+  const totalDurationSeconds = getProjectDuration(project);
+  if (totalDurationSeconds <= 0) {
+    throw new Error("Add a clip, audio or title to the timeline before exporting.");
   }
-
-  const totalDurationSeconds = getSequenceDuration(videoClips);
+  const videoSequenceDuration = getSequenceDuration(videoClips);
 
   interface InputSpec {
     path: string;
@@ -398,12 +420,28 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     return `anullsrc=r=48000:cl=stereo,atrim=duration=${durationSeconds.toFixed(3)}[${label}]`;
   }
 
+  // A clip contributes generated silence instead of its file's audio when it's muted, when it's an
+  // image (no audio stream by definition), or when the probe found its file has no audio stream.
+  function isSilentClip(clip: Clip, forceSilent: boolean): boolean {
+    return clip.muted || forceSilent || audioChannelsOf(clip.sourceId) === 0;
+  }
+
+  // The output is stereo (the silence/gap generators are, and so is the mix). A mono file — a voice
+  // recording, a TTS track — is copied to both sides at full level, which is how the browser plays
+  // it in the preview; left to ffmpeg's own mono→stereo upmix it would land at −3 dB on each side,
+  // audibly quieter than the editor. Stereo passes through untouched, and anything wider (5.1…) is
+  // left to ffmpeg's standard downmix, which is why this needs the probed channel count rather than
+  // a blanket `pan` (that would throw surround channels away).
+  function buildStereoLayoutSuffix(sourceId: string): string {
+    return audioChannelsOf(sourceId) === 1 ? ",pan=stereo|c0=c0|c1=c0" : "";
+  }
+
   function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
-    if (clip.muted || forceSilent) {
+    if (isSilentClip(clip, forceSilent)) {
       return `anullsrc=r=48000:cl=stereo,atrim=duration=${duration.toFixed(3)}[${label}]`;
     }
     return (
-      `[${inputIdx}:a]atrim=start=${clip.inPoint}:end=${clip.outPoint},asetpts=PTS-STARTPTS` +
+      `[${inputIdx}:a]atrim=start=${clip.inPoint}:end=${clip.outPoint},asetpts=PTS-STARTPTS${buildStereoLayoutSuffix(clip.sourceId)}` +
       `${buildAtempoChain(clip.speed)},volume=${clip.volume}${buildFadeSuffix(clip, duration)}[${label}]`
     );
   }
@@ -443,9 +481,9 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     );
     const totalDuration = first.duration * repeatCount;
     filterChains.push(
-      first.muted
+      isSilentClip(first, false)
         ? `anullsrc=r=48000:cl=stereo,atrim=duration=${totalDuration.toFixed(3)}[${aLabel}]`
-        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`,
+        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildStereoLayoutSuffix(first.sourceId)}${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`,
     );
   }
 
@@ -494,7 +532,43 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     musicTrackLabels.push(trackLabel);
   });
 
-  const videoConcatLabel = chainSequential(videoLabels, sequencingClips, "video", "vxf", buildVideoGapFiller);
+  // Pads a stream that ends before the project does out to the full project length — black frames
+  // for video, silence for audio — so every lane fed into the final mux is exactly
+  // totalDurationSeconds long. Mirrors the preview, which keeps ticking to the project end drawing a
+  // black canvas (plus any still-active overlays) once the last video clip is over, and plays
+  // nothing from a track whose last clip has ended.
+  function padVideoToProjectEnd(label: string, currentDuration: number, outLabel: string): string {
+    // Pad a little past the project end, then trim back to it exactly. The pad length is only an
+    // estimate: a container's duration can overstate how many frames it really holds (a WebM
+    // whose audio outlasts its video by a few ms, say), and fps rounding at a fractional clip
+    // boundary can drop a frame — padding exactly `tail` from that estimate would then leave the
+    // lane a frame short. The trim is what makes the lane exactly totalDurationSeconds long.
+    const tail = Math.max(0, totalDurationSeconds - currentDuration);
+    filterChains.push(
+      `${label}tpad=stop_mode=add:stop_duration=${(tail + VIDEO_PAD_SLACK_SECONDS).toFixed(3)}:color=black` +
+        `,trim=end=${totalDurationSeconds.toFixed(3)}[${outLabel}]`,
+    );
+    return `[${outLabel}]`;
+  }
+
+  function padAudioToProjectEnd(label: string, outLabel: string): string {
+    // whole_dur is a no-op for a lane that already reaches the project end, so this is safe to
+    // apply to every lane rather than only the ones known to be short.
+    filterChains.push(`${label}apad=whole_dur=${totalDurationSeconds.toFixed(3)}[${outLabel}]`);
+    return `[${outLabel}]`;
+  }
+
+  // A project with no video clips at all (just music and a title, say) still plays in the editor as
+  // black frames with the title over them, so it exports that way too instead of being refused.
+  const hasVideoClips = videoUnits.length > 0;
+  let videoConcatLabel: string;
+  if (hasVideoClips) {
+    videoConcatLabel = chainSequential(videoLabels, sequencingClips, "video", "vxf", buildVideoGapFiller);
+    videoConcatLabel = padVideoToProjectEnd(videoConcatLabel, videoSequenceDuration, "vpad");
+  } else {
+    filterChains.push(buildVideoGapFiller(totalDurationSeconds, "vblack"));
+    videoConcatLabel = "[vblack]";
+  }
 
   const overlayTextFiles: OverlayTextFile[] = [];
   let finalVideoLabel = videoConcatLabel;
@@ -522,14 +596,25 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     finalVideoLabel = `[${nextLabel}]`;
   });
 
-  const clipAudioConcatLabel = chainSequential(clipAudioLabels, sequencingClips, "audio", "axf", buildAudioGapFiller);
+  let clipAudioConcatLabel: string;
+  if (hasVideoClips) {
+    clipAudioConcatLabel = chainSequential(clipAudioLabels, sequencingClips, "audio", "axf", buildAudioGapFiller);
+    clipAudioConcatLabel = padAudioToProjectEnd(clipAudioConcatLabel, "apad");
+  } else {
+    filterChains.push(buildAudioGapFiller(totalDurationSeconds, "asilence"));
+    clipAudioConcatLabel = "[asilence]";
+  }
 
   let finalAudioLabel = clipAudioConcatLabel;
   if (musicTrackLabels.length > 0) {
-    // duration=first anchors output length to the video track; if an audio track runs longer,
-    // the tail is dropped (unlike the preview compositor, which keeps playing past the last video frame).
-    const mixInputLabels = [clipAudioConcatLabel, ...musicTrackLabels];
-    filterChains.push(`${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=first:dropout_transition=0[aout]`);
+    // Every lane has been padded to the full project length above, so the mix runs to the project
+    // end regardless of which track is the longest — a music track that outlasts the video keeps
+    // playing over black, exactly as the preview does. normalize=0 makes amix a plain sum, like the
+    // preview (each <audio>/<video> element at its own volume, summed by the browser); amix's default
+    // would instead scale every lane by 1/N, so a track alone in the mix would play at half the
+    // volume set in the inspector.
+    const mixInputLabels = [clipAudioConcatLabel, ...musicTrackLabels.map((label, i) => padAudioToProjectEnd(label, `mpad${i}`))];
+    filterChains.push(`${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=longest:normalize=0[aout]`);
     finalAudioLabel = "[aout]";
   }
 
@@ -564,6 +649,10 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     "192k",
     "-movflags",
     "+faststart",
+    // Pins the file to exactly the planned length as a final guard: AAC frame padding or a
+    // rounding hair on one padded lane can otherwise leave the container a few ms over.
+    "-t",
+    totalDurationSeconds.toFixed(3),
     "-progress",
     "pipe:1",
     "-nostats",

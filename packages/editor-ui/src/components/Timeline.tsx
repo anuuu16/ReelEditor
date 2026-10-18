@@ -15,8 +15,7 @@ export function Timeline() {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(PIXELS_PER_SECOND_DEFAULT);
 
   const audioTracks = getTracksByKind(state.project, "audio");
-  const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-  const totalDuration = getProjectDuration(state.project, [overlaysEnd]);
+  const totalDuration = getProjectDuration(state.project);
 
   function zoomIn() {
     setPixelsPerSecond((p) => Math.min(PIXELS_PER_SECOND_MAX, Math.round(p * 1.25)));

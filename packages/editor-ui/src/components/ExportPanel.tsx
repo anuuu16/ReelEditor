@@ -50,6 +50,8 @@ export function ExportPanel() {
   const placeholderClipCount = getUsedSourceIds(state.project).filter(
     (id) => state.project.sources.find((s) => s.id === id)?.isPlaceholder,
   ).length;
+  // Same condition that disables Play in the transport: an empty timeline has nothing to render.
+  const nothingToExport = totalDuration <= 0;
 
   function reset() {
     eventSource?.close();
@@ -242,11 +244,14 @@ export function ExportPanel() {
               </p>
             )}
 
+            {nothingToExport && <p className="export-warning">The timeline is empty — add a clip, audio or title before exporting.</p>}
+
             <p className="hint">
-              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height} ({qualityTier.label}
-              ).
+              Renders the full {formatSeconds(totalDuration)} timeline — exactly what the preview plays, including any title or music that
+              runs past the last video clip — locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height} (
+              {qualityTier.label}).
             </p>
-            <button type="button" onClick={startExport} disabled={placeholderClipCount > 0}>
+            <button type="button" onClick={startExport} disabled={placeholderClipCount > 0 || nothingToExport}>
               Start export
             </button>
           </>

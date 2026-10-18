@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { buildFfmpegPlan, type OverlayTextFile, type RenderPlan } from "@reel-studio/timeline-core";
@@ -10,6 +10,9 @@ import { completeJob, createJob, failJob, updateJobProgress, type Job } from "./
 const STDERR_TAIL_LIMIT = 4000;
 
 async function writeOverlayTextFiles(workDir: string, files: OverlayTextFile[]): Promise<void> {
+  // The upload handler only creates workDir once it receives a media file; a project with no media
+  // at all (just titles over black) still needs somewhere to put its overlay text files and output.
+  await mkdir(workDir, { recursive: true });
   await Promise.all(files.map((file) => writeFile(path.join(workDir, file.fileName), file.content, "utf8")));
 }
 
@@ -54,14 +57,20 @@ function spawnFfmpeg(job: Job, plan: RenderPlan, workDir: string): void {
   });
 }
 
+export interface RenderOptions {
+  output?: { width: number; height: number };
+  /** Audio channel count per source (0 = no audio stream) — see probeSourceAudioChannels in probe.ts. */
+  sourceAudioChannels?: Record<string, number>;
+}
+
 export function startRenderJob(
   jobId: string,
   project: ProjectModel,
   sourcePaths: Record<string, string>,
   workDir: string,
-  output?: { width: number; height: number },
+  options: RenderOptions = {},
 ): Job {
-  const plan = buildFfmpegPlan({ project, sourcePaths, output });
+  const plan = buildFfmpegPlan({ project, sourcePaths, output: options.output, sourceAudioChannels: options.sourceAudioChannels });
   const job = createJob(jobId, workDir, plan.totalDurationSeconds);
 
   writeOverlayTextFiles(workDir, plan.overlayTextFiles)

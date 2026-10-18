@@ -16,6 +16,7 @@ import {
   saveProjectFile,
 } from "./projects.js";
 import { audioEditUpload, handleAudioEdit } from "./audioEdit.js";
+import { probeSourceAudioChannels } from "./probe.js";
 import { startRenderJob } from "./render.js";
 import { createRhymeRouter } from "./rhymeRoutes.js";
 import {
@@ -96,7 +97,7 @@ const renderStorage = multer.diskStorage({
 });
 const renderUpload = multer({ storage: renderStorage });
 
-app.post("/render", assignJobId, renderUpload.any(), (req: Request, res: Response) => {
+app.post("/render", assignJobId, renderUpload.any(), async (req: Request, res: Response) => {
   const jobId = req.jobId as string;
   const workDir = path.join(TMP_ROOT, jobId);
 
@@ -121,8 +122,12 @@ app.post("/render", assignJobId, renderUpload.any(), (req: Request, res: Respons
       ? { width: outputWidth, height: outputHeight }
       : undefined;
 
+  // Probe before planning: a clip from a file with no audio stream (screen recording etc.) must
+  // be wired up as silence, or ffmpeg rejects the filter graph and the whole export fails.
+  const sourceAudioChannels = await probeSourceAudioChannels(project, sourcePaths);
+
   try {
-    startRenderJob(jobId, project, sourcePaths, workDir, output);
+    startRenderJob(jobId, project, sourcePaths, workDir, { output, sourceAudioChannels });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
     return;
