@@ -58,8 +58,8 @@ check "private registry URLs"   "$(unzip -p "$ZIP" | grep -acE 'artifactor[y]|\.
 check "API keys"                "$(unzip -p "$ZIP" | grep -acE 'sk-[A-Za-z0-9_-]{20,}|sk-ant-|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|BEGIN [A-Z ]*PRIVATE KEY' || true)" 0
 check "no engines pin"          "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"engines"' || true)" 0
 check "packageManager kept (turbo needs it)" "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"packageManager"' || true)" 1
-check "media files outside samples/" "$(grep -iE '\.(mp4|mov|mp3|wav|m4a)$' <<<"$list" | grep -vc "^$NAME/samples/" || true)" 0
-check "sample media (6 files)"  "$(grep -ciE "^$NAME/samples/.*\.(mp4|m4a|wav)$" <<<"$list" || true)" 6
+check "media files outside samples/" "$(grep -iE '\.(mp4|mov|mp3|wav|m4a|jpe?g|png|webp|heic)$' <<<"$list" | grep -vc "^$NAME/samples/" || true)" 0
+check "sample media (11 files)" "$(grep -ciE "^$NAME/samples/.*\.(mp4|m4a|wav|jpe?g|png)$" <<<"$list" || true)" 11
 
 ls -lh "$ZIP" | awk '{print "Size:", $5, " ->", $9}'
 if [ "$fail" = 1 ]; then echo "NOT OK: fix the items above before uploading."; rm -f "$ZIP"; exit 1; fi

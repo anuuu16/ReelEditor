@@ -12,3 +12,13 @@ Generated with ffmpeg (test patterns and tones, no real footage), for trying out
 | `quiet-tone-8s.wav` | mono, 48 kHz, 8 s, a 440 Hz tone; quiet: −33.8 LUFS, −30.1 dBTP |
 
 Loudness values were measured with `ffmpeg -i <file> -af ebur128=peak=true -f null -`.
+
+Images for the image editor (generated with Pillow; no real photos). Each has a "TOP ↑" marker, so a wrong rotation is easy to see:
+
+| File | What it is |
+|---|---|
+| `photo-landscape-4000x3000.jpg` | a normal landscape picture: sky, sun, mountain, grid |
+| `photo-phone-exif-rotated.jpg` | like a phone photo: pixels stored as 4000×3000 landscape with **EXIF Orientation = 6**, so it should *display* as a 3000×4000 portrait with "TOP ↑" at the top-left |
+| `logo-transparent.png` | 1200×1200 logo with a transparent background |
+| `photo-huge-9000x6000.jpg` | a very large picture (54 megapixels) |
+| `photo-tiny-160x90.png` | a tiny picture (upscaling) |
