@@ -48,7 +48,8 @@ The service looks for ffmpeg in this order:
    pnpm --filter @reel-studio/render-service add @ffmpeg-installer/ffmpeg
    ```
 
-   It ships ffmpeg 4.x (with `drawtext`) inside the npm package, so no other download is needed. `ffprobe` isn't included.
+   It ships an ffmpeg binary inside the npm package, so no other download is needed, but it's an old build (Linux x64: 4.1
+   from 2018; macOS arm64: 4.4), so newer filters may be missing. Prefer a system ffmpeg when you can. `ffprobe` isn't included.
 
 Then click "Export" in the editor. The editor uploads the project's media to the local render service (`http://localhost:4310`), which runs ffmpeg and streams progress back; when it finishes you get a download link for the rendered MP4.
 
