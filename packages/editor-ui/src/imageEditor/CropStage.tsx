@@ -1,7 +1,6 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
-import type { CropRect } from "./renderImage.js";
+import type { CropRect } from "./document.js";
 
-export const FULL_CROP: CropRect = { x: 0, y: 0, width: 1, height: 1 };
 const MIN_SIZE = 0.05;
 
 type DragMode = "move" | "nw" | "ne" | "sw" | "se";
@@ -10,13 +9,15 @@ interface CropStageProps {
   src: string;
   crop: CropRect;
   onChange: (crop: CropRect) => void;
+  /** Called once when a drag starts — lets the owner open a single undo step for the whole gesture. */
+  onDragStart?: () => void;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CropStage({ src, crop, onChange }: CropStageProps) {
+export function CropStage({ src, crop, onChange, onDragStart }: CropStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ mode: DragMode; startX: number; startY: number; start: CropRect } | null>(null);
 
@@ -25,6 +26,7 @@ export function CropStage({ src, crop, onChange }: CropStageProps) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { mode, startX: e.clientX, startY: e.clientY, start: crop };
+    onDragStart?.();
   }
 
   function handleMove(e: ReactPointerEvent<HTMLElement>) {
