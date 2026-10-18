@@ -16,6 +16,7 @@ export function createInitialProject(): ProjectModel {
     clips: [],
     overlays: [],
     sources: [],
+    endBehavior: "black",
     metadata: {
       name: "Untitled reel",
       templateId: null,

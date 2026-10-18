@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { getProjectDuration, getTracksByKind } from "@reel-studio/timeline-core";
+import { getTimelineDuration, getTracksByKind } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { PIXELS_PER_SECOND_DEFAULT, PIXELS_PER_SECOND_MAX, PIXELS_PER_SECOND_MIN } from "../constants.js";
+import { EndingControl } from "./EndingControl.js";
 import { MagnifierIcon } from "./MagnifierIcon.js";
 import { OverlayTrackRow } from "./OverlayTrackRow.js";
 import { Playhead } from "./Playhead.js";
@@ -15,8 +16,7 @@ export function Timeline() {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(PIXELS_PER_SECOND_DEFAULT);
 
   const audioTracks = getTracksByKind(state.project, "audio");
-  const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-  const totalDuration = getProjectDuration(state.project, [overlaysEnd]);
+  const totalDuration = getTimelineDuration(state.project);
 
   function zoomIn() {
     setPixelsPerSecond((p) => Math.min(PIXELS_PER_SECOND_MAX, Math.round(p * 1.25)));
@@ -52,6 +52,7 @@ export function Timeline() {
         <button type="button" onClick={() => dispatch({ type: "ADD_TRACK", kind: "audio" })}>
           + Add audio track
         </button>
+        <EndingControl />
       </div>
       <div className="timeline-toolbar">
         <button type="button" onClick={zoomOut} title="Zoom out">

@@ -13,6 +13,7 @@ import {
   findActiveClip,
   findTransitionAt,
   getSequenceDuration,
+  getTimelineDuration,
   getTracksByKind,
   isOverlayActive,
   layoutSequentialClips,
@@ -36,6 +37,16 @@ const RESIZE_HANDLE_SIZE = 10;
 function clampPlaybackRate(speed: number): number {
   if (!Number.isFinite(speed) || speed <= 0) return 1;
   return Math.min(16, Math.max(0.0625, speed));
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+interface FrameLayer {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
 }
 
 interface ImageOverlayRect {
@@ -156,6 +167,8 @@ export function PreviewCanvas() {
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const imageElsRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const overlayDragRef = useRef<OverlayDragState | null>(null);
+  // Offscreen canvases a transition renders each clip's full frame into before blending them.
+  const frameLayersRef = useRef<FrameLayer[]>([]);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -179,6 +192,20 @@ export function PreviewCanvas() {
     let raf: number;
     let lastTs: number | null = null;
 
+    function getLayer(index: number, width: number, height: number): FrameLayer | null {
+      let layer = frameLayersRef.current[index];
+      if (!layer) {
+        const cv = document.createElement("canvas");
+        const context = cv.getContext("2d");
+        if (!context) return null;
+        layer = { canvas: cv, ctx: context };
+        frameLayersRef.current[index] = layer;
+      }
+      if (layer.canvas.width !== width) layer.canvas.width = width;
+      if (layer.canvas.height !== height) layer.canvas.height = height;
+      return layer;
+    }
+
     function renderFrame(s: EditorState, laidOutVideo: LaidOutClip[], laidOutAudioTracks: LaidOutClip[][], totalDuration: number) {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
@@ -192,6 +219,23 @@ export function PreviewCanvas() {
       // outside of one, exactly one clip is active, same as before transitions existed.
       const transition = findTransitionAt(laidOutVideo, queryTime);
       const activeVideo = transition ? null : findActiveClip(laidOutVideo, queryTime);
+
+      // `endBehavior: "freeze"`: once the video track has nothing left to play but the playhead is
+      // still short of the full timeline (a longer music track, a later title), hold the video
+      // track's very last clip on its final frame — exactly what the export's tpad clone does to
+      // the same lane. `localTime` points just short of that clip's outPoint: an element's
+      // currentTime can't usefully sit *at* its own duration, and the export's last decoded frame
+      // is, for the same reason, never quite the frame at the nominal end either.
+      const videoSequenceEnd = getSequenceDuration(laidOutVideo);
+      const lastVideoClip = laidOutVideo[laidOutVideo.length - 1];
+      const freezeInfo: ActiveClip | null =
+        !transition && !activeVideo && s.project.endBehavior === "freeze" && lastVideoClip && queryTime >= videoSequenceEnd - 0.0005
+          ? {
+              clip: lastVideoClip,
+              localTime: Math.max(lastVideoClip.inPoint, lastVideoClip.outPoint - 0.05),
+              index: laidOutVideo.length - 1,
+            }
+          : null;
 
       function activeInfoFor(clipId: string): ActiveClip | null {
         if (transition) {
@@ -229,6 +273,12 @@ export function PreviewCanvas() {
             : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume * crossfade;
           if (s.isPlaying && el.paused) el.play().catch(() => {});
           if (!s.isPlaying && !el.paused) el.pause();
+        } else if (freezeInfo?.clip.id === clip.id) {
+          // Hold this (the last) clip's element on its final frame rather than letting it sit
+          // wherever it happened to stop — seeking once and leaving it paused there.
+          if (el.playbackRate !== 1) el.playbackRate = 1;
+          if (Math.abs(el.currentTime - freezeInfo.localTime) > SEEK_THRESHOLD) el.currentTime = freezeInfo.localTime;
+          if (!el.paused) el.pause();
         } else {
           if (!el.paused) el.pause();
           if (isUpNext) {
@@ -240,41 +290,39 @@ export function PreviewCanvas() {
         }
       });
 
-      interface DrawOptions {
-        alphaMultiplier?: number;
-        xOffsetPx?: number; // horizontal shift, for the slide transition
-        extraScale?: number; // additional uniform scale around center, for the zoom transition
-        clipRectPx?: { x: number; y: number; width: number; height: number }; // for the wipe transition
-      }
+      // One clip's complete frame: the black canvas with the clip fit/pan-zoomed, filtered and faded
+      // on top — exactly the per-clip frame the export builds (scale/pad to the canvas, fade to
+      // black) before it joins clips together. Transitions then blend these whole frames, as
+      // ffmpeg's xfade does, so black letterbox bars and fades take part in a transition the same
+      // way in both places.
+      function drawClipFrame(cv: HTMLCanvasElement, context: CanvasRenderingContext2D, activeInfo: ActiveClip) {
+        context.save();
+        context.globalAlpha = 1;
+        context.filter = "none";
+        context.fillStyle = "#000000";
+        context.fillRect(0, 0, cv.width, cv.height);
+        context.restore();
 
-      function drawVideoClip(cv: HTMLCanvasElement, context: CanvasRenderingContext2D, activeInfo: ActiveClip, options: DrawOptions = {}) {
-        const { alphaMultiplier = 1, xOffsetPx = 0, extraScale = 1, clipRectPx } = options;
         const source = s.project.sources.find((src) => src.id === activeInfo.clip.sourceId);
         const el = videoElsRef.current.get(activeInfo.clip.id);
         if (!source || !el) return;
         const isReady = el instanceof HTMLVideoElement ? el.readyState >= 2 : el.complete;
         if (!isReady) return;
         const fitRect = computeFitRect(cv.width, cv.height, source.width, source.height, activeInfo.clip.fitMode);
-        let rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
-        if (extraScale !== 1) {
-          const width = rect.width * extraScale;
-          const height = rect.height * extraScale;
-          rect = { x: rect.x - (width - rect.width) / 2, y: rect.y - (height - rect.height) / 2, width, height };
-        }
-        rect = { ...rect, x: rect.x + xOffsetPx };
+        const rect = applyPanZoom(fitRect, activeInfo.clip.transform, cv.width, cv.height);
+        // Clamped to the clip's own duration: a frozen frame (playhead long past the clip's end)
+        // reads as "exactly at the end", not as drifting further into a fade-out that already
+        // finished — the export's held frame is likewise whatever the fade looked like right at
+        // the clip's last decoded frame, not one that keeps fading after the clip stops playing.
+        const positionInClip = Math.min(s.playhead - activeInfo.clip.timelineStart, activeInfo.clip.duration);
         const fadeMultiplier = computeFadeMultiplier(
           activeInfo.clip.fadeInSeconds,
           activeInfo.clip.fadeOutSeconds,
-          s.playhead - activeInfo.clip.timelineStart,
+          positionInClip,
           activeInfo.clip.duration,
         );
         context.save();
-        if (clipRectPx) {
-          context.beginPath();
-          context.rect(clipRectPx.x, clipRectPx.y, clipRectPx.width, clipRectPx.height);
-          context.clip();
-        }
-        context.globalAlpha = activeInfo.clip.opacity * fadeMultiplier * alphaMultiplier;
+        context.globalAlpha = Math.max(0, Math.min(1, activeInfo.clip.opacity ?? 1)) * fadeMultiplier;
         context.filter = buildCanvasFilterString(activeInfo.clip.filter);
         context.drawImage(el, rect.x, rect.y, rect.width, rect.height);
         context.restore();
@@ -282,50 +330,88 @@ export function PreviewCanvas() {
 
       if (transition) {
         const p = transition.progress;
-        switch (transition.outgoing.clip.transitionOutType) {
-          case "slide":
-            // Both clips move together — outgoing pushed fully off-screen left as incoming slides in from the right.
-            drawVideoClip(canvas, ctx, transition.outgoing, { xOffsetPx: -p * canvas.width });
-            drawVideoClip(canvas, ctx, transition.incoming, { xOffsetPx: (1 - p) * canvas.width });
-            break;
-          case "wipe":
-            // A hard edge reveals the incoming clip left-to-right; no alpha blending, unlike dissolve/zoom.
-            drawVideoClip(canvas, ctx, transition.outgoing, {});
-            drawVideoClip(canvas, ctx, transition.incoming, {
-              clipRectPx: { x: 0, y: 0, width: p * canvas.width, height: canvas.height },
-            });
-            break;
-          case "zoom":
-            // Crossfade plus the incoming clip growing in from half size, for a "punch in" reveal.
-            drawVideoClip(canvas, ctx, transition.outgoing, { alphaMultiplier: 1 - p });
-            drawVideoClip(canvas, ctx, transition.incoming, { alphaMultiplier: p, extraScale: 0.5 + 0.5 * p });
-            break;
-          case "dissolve":
-          default:
-            // Outgoing drawn first as the base layer, incoming blended over it at `progress` opacity —
-            // equivalent to a linear crossfade and matches ffmpeg xfade's "fade" transition exactly.
-            drawVideoClip(canvas, ctx, transition.outgoing, { alphaMultiplier: 1 - p });
-            drawVideoClip(canvas, ctx, transition.incoming, { alphaMultiplier: p });
-            break;
+        const w = canvas.width;
+        const h = canvas.height;
+        const outgoingFrame = getLayer(0, w, h);
+        const incomingFrame = getLayer(1, w, h);
+        if (outgoingFrame && incomingFrame) {
+          drawClipFrame(outgoingFrame.canvas, outgoingFrame.ctx, transition.outgoing);
+          drawClipFrame(incomingFrame.canvas, incomingFrame.ctx, transition.incoming);
+          const a = outgoingFrame.canvas;
+          const b = incomingFrame.canvas;
+          ctx.save();
+          switch (transition.outgoing.clip.transitionOutType) {
+            case "slide":
+              // xfade "slideleft": the outgoing frame is pushed off to the left as the incoming one
+              // slides in from the right edge.
+              ctx.drawImage(a, -p * w, 0);
+              ctx.drawImage(b, (1 - p) * w, 0);
+              break;
+            case "wipe": {
+              // xfade "wiperight": a hard vertical edge sweeps left-to-right revealing the incoming frame.
+              ctx.drawImage(a, 0, 0);
+              const revealed = Math.min(w, p * w);
+              if (revealed >= 1) ctx.drawImage(b, 0, 0, revealed, h, 0, 0, revealed, h);
+              break;
+            }
+            case "zoom": {
+              // xfade "zoomin": the camera pushes into the centre of the outgoing frame during the first
+              // half, then that (fully zoomed) frame cross-fades into the incoming one — both on
+              // smoothstep curves, measured against ffmpeg's output.
+              const q = 1 - p;
+              const zoom = smoothstep(0.5, 1, q);
+              const outgoingWeight = smoothstep(0, 0.5, q);
+              const sw = Math.max(1, zoom * w);
+              const sh = Math.max(1, zoom * h);
+              ctx.drawImage(b, 0, 0);
+              ctx.globalAlpha = outgoingWeight;
+              ctx.drawImage(a, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, w, h);
+              break;
+            }
+            case "dissolve":
+            default:
+              // (1 - p)·outgoing + p·incoming — xfade's "fade". (Drawing the outgoing frame at 1 - p
+              // first, as this used to, dimmed the middle of every dissolve to ~75% brightness.)
+              ctx.drawImage(a, 0, 0);
+              ctx.globalAlpha = p;
+              ctx.drawImage(b, 0, 0);
+              break;
+          }
+          ctx.restore();
         }
       } else if (activeVideo) {
-        drawVideoClip(canvas, ctx, activeVideo, {});
+        drawClipFrame(canvas, ctx, activeVideo);
+      } else if (freezeInfo) {
+        drawClipFrame(canvas, ctx, freezeInfo);
       }
 
       // Each audio track plays independently (and simultaneously with the others) — a track's
       // own active clip is found and driven the same way the single audio lane used to be.
       laidOutAudioTracks.forEach((laidOutAudio) => {
-        const activeAudio = findActiveClip(laidOutAudio, queryTime);
+        // Two overlapping clips on an audio track cross-fade, like the export's acrossfade.
+        const audioTransition = findTransitionAt(laidOutAudio, queryTime);
+        const activeAudio = audioTransition ? null : findActiveClip(laidOutAudio, queryTime);
         laidOutAudio.forEach((clip) => {
           const el = audioElsRef.current.get(clip.id);
           if (!el) return;
-          if (activeAudio?.clip.id === clip.id) {
+          let info: ActiveClip | null = activeAudio?.clip.id === clip.id ? activeAudio : null;
+          let crossfade = 1;
+          if (audioTransition?.outgoing.clip.id === clip.id) {
+            info = audioTransition.outgoing;
+            crossfade = 1 - audioTransition.progress;
+          } else if (audioTransition?.incoming.clip.id === clip.id) {
+            info = audioTransition.incoming;
+            crossfade = audioTransition.progress;
+          }
+          if (info) {
             const rate = clampPlaybackRate(clip.speed);
             if (el.playbackRate !== rate) el.playbackRate = rate;
-            if (Math.abs(el.currentTime - activeAudio.localTime) > SEEK_THRESHOLD) {
-              el.currentTime = activeAudio.localTime;
+            if (Math.abs(el.currentTime - info.localTime) > SEEK_THRESHOLD) {
+              el.currentTime = info.localTime;
             }
-            el.volume = s.masterMuted ? 0 : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume;
+            el.volume = s.masterMuted
+              ? 0
+              : computeEffectiveVolume(clip, s.playhead - clip.timelineStart, clip.duration) * s.masterVolume * crossfade;
             if (s.isPlaying && el.paused) el.play().catch(() => {});
             if (!s.isPlaying && !el.paused) el.pause();
           } else if (!el.paused) {
@@ -341,12 +427,8 @@ export function PreviewCanvas() {
       const current = stateRef.current;
       const laidOutVideo = layoutSequentialClips(current.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
       const laidOutAudioTracks = getTracksByKind(current.project, "audio").map((track) => layoutTrackClips(current.project, track.id));
-      const overlaysEnd = current.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-      const totalDuration = Math.max(
-        getSequenceDuration(laidOutVideo),
-        ...laidOutAudioTracks.map((clips) => getSequenceDuration(clips)),
-        overlaysEnd,
-      );
+      // Same definition of "how long is this reel" as the timeline, transport and the export.
+      const totalDuration = getTimelineDuration(current.project);
 
       if (current.isPlaying && lastTs !== null) {
         const dt = (ts - lastTs) / 1000;

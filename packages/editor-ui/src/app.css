@@ -566,7 +566,30 @@ body {
 
 .timeline-add-track {
   flex-shrink: 0;
-  padding: 2px 0 10px 60px;
+  padding: 2px 16px 10px 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ending-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ending-control-label {
+  font-size: 11px;
+  color: #9294a1;
+  white-space: nowrap;
+}
+
+.ending-control-hint {
+  font-size: 10px;
+  color: #6e707c;
+  white-space: nowrap;
 }
 
 .timeline-add-track button {

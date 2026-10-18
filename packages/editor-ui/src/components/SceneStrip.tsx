@@ -3,10 +3,11 @@ import { layoutSequentialClips } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorState } from "../state/EditorContext.js";
 import { VIDEO_TRACK_ID } from "../state/initialProject.js";
 import { getOrCreate } from "../thumbnails/cache.js";
-import { generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
+import { generateImageThumbnail, generateVideoThumbnails } from "../thumbnails/videoThumbnails.js";
 
 function SceneThumbnail({
   sourceId,
+  kind,
   previewUrl,
   inPoint,
   outPoint,
@@ -14,6 +15,7 @@ function SceneThumbnail({
   onClick,
 }: {
   sourceId: string;
+  kind: "video" | "audio" | "image";
   previewUrl: string;
   inPoint: number;
   outPoint: number;
@@ -24,16 +26,21 @@ function SceneThumbnail({
 
   useEffect(() => {
     let cancelled = false;
-    const key = `video:${sourceId}:${inPoint}:${outPoint}:1`;
-    getOrCreate(key, () => generateVideoThumbnails(previewUrl, inPoint, outPoint, 1))
-      .then((frames) => {
-        if (!cancelled && frames[0]) setFrame(frames[0]);
+    // A still on the video track (slideshow) is an image, not a video — it can't be decoded for frames.
+    const key = kind === "image" ? `scene:image:${sourceId}` : `scene:video:${sourceId}:${inPoint}:${outPoint}`;
+    const generate: () => Promise<string | null> =
+      kind === "image"
+        ? () => generateImageThumbnail(previewUrl)
+        : () => generateVideoThumbnails(previewUrl, inPoint, outPoint, 1).then((frames) => frames[0] ?? null);
+    getOrCreate(key, generate)
+      .then((first) => {
+        if (!cancelled && first) setFrame(first);
       })
       .catch((err) => console.error("Failed to generate scene thumbnail", err));
     return () => {
       cancelled = true;
     };
-  }, [sourceId, previewUrl, inPoint, outPoint]);
+  }, [sourceId, kind, previewUrl, inPoint, outPoint]);
 
   return (
     <button type="button" className={`scene-thumb${isSelected ? " selected" : ""}`} onClick={onClick}>
@@ -58,6 +65,7 @@ export function SceneStrip() {
           <SceneThumbnail
             key={clip.id}
             sourceId={source.id}
+            kind={source.kind}
             previewUrl={source.previewUrl}
             inPoint={clip.inPoint}
             outPoint={clip.outPoint}

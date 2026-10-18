@@ -120,6 +120,7 @@ export async function buildEditorProjectForLanguage(studioProject: StudioProject
     clips: [...videoClips, ...audioClips],
     overlays: [],
     sources: [...videoSources, ...audioSources],
+    endBehavior: "black",
     metadata: {
       name: `${studioProject.title} (${language})`,
       templateId: null,
