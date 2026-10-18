@@ -26,7 +26,9 @@ refuses to finish unless all checks pass:
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`.
 
 ## What's in `sandbox-base`
-`main` + `engines` removed from the root `package.json`. `packageManager` (`pnpm@10.10.0`) is kept: turbo 2.10 can't find the workspace without it.
+`main` + `engines` removed from the root `package.json`. `packageManager` is kept (turbo 2.10 can't find the workspace without it) and pinned to `pnpm@10.34.5`, the version the
+Taiga sandbox has. `.npmrc` also sets `manage-package-manager-versions=false`, so a different pnpm runs as itself instead of
+trying to download the pinned one (on the Taiga mirror that download fails its signature check: "Refusing to run pnpm…").
 
 `main` itself:
 - the lockfile uses the public npm registry (`654a30e`)
