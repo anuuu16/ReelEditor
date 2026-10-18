@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SliderField } from "./imageEditor/SliderField.js";
 import {
   deleteAudioMediaBlob,
@@ -10,17 +10,27 @@ import {
 } from "./persistence/db.js";
 import { decodeAudioFile } from "./audioEditor/decodeAudio.js";
 import { audioBufferToWav } from "./audioEditor/audioBufferToWav.js";
-import { mixdown } from "./audioEditor/mixdown.js";
+import { computeDuckCurves, mixdown } from "./audioEditor/mixdown.js";
+import { analyzeMixHealth, type MixHealthReport } from "./audioEditor/mixHealth.js";
+import { measureLoudness, type LoudnessMeasurement } from "./audioEditor/measureLoudness.js";
+import { EXPORT_TRUE_PEAK_CEILING_DBTP, makePeakSafe } from "./audioEditor/truePeakSafety.js";
+import { loadPrefs, savePrefs } from "./audioEditor/prefs.js";
 import { AUDIO_FORMATS, encodeAudio, identitySpec, type AudioExportFormat } from "./audioEditor/api.js";
 import { AudioTimeline } from "./audioEditor/AudioTimeline.js";
 import { ClipInspector } from "./audioEditor/ClipInspector.js";
+import { DuckingPanel } from "./audioEditor/DuckingPanel.js";
+import { LoudnessMeterPanel } from "./audioEditor/LoudnessMeterPanel.js";
+import { MixHealthPanel } from "./audioEditor/MixHealthPanel.js";
 import { useAudioTimelineHistory } from "./audioEditor/useAudioTimelineHistory.js";
 import {
   clipEnd,
   clipVisibleDuration,
   closeTimelineGap,
+  DEFAULT_DUCKING,
   DEFAULT_LANE_COUNT,
   makeClip,
+  migrateClip,
+  migrateDucking,
   MIN_PX_PER_SEC,
   MAX_PX_PER_SEC,
   rippleDeleteClip,
@@ -30,6 +40,7 @@ import {
   type AudioClip,
   type AudioSource,
   type AudioTimeline as AudioTimelineModel,
+  type DuckingSettings,
   type Gap,
   type TimelineNote,
 } from "./audioEditor/timeline.js";
@@ -38,7 +49,7 @@ interface AudioEditorProps {
   onBack: () => void;
 }
 
-const EMPTY: AudioTimelineModel = { sources: [], clips: [], notes: [], laneCount: DEFAULT_LANE_COUNT };
+const EMPTY: AudioTimelineModel = { sources: [], clips: [], notes: [], laneCount: DEFAULT_LANE_COUNT, ducking: DEFAULT_DUCKING };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -62,10 +73,21 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
   const [selectedGap, setSelectedGap] = useState<Gap | null>(null);
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [pxPerSec, setPxPerSec] = useState(80);
-  const [format, setFormat] = useState<AudioExportFormat>("mp3");
-  const [bitrateKbps, setBitrateKbps] = useState(192);
+  // UI preferences (meter target, export choices) — restored from localStorage so a reload
+  // doesn't reset them; the timeline itself is restored from IndexedDB further down.
+  const [prefs] = useState(() => loadPrefs());
+  const [format, setFormat] = useState<AudioExportFormat>(prefs.exportFormat);
+  const [bitrateKbps, setBitrateKbps] = useState(prefs.bitrateKbps);
+  const [peakSafeExport, setPeakSafeExport] = useState(prefs.peakSafeExport);
+  const [loudnessTargetId, setLoudnessTargetId] = useState(prefs.loudnessTargetId);
+  useEffect(() => {
+    savePrefs({ loudnessTargetId, exportFormat: format, bitrateKbps, peakSafeExport });
+  }, [loudnessTargetId, format, bitrateKbps, peakSafeExport]);
 
   const [mixBuffer, setMixBuffer] = useState<AudioBuffer | null>(null);
+  const [loudness, setLoudness] = useState<LoudnessMeasurement | null>(null);
+  const [mixHealth, setMixHealth] = useState<MixHealthReport | null>(null);
+  const [mixHealthBusy, setMixHealthBusy] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playheadSec, setPlayheadSec] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
@@ -79,6 +101,8 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
   const dirtyRef = useRef(false);
 
   const totalDur = timelineDuration(timeline);
+  // Per-clip ducking curves, drawn onto the backing clips' waveforms (same curves mixdown applies).
+  const duckCurves = useMemo(() => computeDuckCurves(timeline), [timeline]);
   const selectedClip = timeline.clips.find((c) => c.id === selectedClipId) ?? null;
   const selectedSource = selectedClip ? (timeline.sources.find((s) => s.id === selectedClip.sourceId) ?? null) : null;
   const selectedOrderIndex = selectedClip
@@ -156,6 +180,34 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     };
   }, [timeline]);
 
+  // Measures the rendered mix (EBU R128 loudness + true peak, in a Worker) whenever the preview
+  // buffer changes, then derives the mix-health verdicts from it — piggybacking on the mixdown
+  // debounce above rather than adding its own, so it never analyzes a buffer that's already stale.
+  useEffect(() => {
+    if (!mixBuffer) {
+      setLoudness(null);
+      setMixHealth(null);
+      return;
+    }
+    let cancelled = false;
+    setMixHealthBusy(true);
+    measureLoudness(mixBuffer)
+      .then(async (measurement) => {
+        if (cancelled) return;
+        setLoudness(measurement);
+        const report = await analyzeMixHealth(timeline, measurement);
+        if (!cancelled) setMixHealth(report);
+      })
+      .catch((err) => console.error("Mix analysis failed", err))
+      .finally(() => {
+        if (!cancelled) setMixHealthBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mixBuffer]);
+
   // Any timeline edit stops playback (the mixed buffer is now stale) and drops a selected gap —
   // clips may have moved, so its bounds could no longer point at an actual empty stretch.
   useEffect(() => {
@@ -193,9 +245,10 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
       const validIds = new Set(sources.map((s) => s.id));
       load({
         sources,
-        clips: persisted.clips.filter((c) => validIds.has(c.sourceId)),
+        clips: persisted.clips.filter((c) => validIds.has(c.sourceId)).map(migrateClip),
         notes: persisted.notes ?? [],
         laneCount: persisted.laneCount,
+        ducking: migrateDucking(persisted.ducking),
       });
       setProjectLoaded(true);
     })();
@@ -216,6 +269,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
         clips: timeline.clips,
         notes: timeline.notes,
         laneCount: timeline.laneCount,
+        ducking: timeline.ducking,
       });
     }, 400);
     return () => window.clearTimeout(handle);
@@ -270,7 +324,12 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
       beginEdit();
       live((t) => ({ ...t, clips: t.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
     } else {
-      commit((t) => ({ ...t, clips: t.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+      // Coalesced per clip+field: dragging the inspector's Gain slider (or spinning Fade in, etc.)
+      // becomes ONE undo entry for the whole adjustment, not one per slider tick.
+      commit(
+        (t) => ({ ...t, clips: t.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)) }),
+        `clip:${id}:${Object.keys(patch).join(",")}`,
+      );
     }
   }
 
@@ -329,7 +388,8 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
   }
 
   function updateNoteText(id: string, text: string) {
-    commit((t) => ({ ...t, notes: t.notes.map((n) => (n.id === id ? { ...n, text } : n)) }));
+    // Coalesced per note: typing a sentence is one undo entry, not one per keystroke.
+    commit((t) => ({ ...t, notes: t.notes.map((n) => (n.id === id ? { ...n, text } : n)) }), `note:${id}`);
   }
 
   function deleteNote(id: string) {
@@ -352,25 +412,44 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     setSelectedClipId(parts[0].id);
   }
 
+  function updateDucking(patch: Partial<DuckingSettings>) {
+    // Coalesced per setting, same as clip fields — one undo per slider adjustment.
+    commit((t) => ({ ...t, ducking: { ...t.ducking, ...patch } }), `ducking:${Object.keys(patch).join(",")}`);
+  }
+
   function setLaneCount(n: number) {
     const next = Math.max(1, Math.min(8, n));
-    commit((t) => ({
-      ...t,
-      laneCount: next,
-      clips: t.clips.map((c) => (c.laneIndex >= next ? { ...c, laneIndex: next - 1 } : c)),
-    }));
+    commit(
+      (t) => ({
+        ...t,
+        laneCount: next,
+        clips: t.clips.map((c) => (c.laneIndex >= next ? { ...c, laneIndex: next - 1 } : c)),
+      }),
+      "laneCount",
+    );
   }
 
   // --- keyboard ---
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const inputType = tag === "INPUT" ? (target as HTMLInputElement).type : null;
+      // Text-entry fields own their keystrokes entirely (including the browser's native text
+      // undo). Non-text controls — sliders, checkboxes — keep focus after you use them, and
+      // must NOT swallow Cmd/Ctrl+Z: "drag a slider, hit undo" has to work.
+      const isTextEntry =
+        tag === "TEXTAREA" ||
+        (tag === "INPUT" && inputType !== "range" && inputType !== "checkbox" && inputType !== "radio" && inputType !== "button");
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        if (isTextEntry) return;
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
-      } else if (e.key === "Delete" || e.key === "Backspace") {
+        return;
+      }
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedClipId) {
           e.preventDefault();
           deleteClip(selectedClipId);
@@ -425,15 +504,30 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     window.setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  async function encodeCurrentMix(): Promise<{ blob: Blob; ext: string; durationSec: number } | null> {
+  // The rendered mix, optionally trimmed to the -1 dBTP export ceiling — see truePeakSafety.ts for
+  // why un-trimmed exports either hard-clip (WAV's 16-bit clamp) or overshoot full scale after a
+  // lossy encode (MP3/AAC/Opus reconstruction). A plain static trim, so the mix balance (and the
+  // ducking already baked into it) is untouched; quiet mixes pass through unchanged.
+  async function renderForExport(): Promise<{ buffer: AudioBuffer; trimDb: number }> {
+    const buffer = await mixdown(timeline);
+    if (!peakSafeExport) return { buffer, trimDb: 0 };
+    const safe = makePeakSafe(buffer);
+    return { buffer: safe.buffer, trimDb: safe.trimDb };
+  }
+
+  function trimNote(trimDb: number): string {
+    return trimDb > 0 ? ` — trimmed ${trimDb.toFixed(1)} dB to the ${EXPORT_TRUE_PEAK_CEILING_DBTP} dBTP ceiling` : "";
+  }
+
+  async function encodeCurrentMix(): Promise<{ blob: Blob; ext: string; durationSec: number; trimDb: number } | null> {
     if (timeline.clips.length === 0) {
       flash("Add some audio first");
       return null;
     }
-    const buffer = await mixdown(timeline);
+    const { buffer, trimDb } = await renderForExport();
     const wav = audioBufferToWav(buffer);
     const fmt = AUDIO_FORMATS.find((f) => f.id === format);
-    if (format === "wav") return { blob: wav, ext: "wav", durationSec: buffer.duration };
+    if (format === "wav") return { blob: wav, ext: "wav", durationSec: buffer.duration, trimDb };
     const blob = await encodeAudio({
       file: wav,
       spec: identitySpec(buffer.duration),
@@ -441,7 +535,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
       bitrateKbps,
       name: "mix",
     });
-    return { blob, ext: fmt?.ext ?? "mp3", durationSec: buffer.duration };
+    return { blob, ext: fmt?.ext ?? "mp3", durationSec: buffer.duration, trimDb };
   }
 
   async function handleExport() {
@@ -450,7 +544,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
       const result = await encodeCurrentMix();
       if (result) {
         downloadBlob(result.blob, `mix.${result.ext}`);
-        flash("Exported");
+        flash(`Exported${trimNote(result.trimDb)}`);
       }
     } catch (err) {
       flash(err instanceof Error ? err.message : "Export failed");
@@ -472,7 +566,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
           durationSeconds: result.durationSec,
           savedAt: Date.now(),
         });
-        flash("Saved — visible on the Dashboard");
+        flash(`Saved — visible on the Dashboard${trimNote(result.trimDb)}`);
       }
     } catch (err) {
       flash(err instanceof Error ? err.message : "Save failed");
@@ -485,8 +579,9 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
     if (timeline.clips.length === 0) return;
     setIsBusy(true);
     try {
-      const buffer = await mixdown(timeline);
+      const { buffer, trimDb } = await renderForExport();
       downloadBlob(audioBufferToWav(buffer), "mix.wav");
+      if (trimDb > 0) flash(`Downloaded${trimNote(trimDb)}`);
     } finally {
       setIsBusy(false);
     }
@@ -605,6 +700,10 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
             </div>
           </Section>
 
+          <MixHealthPanel report={mixHealth} busy={mixHealthBusy} hasClips={timeline.clips.length > 0} />
+
+          <DuckingPanel ducking={timeline.ducking} onChange={updateDucking} />
+
           <Section title="Export format">
             <div className="inline-fields inline-fields-wrap">
               {AUDIO_FORMATS.map((f) => (
@@ -624,6 +723,14 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                 format={(v) => `${v} kbps`}
               />
             )}
+            <label className="ae-check">
+              <input type="checkbox" checked={peakSafeExport} onChange={(e) => setPeakSafeExport(e.target.checked)} />
+              <span>True-peak safe ({EXPORT_TRUE_PEAK_CEILING_DBTP} dBTP ceiling)</span>
+            </label>
+            <p className="hint">
+              If the mix's true peak is over {EXPORT_TRUE_PEAK_CEILING_DBTP} dBTP, the whole mix is turned down by the difference before
+              export — otherwise WAV hard-clips at 0 dBFS and MP3/AAC/Opus overshoot full scale when decoded. Never boosts a quiet mix.
+            </p>
             {totalDur > 300 && <p className="hint">Long project — the intermediate WAV upload for compressed export may be large.</p>}
           </Section>
 
@@ -672,6 +779,7 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
             <div className="ae-stage">
               <AudioTimeline
                 timeline={timeline}
+                duckCurves={duckCurves}
                 pxPerSec={pxPerSec}
                 onZoomChange={setPxPerSec}
                 playheadSec={playheadSec}
@@ -735,6 +843,12 @@ export function AudioEditor({ onBack }: AudioEditorProps) {
                   </button>
                 </div>
               </div>
+              <LoudnessMeterPanel
+                measurement={loudness}
+                busy={mixHealthBusy}
+                targetId={loudnessTargetId}
+                onTargetChange={setLoudnessTargetId}
+              />
             </div>
           )}
         </div>

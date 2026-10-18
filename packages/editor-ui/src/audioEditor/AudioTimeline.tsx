@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AudioClipBlock } from "./AudioClipBlock.js";
+import type { DuckCurve } from "./duck.js";
 import { NoteMarker } from "./NoteMarker.js";
 import {
   clipEnd,
@@ -22,6 +23,8 @@ const MIN_VISIBLE_SEC = 30;
 
 interface AudioTimelineProps {
   timeline: AudioTimelineModel;
+  /** Per-clip ducking curves (see computeDuckCurves) — drawn onto the backing clips' waveforms. */
+  duckCurves: Map<string, DuckCurve>;
   pxPerSec: number;
   onZoomChange: (pxPerSec: number) => void;
   playheadSec: number;
@@ -53,6 +56,7 @@ function tickLabel(sec: number): string {
 
 export function AudioTimeline({
   timeline,
+  duckCurves,
   pxPerSec,
   onZoomChange,
   playheadSec,
@@ -315,6 +319,7 @@ export function AudioTimeline({
                   key={clip.id}
                   clip={clip}
                   source={source}
+                  duckCurve={duckCurves.get(clip.id) ?? null}
                   orderIndex={orderIndexByClipId.get(clip.id) ?? 0}
                   pxPerSec={pxPerSec}
                   laneHeight={LANE_HEIGHT}

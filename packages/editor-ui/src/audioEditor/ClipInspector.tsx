@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { SliderField } from "../imageEditor/SliderField.js";
 import { TimeField } from "./TimeField.js";
 import { computePeakAmplitude, detectSilenceBounds } from "./waveform.js";
-import { NORMALIZE_TARGET_DBFS } from "./mixdown.js";
-import { clipVisibleDuration, MIN_CLIP_SEC, type AudioClip, type AudioSource } from "./timeline.js";
+import { gainToDb, LOUDNESS_NORMALIZE_TARGET_DB, NORMALIZE_PEAK_TARGET_DBFS } from "./dbUtils.js";
+import { computeIntegratedLoudnessDb } from "./loudness.js";
+import { AUDIO_CLIP_ROLES, clipVisibleDuration, MIN_CLIP_SEC, type AudioClip, type AudioSource, type NormalizeMode } from "./timeline.js";
 
 interface ClipInspectorProps {
   clip: AudioClip;
@@ -18,10 +19,6 @@ interface ClipInspectorProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onRippleDelete: () => void;
-}
-
-function gainToDb(gain: number): number {
-  return 20 * Math.log10(Math.max(gain, 1e-6));
 }
 
 export function ClipInspector({
@@ -44,9 +41,13 @@ export function ClipInspector({
   const canSplit = playheadSec > clip.startSec + MIN_CLIP_SEC && playheadSec < clip.startSec + visible - MIN_CLIP_SEC;
 
   const resolvedNormalizeDb = useMemo(() => {
+    if (clip.normalizeMode === "loudness") {
+      const loudness = computeIntegratedLoudnessDb(source.buffer, clip.trimStartSec, clip.trimEndSec);
+      return LOUDNESS_NORMALIZE_TARGET_DB - loudness;
+    }
     const peak = computePeakAmplitude(source.buffer, clip.trimStartSec, clip.trimEndSec);
-    return NORMALIZE_TARGET_DBFS - gainToDb(peak);
-  }, [source.buffer, clip.trimStartSec, clip.trimEndSec]);
+    return NORMALIZE_PEAK_TARGET_DBFS - gainToDb(peak);
+  }, [source.buffer, clip.trimStartSec, clip.trimEndSec, clip.normalizeMode]);
 
   function trimSilence() {
     const bounds = detectSilenceBounds(source.buffer, silenceThresholdDb);
@@ -89,6 +90,24 @@ export function ClipInspector({
           </select>
         </label>
       </div>
+
+      <label className="field">
+        <span>Role</span>
+        <select value={clip.role} onChange={(e) => onChange({ role: e.target.value as AudioClip["role"] })}>
+          {AUDIO_CLIP_ROLES.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        {clip.role === "voice"
+          ? "Marked as Voice — Auto-ducking (see the Ducking panel) watches clips marked this way and pulls music/SFX down under them."
+          : "Marked as " +
+            (clip.role === "sfx" ? "SFX" : "Music") +
+            " — Auto-ducking will duck this clip under any Voice clip it overlaps."}
+      </p>
 
       <div className="inline-fields ae-fields">
         <TimeField
@@ -147,10 +166,34 @@ export function ClipInspector({
         format={(v) => `${v.toFixed(1)} s`}
       />
 
-      <label className="ae-check">
-        <input type="checkbox" checked={clip.normalize} onChange={(e) => onChange({ normalize: e.target.checked })} />
-        <span>Normalize to {NORMALIZE_TARGET_DBFS} dBFS</span>
-      </label>
+      <div className="field">
+        <span>Normalize</span>
+        <div className="inline-fields inline-fields-wrap">
+          {(
+            [
+              { id: "off", label: "Off" },
+              { id: "peak", label: `Peak (${NORMALIZE_PEAK_TARGET_DBFS} dBFS)` },
+              { id: "loudness", label: `Loudness (~${LOUDNESS_NORMALIZE_TARGET_DB} dB)` },
+            ] as Array<{ id: NormalizeMode; label: string }>
+          ).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={clip.normalizeMode === m.id ? "active" : ""}
+              onClick={() => onChange({ normalizeMode: m.id })}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="hint">
+        {clip.normalizeMode === "peak" &&
+          "Peak normalize only looks at the single loudest sample — two clips normalized this way can still sound very different in practice (e.g. a squashed music bed vs. a dynamic voice take). Loudness normalize targets the average level instead, which tracks how loud it actually sounds."}
+        {clip.normalizeMode === "loudness" &&
+          "Loudness normalize targets this clip's average level — a better match to how loud it actually sounds than a peak reading."}
+        {clip.normalizeMode === "off" && "No automatic gain — only the Gain slider below applies."}
+      </p>
       <SliderField
         label="Gain"
         value={clip.gainDb}
@@ -160,7 +203,7 @@ export function ClipInspector({
         onChange={(v) => onChange({ gainDb: v })}
         format={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB`}
       />
-      {clip.normalize && <p className="hint">Normalize on — resolved gain: {resolvedNormalizeDb.toFixed(1)} dB</p>}
+      {clip.normalizeMode !== "off" && <p className="hint">Normalize on — resolved gain: {resolvedNormalizeDb.toFixed(1)} dB</p>}
 
       <SliderField
         label="Speed"

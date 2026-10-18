@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { peaksFromChannel } from "./waveform.js";
+import { sampleDuckGain, type DuckCurve } from "./duck.js";
 import { sliceChannelData } from "./mixdown.js";
 import { clipVisibleDuration, snap, MIN_CLIP_SEC, type AudioClip, type AudioSource } from "./timeline.js";
 
 interface AudioClipBlockProps {
   clip: AudioClip;
   source: AudioSource;
+  /** This clip's auto-ducking curve, if it's a backing clip being ducked — the waveform is drawn
+   * at the ducked level (the un-ducked shape stays faintly behind it) with the gain envelope as a
+   * line, so the dip under the voice is visible right on the timeline. */
+  duckCurve: DuckCurve | null;
   /** 1-based position among this clip's own lane, in timeline order — see AudioTimeline. */
   orderIndex: number;
   pxPerSec: number;
@@ -48,6 +53,7 @@ const MAX_CANVAS_PHYSICAL_PX = 8000;
 export function AudioClipBlock({
   clip,
   source,
+  duckCurve,
   orderIndex,
   pxPerSec,
   laneHeight,
@@ -98,15 +104,41 @@ export function AudioClipBlock({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, heightPx);
     const mid = heightPx / 2;
+    // Canvas columns → timeline seconds, in the (possibly compressed) canvas's own coordinate
+    // space, matching where the CSS stretch will visually place them back.
+    const canvasPxPerSec = pxPerSec * (w / widthPx);
+    const duckGainAt = (col: number) => (duckCurve ? sampleDuckGain(duckCurve, clip.startSec + col / canvasPxPerSec) : 1);
+    if (duckCurve) {
+      // The un-ducked shape, faint, so the dip reads as "this much was taken away".
+      ctx.fillStyle = "rgba(159, 184, 239, 0.22)";
+      for (let col = 0; col < w; col++) {
+        const y0 = mid - peaks[col * 2 + 1] * mid * 0.9;
+        const y1 = mid - peaks[col * 2] * mid * 0.9;
+        ctx.fillRect(col, y0, 1, Math.max(1, y1 - y0));
+      }
+    }
     ctx.fillStyle = selected ? "#cfe0ff" : "#9fb8ef";
     for (let col = 0; col < w; col++) {
-      const y0 = mid - peaks[col * 2 + 1] * mid * 0.9;
-      const y1 = mid - peaks[col * 2] * mid * 0.9;
+      const g = duckGainAt(col);
+      const y0 = mid - peaks[col * 2 + 1] * g * mid * 0.9;
+      const y1 = mid - peaks[col * 2] * g * mid * 0.9;
       ctx.fillRect(col, y0, 1, Math.max(1, y1 - y0));
     }
-    // fade ramps — scaled into the (possibly compressed) canvas's own coordinate space, matching
-    // where the CSS stretch will visually place them back at the real fade duration.
-    const canvasPxPerSec = pxPerSec * (w / widthPx);
+    if (duckCurve) {
+      // Gain envelope: top edge = 0 dB, lower = more duck (drawn in dB so a 6 dB dip is visible
+      // even though it's only a 0.5 linear factor).
+      ctx.strokeStyle = "#7fe3ff";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let col = 0; col < w; col++) {
+        const db = 20 * Math.log10(Math.max(1e-3, duckGainAt(col)));
+        const y = 1 + Math.min(heightPx - 2, (-db / 24) * (heightPx - 2));
+        if (col === 0) ctx.moveTo(col, y);
+        else ctx.lineTo(col, y);
+      }
+      ctx.stroke();
+    }
+    // fade ramps
     const fiX = (clip.fadeInSec / speed) * canvasPxPerSec;
     const foX = w - (clip.fadeOutSec / speed) * canvasPxPerSec;
     ctx.strokeStyle = "#ffd479";
@@ -117,7 +149,7 @@ export function AudioClipBlock({
     ctx.lineTo(foX, 1);
     ctx.lineTo(w, clip.fadeOutSec > 0 ? heightPx - 1 : 1);
     ctx.stroke();
-  }, [peaks, canvasCols, widthPx, heightPx, selected, clip.fadeInSec, clip.fadeOutSec, speed, pxPerSec, dpr]);
+  }, [peaks, canvasCols, widthPx, heightPx, selected, clip.fadeInSec, clip.fadeOutSec, clip.startSec, speed, pxPerSec, dpr, duckCurve]);
 
   function laneFromClientY(clientY: number): number {
     const rect = lanesRef.current?.getBoundingClientRect();
@@ -224,7 +256,7 @@ export function AudioClipBlock({
 
   return (
     <div
-      className={`ae-clip${selected ? " selected" : ""}${clip.muted ? " muted" : ""}`}
+      className={`ae-clip role-${clip.role}${selected ? " selected" : ""}${clip.muted ? " muted" : ""}`}
       style={{ left: clip.startSec * pxPerSec, width: widthPx, height: heightPx, top: clip.laneIndex * laneHeight + 3 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -237,6 +269,7 @@ export function AudioClipBlock({
       }}
     >
       <canvas ref={canvasRef} className="ae-clip-canvas" />
+      {clip.role !== "music" && <span className="ae-clip-role-badge">{clip.role === "voice" ? "Voice" : "SFX"}</span>}
       <span className="ae-clip-label">
         <span className="ae-clip-index">{orderIndex}</span> {clip.name}
       </span>

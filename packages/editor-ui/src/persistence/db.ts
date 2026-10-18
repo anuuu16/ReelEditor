@@ -1,5 +1,5 @@
 import type { ProjectModel } from "@reel-studio/shared-types";
-import type { AudioClip, TimelineNote } from "../audioEditor/timeline.js";
+import type { AudioClip, DuckingSettings, TimelineNote } from "../audioEditor/timeline.js";
 
 const DB_NAME = "reel-studio";
 const DB_VERSION = 4;
@@ -138,6 +138,9 @@ export interface PersistedAudioProject {
   clips: AudioClip[];
   notes: TimelineNote[];
   laneCount: number;
+  /** Optional only because projects saved before auto-ducking existed won't have it — the loader
+   * fills in DEFAULT_DUCKING when it's missing (see timeline.ts's migrateDucking). */
+  ducking?: DuckingSettings;
 }
 
 export async function saveAudioProject(project: PersistedAudioProject): Promise<void> {

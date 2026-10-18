@@ -2243,6 +2243,104 @@ body {
   box-sizing: border-box;
 }
 
+/* Mix health meter */
+
+.ae-meter {
+  margin-bottom: 10px;
+}
+
+.ae-meter-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #b7b8c2;
+  margin-bottom: 3px;
+}
+
+.ae-meter-value {
+  font-variant-numeric: tabular-nums;
+  color: #dfe6f5;
+}
+
+.ae-meter-value.warn {
+  color: #ffb86b;
+}
+
+.ae-meter-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #101117;
+  overflow: hidden;
+}
+
+.ae-meter-fill {
+  height: 100%;
+  background: #5b7cff;
+  border-radius: 3px;
+}
+
+.ae-meter-fill.warn {
+  background: #e0983f;
+}
+
+.ae-mix-health-messages {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ae-mix-health-messages li {
+  line-height: 1.4;
+}
+
+.ae-mix-health-messages li.warn {
+  color: #ffb86b;
+}
+
+.ae-mix-health-messages li.info {
+  color: #8fd19e;
+}
+
+/* Clip role colour-coding — lets Voice/Music/SFX be told apart on the timeline at a glance,
+   independent of selecting each clip to check its inspector. */
+
+.ae-clip.role-voice {
+  background: #2d4a33;
+  border-color: #4f9a5c;
+}
+
+.ae-clip.role-voice .ae-clip-canvas {
+  filter: hue-rotate(70deg);
+}
+
+.ae-clip.role-sfx {
+  background: #4a3a24;
+  border-color: #b3814d;
+}
+
+.ae-clip.role-sfx .ae-clip-canvas {
+  filter: hue-rotate(-60deg);
+}
+
+.ae-clip-role-badge {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  font-size: 9px;
+  line-height: 12px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(10, 11, 14, 0.45);
+  color: #dfe6f5;
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .project-list-info audio {
   width: 100%;
   height: 32px;
@@ -3214,4 +3312,116 @@ body {
   border-radius: 999px;
   padding: 1px 6px;
   font-size: 10px;
+}
+
+/* Loudness meter (EBU R128) strip under the audio timeline's transport */
+
+.ae-loudness-meter {
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  background: #0f1014;
+  padding: 8px 12px 10px;
+}
+
+.ae-lm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ae-lm-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9294a1;
+}
+
+.ae-lm-target {
+  background: #1e1f26;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  color: #e6e6e9;
+  font-size: 11px;
+  padding: 3px 6px;
+  max-width: 320px;
+}
+
+.ae-lm-grid {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.ae-lm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ae-lm-label {
+  font-size: 11px;
+  color: #9294a1;
+}
+
+.ae-lm-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #dfe6f5;
+  line-height: 1.1;
+}
+
+.ae-lm-value.small {
+  font-size: 15px;
+}
+
+.ae-lm-value.warn {
+  color: #ffb86b;
+}
+
+.ae-lm-sub {
+  font-size: 11px;
+  color: #9294a1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ae-lm-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: #1a1c22;
+  overflow: visible;
+  margin: 2px 0;
+}
+
+.ae-lm-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #3d5fd6, #7da2ff);
+}
+
+.ae-lm-fill.over {
+  background: linear-gradient(90deg, #b8741f, #ffb86b);
+}
+
+.ae-lm-marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: #ffffff;
+  opacity: 0.8;
+  transform: translateX(-1px);
+}
+
+@media (max-width: 1100px) {
+  .ae-lm-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
