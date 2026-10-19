@@ -32,6 +32,24 @@ describe("pan and zoom", () => {
   it("adds no ffmpeg filter for a neutral transform", () => {
     expect(buildPanZoomFilter({ scale: 1, x: 0, y: 0, rotation: 0 }, 1080, 1920)).toBe("");
   });
+
+  it("zooms into the centre of the frame in ffmpeg", () => {
+    expect(buildPanZoomFilter({ scale: 2, x: 0, y: 0, rotation: 0 }, 1000, 2000)).toBe(
+      ",scale=2000:4000,crop=1000:2000:500:1000,pad=1000:2000:0:0:color=black",
+    );
+  });
+
+  it("pans at 1x zoom, leaving black where the picture moved away — as the preview draws it", () => {
+    // Preview: the frame is drawn 200 px to the left, so canvas x 0..800 shows source x 200..1000.
+    const rect = applyPanZoom({ x: 0, y: 0, width: 1000, height: 2000 }, { scale: 1, x: 0.2, y: 0, rotation: 0 }, 1000, 2000);
+    expect(rect.x).toBe(-200);
+    expect(buildPanZoomFilter({ scale: 1, x: 0.2, y: 0, rotation: 0 }, 1000, 2000)).toBe(
+      ",scale=1000:2000,crop=800:2000:200:0,pad=1000:2000:0:0:color=black",
+    );
+    expect(buildPanZoomFilter({ scale: 1, x: -0.2, y: 0, rotation: 0 }, 1000, 2000)).toBe(
+      ",scale=1000:2000,crop=800:2000:0:0,pad=1000:2000:200:0:color=black",
+    );
+  });
 });
 
 describe("computeFadeMultiplier", () => {

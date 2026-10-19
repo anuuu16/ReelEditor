@@ -2,6 +2,7 @@ import type {
   AspectRatioPreset,
   Clip,
   ClipFilter,
+  EndBehavior,
   FitMode,
   MediaSource,
   Overlay,
@@ -10,7 +11,7 @@ import type {
   Transform,
   TransitionType,
 } from "@reel-studio/shared-types";
-import { getTracksByKind, layoutSequentialClips } from "@reel-studio/timeline-core";
+import { getTimelineDuration, getTracksByKind, layoutSequentialClips } from "@reel-studio/timeline-core";
 import { DEFAULT_IMAGE_CLIP_DURATION_SECONDS } from "../media/trackAccepts.js";
 
 export const MIN_CLIP_DURATION_SECONDS = 0.1;
@@ -78,6 +79,7 @@ export type Action =
   | { type: "PAUSE" }
   | { type: "SET_ASPECT"; aspectRatio: AspectRatioPreset; width: number; height: number }
   | { type: "SET_PROJECT_NAME"; name: string }
+  | { type: "SET_END_BEHAVIOR"; endBehavior: EndBehavior }
   | { type: "TOGGLE_MASTER_MUTE" }
   | { type: "SET_MASTER_VOLUME"; volume: number }
   | { type: "LOAD_PROJECT"; project: ProjectModel };
@@ -122,8 +124,10 @@ function insertClipAt(clips: Clip[], trackId: string, atIndex: number, newClip: 
 
 // Projects saved before a given clip field existed won't have it in storage at all. Loading one
 // straight into state would leave that field `undefined` at runtime despite the type saying
-// otherwise — fill in safe defaults so older projects behave exactly like new ones.
-function normalizeProject(project: ProjectModel): ProjectModel {
+// otherwise — fill in safe defaults so older projects behave exactly like new ones. Every way a
+// saved project enters the editor (LOAD_PROJECT, and the EditorProvider seed used by /editor/:id)
+// must pass through here.
+export function normalizeProject(project: ProjectModel): ProjectModel {
   return {
     ...project,
     clips: project.clips.map((c) => ({
@@ -134,6 +138,8 @@ function normalizeProject(project: ProjectModel): ProjectModel {
     })),
     sources: project.sources.map((s) => ({ ...s, isPlaceholder: s.isPlaceholder ?? false })),
     metadata: { ...project.metadata, isTemplate: project.metadata.isTemplate ?? false },
+    // Projects saved before this setting existed get the one behaviour they already had: black.
+    endBehavior: project.endBehavior ?? "black",
   };
 }
 
@@ -654,6 +660,18 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 
     case "SET_PROJECT_NAME":
       return { ...state, project: { ...state.project, metadata: { ...state.project.metadata, name: action.name } } };
+
+    case "SET_END_BEHAVIOR": {
+      const project = { ...state.project, endBehavior: action.endBehavior };
+      // "Trim" can shorten the reel out from under the playhead (and stop playback past the new end).
+      const newDuration = getTimelineDuration(project);
+      return {
+        ...state,
+        project,
+        playhead: Math.min(state.playhead, newDuration),
+        isPlaying: state.isPlaying && state.playhead < newDuration,
+      };
+    }
 
     case "TOGGLE_MASTER_MUTE":
       return { ...state, masterMuted: !state.masterMuted };

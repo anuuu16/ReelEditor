@@ -1,4 +1,4 @@
-import type { Clip, MediaSource, ProjectModel } from "@reel-studio/shared-types";
+import type { Clip, MediaSource, Overlay, ProjectModel } from "@reel-studio/shared-types";
 import { NEUTRAL_FILTER } from "./filter-presets.js";
 
 // Builders for tests: a valid clip / source / project with neutral settings, overridable per test.
@@ -43,6 +43,24 @@ export function makeSource(overrides: Partial<MediaSource> = {}): MediaSource {
   };
 }
 
+export function makeTitle(overrides: Partial<Overlay> = {}): Overlay {
+  return {
+    id: "title-1",
+    trackId: "overlay-1",
+    kind: "text",
+    content: "Title",
+    imageSourceId: null,
+    widthRatio: 1,
+    heightRatio: 1,
+    start: 0,
+    end: 3,
+    position: { x: 0.5, y: 0.85 },
+    style: { font: "system-ui, sans-serif", size: 48, color: "#ffffff", align: "center", background: null, outline: "#000000" },
+    animation: "none",
+    ...overrides,
+  };
+}
+
 export function makeProject(overrides: Partial<ProjectModel> = {}): ProjectModel {
   return {
     id: "project-1",
@@ -51,6 +69,7 @@ export function makeProject(overrides: Partial<ProjectModel> = {}): ProjectModel
     clips: [makeClip()],
     overlays: [],
     sources: [makeSource()],
+    endBehavior: "black",
     metadata: {
       name: "Test project",
       templateId: null,

@@ -47,13 +47,40 @@ export function applyPanZoom(rect: Rect, transform: Transform, canvasWidth: numb
   };
 }
 
+function floorEven(value: number): number {
+  return Math.max(0, Math.floor(value / 2) * 2);
+}
+
 // The ffmpeg-side equivalent of applyPanZoom: applied AFTER a clip has already been scaled/padded/
 // cropped to the output width x height (mirroring how the preview applies pan/zoom on top of the
-// already-fit rect) — scale that frame up, then crop the original width x height window back out of
-// it at an offset. Empty string for a no-op transform, so existing clips render byte-identical.
+// already-fit rect). The frame is scaled up by `transform.scale` around its centre and shifted by
+// (x, y) canvas-widths/heights exactly like applyPanZoom — including panning *past* the edge of the
+// zoomed frame, where the preview simply shows the black canvas behind it. So rather than a clamped
+// crop (which silently ignored any pan at 1x zoom, or beyond the zoomed frame's edge), this crops
+// out just the part of the scaled frame that lands on the canvas and pads the rest with black.
+// All geometry is static per clip, so it's resolved to integer pixels here (kept even for 4:2:0
+// chroma). Empty string for a no-op transform, so existing clips render byte-identical.
 export function buildPanZoomFilter(transform: Transform, width: number, height: number): string {
   if (transform.scale === 1 && transform.x === 0 && transform.y === 0) return "";
-  const cropX = `max(0\\,min(iw-ow\\,(iw-ow)/2+${transform.x}*ow))`;
-  const cropY = `max(0\\,min(ih-oh\\,(ih-oh)/2+${transform.y}*oh))`;
-  return `,scale=${width}*${transform.scale}:${height}*${transform.scale},crop=${width}:${height}:${cropX}:${cropY}`;
+  const scale = Number.isFinite(transform.scale) && transform.scale > 0 ? transform.scale : 1;
+  const scaledW = Math.max(2, floorEven(width * scale));
+  const scaledH = Math.max(2, floorEven(height * scale));
+
+  // Where the canvas' left/top edge falls inside the scaled frame (negative = black before it).
+  const offsetX = (scaledW - width) / 2 + transform.x * width;
+  const offsetY = (scaledH - height) / 2 + transform.y * height;
+
+  const axis = (offset: number, scaled: number, canvas: number) => {
+    const canvasStart = floorEven(Math.max(0, -offset));
+    const sourceStart = floorEven(Math.max(0, offset));
+    const size = floorEven(Math.min(canvas - canvasStart, scaled - sourceStart));
+    return { canvasStart, sourceStart, size: Math.max(2, size) };
+  };
+  const h = axis(offsetX, scaledW, width);
+  const v = axis(offsetY, scaledH, height);
+
+  return (
+    `,scale=${scaledW}:${scaledH},crop=${h.size}:${v.size}:${h.sourceStart}:${v.sourceStart}` +
+    `,pad=${width}:${height}:${h.canvasStart}:${v.canvasStart}:color=black`
+  );
 }

@@ -1,5 +1,5 @@
 import type { ChangeEvent } from "react";
-import { getProjectDuration } from "@reel-studio/timeline-core";
+import { getTimelineDuration } from "@reel-studio/timeline-core";
 import { useEditorDispatch, useEditorHistory, useEditorState } from "../state/EditorContext.js";
 import { findMergeableNeighbor } from "../state/reducer.js";
 import { previewCanvasRef } from "../state/previewCanvasRef.js";
@@ -17,8 +17,7 @@ export function Transport() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const { canUndo, canRedo } = useEditorHistory();
-  const overlaysEnd = state.project.overlays.reduce((end, o) => Math.max(end, o.end), 0);
-  const totalDuration = getProjectDuration(state.project, [overlaysEnd]);
+  const totalDuration = getTimelineDuration(state.project);
   const frameRate = state.project.canvas.frameRate;
   const frameDuration = 1 / frameRate;
   const selectedClip = state.project.clips.find((c) => c.id === state.selectedClipId) ?? null;

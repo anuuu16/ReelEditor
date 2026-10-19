@@ -1,8 +1,9 @@
 import { useState, type MouseEvent } from "react";
+import type { EndBehavior } from "@reel-studio/shared-types";
 import {
   computeExportDimensions,
   EXPORT_PRESETS,
-  getProjectDuration,
+  getTimelineDuration,
   layoutSequentialClips,
   QUALITY_TIERS,
 } from "@reel-studio/timeline-core";
@@ -14,9 +15,14 @@ import { RENDER_SERVICE_URL } from "../constants.js";
 
 type ExportPhase = "idle" | "uploading" | "rendering" | "done" | "error";
 
+const ENDING_LABELS: Record<EndBehavior, string> = { black: "black", freeze: "frame freeze", trim: "trimmed" };
+
+// Tenths only when they matter ("12s", "6.5s", "1m 2.5s").
 function formatSeconds(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
+  const tenths = Math.round(seconds * 10);
+  const m = Math.floor(tenths / 600);
+  const rest = (tenths - m * 600) / 10;
+  const s = Number.isInteger(rest) ? String(rest) : rest.toFixed(1);
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
@@ -33,7 +39,8 @@ export function ExportPanel() {
   const [qualityId, setQualityId] = useState<string>("1080p");
 
   const videoClips = layoutSequentialClips(state.project.clips.filter((c) => c.trackId === VIDEO_TRACK_ID));
-  const totalDuration = getProjectDuration(state.project);
+  // The same length the player/timeline show — and exactly the length of the exported file.
+  const totalDuration = getTimelineDuration(state.project);
   const selectedPreset = EXPORT_PRESETS.find((p) => p.id === presetId) ?? null;
   const aspectMismatch = selectedPreset && selectedPreset.aspectRatio !== state.project.canvas.aspectRatio;
   const overDuration = selectedPreset?.maxDurationSeconds != null && totalDuration > selectedPreset.maxDurationSeconds;
@@ -242,11 +249,14 @@ export function ExportPanel() {
               </p>
             )}
 
+            {totalDuration === 0 && <p className="export-warning">The timeline is empty — add a clip, some audio or a title first.</p>}
+
             <p className="hint">
-              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height} ({qualityTier.label}
-              ).
+              Renders the current project locally through ffmpeg at {exportDimensions.width}×{exportDimensions.height} ({qualityTier.label})
+              — {formatSeconds(totalDuration)} long, the same length the player shows ({ENDING_LABELS[state.project.endBehavior]} once the
+              video runs out — change this in the timeline).
             </p>
-            <button type="button" onClick={startExport} disabled={placeholderClipCount > 0}>
+            <button type="button" onClick={startExport} disabled={placeholderClipCount > 0 || totalDuration === 0}>
               Start export
             </button>
           </>

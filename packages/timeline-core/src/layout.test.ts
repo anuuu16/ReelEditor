@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Clip } from "@reel-studio/shared-types";
 import { findActiveClip, findTransitionAt, getOverlapSeconds, getSequenceDuration, layoutSequentialClips } from "./sequential-layout.js";
 import { snapTime } from "./snapping.js";
-import { makeClip } from "./test-fixtures.js";
+import { getTimelineDuration } from "./track-utils.js";
+import { makeClip, makeProject, makeTitle } from "./test-fixtures.js";
 
 describe("layoutSequentialClips", () => {
   it("places clips one after another", () => {
@@ -93,5 +94,44 @@ describe("snapTime", () => {
 
   it("keeps the first target on a tie", () => {
     expect(snapTime(1.5, [1, 2], 0.6)).toBe(1);
+  });
+});
+
+describe("getTimelineDuration", () => {
+  const tracks = [
+    { id: "video-1", kind: "video" as const, order: 0, volume: 1, fadeIn: 0, fadeOut: 0 },
+    { id: "audio-1", kind: "audio" as const, order: 1, volume: 1, fadeIn: 0, fadeOut: 0 },
+  ];
+
+  it("is the video track's length on its own", () => {
+    expect(getTimelineDuration(makeProject())).toBe(4);
+  });
+
+  it("is the longest of the video track, each audio track and the titles", () => {
+    const music = makeClip({ id: "music", trackId: "audio-1", outPoint: 9 });
+    expect(getTimelineDuration(makeProject({ tracks, clips: [makeClip(), music] }))).toBe(9);
+    expect(getTimelineDuration(makeProject({ tracks, clips: [makeClip(), music], overlays: [makeTitle({ end: 12 })] }))).toBe(12);
+  });
+
+  it("is 0 for an empty project", () => {
+    expect(getTimelineDuration(makeProject({ clips: [] }))).toBe(0);
+  });
+
+  it("'black' and 'freeze' don't change the length, only what's drawn during it", () => {
+    const music = makeClip({ id: "music", trackId: "audio-1", outPoint: 9 });
+    const project = makeProject({ tracks, clips: [makeClip(), music], endBehavior: "black" });
+    expect(getTimelineDuration(project)).toBe(9);
+    expect(getTimelineDuration({ ...project, endBehavior: "freeze" })).toBe(9);
+  });
+
+  it("'trim' cuts the reel down to the video track's own length", () => {
+    const music = makeClip({ id: "music", trackId: "audio-1", outPoint: 9 });
+    const project = makeProject({ tracks, clips: [makeClip(), music], endBehavior: "trim" });
+    expect(getTimelineDuration(project)).toBe(4); // makeClip()'s default 4 s clip, not the 9 s of music
+  });
+
+  it("'trim' with no video clips at all is a 0 s reel, however long the audio/titles run", () => {
+    const project = makeProject({ tracks, clips: [makeClip({ trackId: "audio-1", outPoint: 9 })], endBehavior: "trim" });
+    expect(getTimelineDuration(project)).toBe(0);
   });
 });

@@ -9,7 +9,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
+      <Route path="/:view" element={<Dashboard />} />
       <Route path="/image-editor" element={<ImageEditorRoute />} />
+      <Route path="/image-editor/:projectId" element={<ImageEditorRoute />} />
       <Route path="/audio-editor" element={<AudioEditorRoute />} />
       <Route path="/editor" element={<EditorRoute />} />
       <Route path="/editor/:projectId" element={<EditorRoute />} />

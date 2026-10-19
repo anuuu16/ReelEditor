@@ -1,16 +1,25 @@
 import type { Clip, ClipFilter, FitMode, MediaSource, Overlay, ProjectModel, Transform, TransitionType } from "@reel-studio/shared-types";
 import { buildAtempoFilters } from "./audio-edit.js";
-import { getOverlapSeconds, getSequenceDuration, layoutSequentialClips, type LaidOutClip } from "./sequential-layout.js";
+import { getOverlapSeconds, getSequenceDuration, type LaidOutClip } from "./sequential-layout.js";
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
 import { buildPanZoomFilter } from "./fit-rect.js";
-import { getTracksByKind } from "./track-utils.js";
+import { getPrimaryVideoTrack, getTimelineDuration, getTracksByKind, layoutTrackClips } from "./track-utils.js";
 
 export interface RenderPlanInput {
   project: ProjectModel;
   sourcePaths: Record<string, string>;
   /** Overrides the project canvas size for the final render (e.g. a 4K/2K/720p export quality choice). */
   output?: { width: number; height: number };
+  /**
+   * Whether each source's actual file has at least one audio stream, as probed by the render
+   * service. A video with no audio track at all (screen recordings, GIF-style clips, stock B-roll)
+   * must not be referenced as `[n:a]` — ffmpeg aborts the whole export on a stream specifier that
+   * matches nothing — so a source mapped to `false` plays as silence instead, exactly like the
+   * preview (where such a clip is simply silent). Sources missing from the map are assumed to have
+   * audio.
+   */
+  sourceHasAudio?: Record<string, boolean>;
 }
 
 export interface OverlayTextFile {
@@ -59,6 +68,22 @@ function buildVideoFadeSuffix(clip: Clip, duration: number): string {
   return parts.length > 0 ? `,${parts.join(",")}` : "";
 }
 
+// Every audio stream in the graph is normalised to this one format, so concat/acrossfade/amix
+// never have to reconcile a 44.1 kHz mono music file with a 48 kHz stereo clip or silence filler.
+const AUDIO_FORMAT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo";
+
+function clamp01(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+}
+
+// A clip's opacity, composited over the black canvas the way the preview's globalAlpha does it.
+function buildOpacitySuffix(opacity: number | undefined): string {
+  const alpha = clamp01(opacity ?? 1);
+  if (alpha >= 1) return "";
+  const a = alpha.toFixed(4);
+  return `,colorchannelmixer=rr=${a}:gg=${a}:bb=${a}`;
+}
+
 function buildAtempoChain(speed: number): string {
   const filters = buildAtempoFilters(speed);
   return filters.length > 0 ? "," + filters.join(",") : "";
@@ -93,6 +118,7 @@ function isIdenticalRepeatOf(a: LaidOutClip, b: LaidOutClip): boolean {
     clipFiltersEqual(a.filter, b.filter) &&
     a.volume === b.volume &&
     a.muted === b.muted &&
+    a.opacity === b.opacity &&
     a.fadeInSeconds === 0 &&
     a.fadeOutSeconds === 0 &&
     b.fadeInSeconds === 0 &&
@@ -130,9 +156,18 @@ function groupIntoVideoUnits(clips: LaidOutClip[], sources: MediaSource[]): Laid
   return units;
 }
 
+// The preview's isOverlayActive: visible from `start` up to, but not including, `end`.
+function buildEnableExpr(overlay: Overlay): string {
+  return `enable='gte(t,${overlay.start})*lt(t,${overlay.end})'`;
+}
+
 // No `font=`/`fontfile=` option: there's no font-family control in the UI yet, so this
 // intentionally falls back to ffmpeg's compiled-in default rather than guessing a system font.
-function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
+//
+// `sizeScale` converts the overlay's size (authored in project-canvas pixels, which is how the
+// preview scales it) to the export's pixels — without it a title rendered at 4K came out at half
+// the size the preview showed, and at 720p it came out 1.5x too big.
+function buildDrawtextFilter(overlay: Overlay, fileName: string, sizeScale: number): string {
   const duration = overlay.end - overlay.start;
   const fadeDuration = Math.min(FADE_DURATION_SECONDS, duration / 2);
   const animDuration = Math.min(FADE_DURATION_SECONDS, duration);
@@ -155,22 +190,29 @@ function buildDrawtextFilter(overlay: Overlay, fileName: string): string {
       ? `if(lt(t,${overlay.start}+${fadeDuration}),(t-${overlay.start})/${fadeDuration},if(gt(t,${overlay.end}-${fadeDuration}),(${overlay.end}-t)/${fadeDuration},1))`
       : "1";
 
+  const size = Number((overlay.style.size * sizeScale).toFixed(3));
   const fontSizeExpr =
     overlay.animation === "pop" && animDuration > 0
-      ? `if(lt(t,${overlay.start}+${animDuration}),${overlay.style.size}*(0.5+0.5*(t-${overlay.start})/${animDuration}),${overlay.style.size})`
-      : `${overlay.style.size}`;
+      ? `if(lt(t,${overlay.start}+${animDuration}),${size}*(0.5+0.5*(t-${overlay.start})/${animDuration}),${size})`
+      : `${size}`;
 
   const parts = [
     `textfile=${fileName}`,
+    // Titles are literal text, as the preview draws them — without this, drawtext treats `%` as the
+    // start of an expansion sequence (a "100%" title logs "Stray %" and `%{...}` gets substituted).
+    "expansion=none",
     `fontsize='${fontSizeExpr}'`,
     `fontcolor=${overlay.style.color}`,
     `x='${xExpr}'`,
     `y='${yExpr}'`,
-    `enable='between(t,${overlay.start},${overlay.end})'`,
+    buildEnableExpr(overlay),
     `alpha='${alphaExpr}'`,
   ];
-  if (overlay.style.background) parts.push(`box=1:boxcolor=${overlay.style.background}:boxborderw=${overlay.style.size * 0.2}`);
-  if (overlay.style.outline) parts.push(`bordercolor=${overlay.style.outline}:borderw=${Math.max(1, overlay.style.size * 0.06)}`);
+  if (overlay.style.background) parts.push(`box=1:boxcolor=${overlay.style.background}:boxborderw=${Math.round(size * 0.2)}`);
+  // The preview strokes the outline at 0.06 x font size centred on the glyph edge, then fills the
+  // glyph over it — so only the outer half (0.03 x size) is visible. drawtext's border is drawn
+  // entirely outside the glyph, hence half the preview's stroke width.
+  if (overlay.style.outline) parts.push(`bordercolor=${overlay.style.outline}:borderw=${Math.max(1, Math.round(size * 0.03))}`);
 
   return `drawtext=${parts.join(":")}`;
 }
@@ -192,17 +234,27 @@ function buildImageScaleChain(overlay: Overlay, canvasWidth: number, canvasHeigh
 
 export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   const { project, sourcePaths } = input;
-  const trackKindById = new Map(project.tracks.map((t) => [t.id, t.kind] as const));
-  const videoClips = layoutSequentialClips(project.clips.filter((c) => trackKindById.get(c.trackId) === "video"));
+  // Exactly the lane the preview plays (see getPrimaryVideoTrack), laid out by the same function.
+  const videoTrack = getPrimaryVideoTrack(project);
+  const videoClips = videoTrack ? layoutTrackClips(project, videoTrack.id) : [];
   // Each audio track is its own independent sequential lane; tracks are mixed together (not
   // concatenated) so clips on different tracks can overlap in time.
   const audioTracks = getTracksByKind(project, "audio");
 
-  if (videoClips.length === 0) {
-    throw new Error("Add at least one video clip before exporting.");
+  // The export is exactly as long as the timeline the editor plays — normally the longest of the
+  // video track, every audio track and every title/logo, with `project.endBehavior` (see
+  // getTimelineDuration) deciding what fills the part past the end of the video track: black,
+  // the video track's last frame held, or (for "trim") the rest of the timeline is cut off instead.
+  const totalDurationSeconds = getTimelineDuration(project);
+  if (!(totalDurationSeconds > 0)) {
+    throw new Error("Nothing to export yet — add a video clip, some audio or a title first.");
   }
 
-  const totalDurationSeconds = getSequenceDuration(videoClips);
+  function sourceHasAudio(sourceId: string): boolean {
+    const source = project.sources.find((s) => s.id === sourceId);
+    if (source?.kind === "image") return false;
+    return input.sourceHasAudio?.[sourceId] !== false;
+  }
 
   interface InputSpec {
     path: string;
@@ -239,11 +291,29 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   // full duration of already-4K frames held in RAM. With enough repeats (or even just a handful at
   // 4K) that's enough to get ffmpeg OOM-killed mid-encode. A dedicated `-i` per clip instance gives
   // each its own independent decoder that paces itself off its own downstream consumer instead.
+  //
+  // `-an`: this input is picture only. A clip's sound comes from a *second* input of the same file
+  // (addClipAudioInput) rather than this one's audio stream. With one shared input, every packet
+  // ffmpeg reads to satisfy an audio request also carries that file's video packets, which get
+  // decoded and queued in the graph right away — and acrossfade asks for the *next* clip's audio
+  // early, so with a run of dissolves every later clip's frames were piling up long before its
+  // xfade wanted them: 30 dissolving clips peaked at 5.3 GB at 540x960 (and slowed to ~1.2x
+  // realtime) — at 1080p that's an OOM kill. Separate inputs keep audio demand from dragging video
+  // into memory: the same 30 clips peak at ~0.8 GB and run twice as fast.
   function addVideoInput(sourceId: string): number {
     const path = sourcePaths[sourceId];
     if (!path) throw new Error(`Missing local file for source ${sourceId}`);
     const index = inputs.length;
-    inputs.push({ path, extraArgs: [...PER_INPUT_THREAD_ARGS] });
+    inputs.push({ path, extraArgs: [...PER_INPUT_THREAD_ARGS, "-an"] });
+    return index;
+  }
+
+  // The audio half of a video clip — see addVideoInput for why it's a separate, video-less input.
+  function addClipAudioInput(sourceId: string): number {
+    const path = sourcePaths[sourceId];
+    if (!path) throw new Error(`Missing local file for source ${sourceId}`);
+    const index = inputs.length;
+    inputs.push({ path, extraArgs: [...PER_INPUT_THREAD_ARGS, "-vn"] });
     return index;
   }
 
@@ -395,16 +465,31 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   }
 
   function buildAudioGapFiller(durationSeconds: number, label: string): string {
-    return `anullsrc=r=48000:cl=stereo,atrim=duration=${durationSeconds.toFixed(3)}[${label}]`;
+    return `anullsrc=r=48000:cl=stereo,atrim=duration=${durationSeconds.toFixed(3)},${AUDIO_FORMAT}[${label}]`;
   }
 
-  function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, forceSilent: boolean): string {
-    if (clip.muted || forceSilent) {
-      return `anullsrc=r=48000:cl=stereo,atrim=duration=${duration.toFixed(3)}[${label}]`;
-    }
+  // Every per-clip stream is forced to *exactly* its laid-out duration — padded (last frame held /
+  // silence) if the file runs out early, cut if it runs long. Real files rarely have streams that
+  // end precisely at the container duration the browser reported (screen recordings and phone
+  // clips often have audio a few hundred ms shorter or longer than video), and concat/xfade place
+  // every later clip by the *actual* length of the ones before it — so without this, one short
+  // stream quietly shifts all later cuts, transitions and audio out of sync with the timeline.
+  function exactVideoLength(duration: number): string {
+    const d = duration.toFixed(3);
+    return `,tpad=stop_mode=clone:stop_duration=${d},trim=duration=${d}`;
+  }
+
+  function exactAudioLength(duration: number): string {
+    return `,${AUDIO_FORMAT},apad,atrim=duration=${duration.toFixed(3)}`;
+  }
+
+  // `audible` is false for anything the preview would play silently: a muted clip, an image, or a
+  // video whose file has no audio stream at all (referencing `[n:a]` on one aborts the export).
+  function buildAudioChain(clip: Clip, inputIdx: number, duration: number, label: string, audible: boolean): string {
+    if (clip.muted || !audible) return buildAudioGapFiller(duration, label);
     return (
       `[${inputIdx}:a]atrim=start=${clip.inPoint}:end=${clip.outPoint},asetpts=PTS-STARTPTS` +
-      `${buildAtempoChain(clip.speed)},volume=${clip.volume}${buildFadeSuffix(clip, duration)}[${label}]`
+      `${buildAtempoChain(clip.speed)},volume=${clamp01(clip.volume)}${exactAudioLength(duration)}${buildFadeSuffix(clip, duration)}[${label}]`
     );
   }
 
@@ -418,13 +503,16 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     // An image clip has no in/out point or speed to trim/stretch — the input is already looped to
     // exactly this clip's duration (addImageInput), and it has no audio track at all (forced silent).
     const inputIdx = isImageClip ? addImageInput(clip.sourceId, clip.duration) : addVideoInput(clip.sourceId);
+    const audible = !isImageClip && !clip.muted && sourceHasAudio(clip.sourceId);
+    const audioInputIdx = audible ? addClipAudioInput(clip.sourceId) : -1;
     // setsar=1 is required before concat: scale/pad/crop can leave clips with slightly different
     // sample aspect ratios even at identical pixel dimensions, which concat refuses to join.
     const trimAndSpeed = isImageClip ? "" : `trim=start=${clip.inPoint}:end=${clip.outPoint},setpts=(PTS-STARTPTS)/${clip.speed},`;
     filterChains.push(
-      `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`,
+      `[${inputIdx}:v]${trimAndSpeed}${fitFilter}${panZoomFilter},${colorFilter}${buildOpacitySuffix(clip.opacity)},setsar=1,fps=${frameRate}` +
+        `${exactVideoLength(clip.duration)}${buildVideoFadeSuffix(clip, clip.duration)}[${vLabel}]`,
     );
-    filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, aLabel, isImageClip));
+    filterChains.push(buildAudioChain(clip, audioInputIdx, clip.duration, aLabel, audible));
   }
 
   // The whole run plays through one `-stream_loop` input and one linear filter chain — panZoom and
@@ -438,14 +526,15 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const panZoomFilter = buildPanZoomFilter(first.transform, width, height);
     const colorFilter = buildFfmpegColorFilter(first.filter);
     const inputIdx = addLoopedInput(first.sourceId, repeatCount - 1);
-    filterChains.push(
-      `[${inputIdx}:v]setpts=(PTS-STARTPTS)/${first.speed},${fitFilter}${panZoomFilter},${colorFilter},setsar=1,fps=${frameRate}[${vLabel}]`,
-    );
     const totalDuration = first.duration * repeatCount;
     filterChains.push(
-      first.muted
-        ? `anullsrc=r=48000:cl=stereo,atrim=duration=${totalDuration.toFixed(3)}[${aLabel}]`
-        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${first.volume}[${aLabel}]`,
+      `[${inputIdx}:v]setpts=(PTS-STARTPTS)/${first.speed},${fitFilter}${panZoomFilter},${colorFilter}${buildOpacitySuffix(first.opacity)},setsar=1,fps=${frameRate}` +
+        `${exactVideoLength(totalDuration)}[${vLabel}]`,
+    );
+    filterChains.push(
+      first.muted || !sourceHasAudio(first.sourceId)
+        ? buildAudioGapFiller(totalDuration, aLabel)
+        : `[${inputIdx}:a]asetpts=PTS-STARTPTS${buildAtempoChain(first.speed)},volume=${clamp01(first.volume)}${exactAudioLength(totalDuration)}[${aLabel}]`,
     );
   }
 
@@ -477,28 +566,83 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     };
   });
 
+  // Extends a finished lane (the video track, the clip-audio lane, or one audio track) with black /
+  // silence so it runs the whole timeline — e.g. a 4 s clip under a 12 s title keeps going as black
+  // for the remaining 8 s, exactly what the preview plays there, instead of ending the export early.
+  function padLaneToTimeline(
+    label: string,
+    laneDuration: number,
+    kind: "video" | "audio",
+    labelPrefix: string,
+    buildGapFiller: (durationSeconds: number, label: string) => string,
+    freeze = false,
+  ): string {
+    const missing = totalDurationSeconds - laneDuration;
+    if (missing <= 0.0005) return label;
+    // `endBehavior: "freeze"` only ever applies to the video lane (there's no equivalent "hold the
+    // last sample" for audio — it stays silent there exactly like "black" does): clone the last
+    // decoded frame for the missing time instead of splicing in a black filler clip.
+    if (kind === "video" && freeze) {
+      const out = `${labelPrefix}frozen`;
+      filterChains.push(`${label}tpad=stop_mode=clone:stop_duration=${missing.toFixed(3)},fps=${frameRate}[${out}]`);
+      return `[${out}]`;
+    }
+    const fillerLabel = `${labelPrefix}fill`;
+    filterChains.push(buildGapFiller(missing, fillerLabel));
+    const out = `${labelPrefix}padded`;
+    const streamArgs = kind === "video" ? `v=1:a=0,fps=${frameRate}` : "v=0:a=1";
+    filterChains.push(`${label}[${fillerLabel}]concat=n=2:${streamArgs}[${out}]`);
+    return `[${out}]`;
+  }
+
+  // A lane with nothing on it at all is one filler for the whole timeline (e.g. a title over music
+  // with no video clips renders on black, as in the preview).
+  function emptyLane(labelPrefix: string, buildGapFiller: (durationSeconds: number, label: string) => string): string {
+    const label = `${labelPrefix}empty`;
+    filterChains.push(buildGapFiller(totalDurationSeconds, label));
+    return `[${label}]`;
+  }
+
   const musicTrackLabels: string[] = [];
   audioTracks.forEach((track, trackIndex) => {
-    const trackClips = layoutSequentialClips(project.clips.filter((c) => c.trackId === track.id));
+    const trackClips = layoutTrackClips(project, track.id);
     if (trackClips.length === 0) return;
     const labels: string[] = [];
     trackClips.forEach((clip, i) => {
-      const inputIdx = inputIndexFor(clip.sourceId);
+      const audible = sourceHasAudio(clip.sourceId);
+      const inputIdx = audible && !clip.muted ? inputIndexFor(clip.sourceId) : -1;
       const label = `ma${trackIndex}_${i}`;
-      filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label, false));
+      filterChains.push(buildAudioChain(clip, inputIdx, clip.duration, label, audible));
       labels.push(`[${label}]`);
     });
     // chainSequential (not a flat concat) so a gap opened by dragging a clip on this track is
     // filled with real silence instead of being silently dropped.
     const trackLabel = chainSequential(labels, trackClips, "audio", `amusic${trackIndex}_`, buildAudioGapFiller);
-    musicTrackLabels.push(trackLabel);
+    musicTrackLabels.push(
+      padLaneToTimeline(trackLabel, getSequenceDuration(trackClips), "audio", `amusic${trackIndex}_`, buildAudioGapFiller),
+    );
   });
 
-  const videoConcatLabel = chainSequential(videoLabels, sequencingClips, "video", "vxf", buildVideoGapFiller);
+  const videoSequenceDuration = getSequenceDuration(videoClips);
+  const videoConcatLabel =
+    videoLabels.length > 0
+      ? padLaneToTimeline(
+          chainSequential(videoLabels, sequencingClips, "video", "vxf", buildVideoGapFiller),
+          videoSequenceDuration,
+          "video",
+          "vlane",
+          buildVideoGapFiller,
+          project.endBehavior === "freeze",
+        )
+      : // No video clip at all means there's no frame to freeze — black is the only sensible filler.
+        emptyLane("vlane", buildVideoGapFiller);
 
+  // Titles are authored in project-canvas pixels; the export may render at a different size.
+  const overlaySizeScale = width / project.canvas.width;
   const overlayTextFiles: OverlayTextFile[] = [];
   let finalVideoLabel = videoConcatLabel;
   project.overlays.forEach((overlay, i) => {
+    if (!(overlay.end > overlay.start)) return;
     if (overlay.kind === "image") {
       if (!overlay.imageSourceId) return;
       const inputIdx = inputIndexFor(overlay.imageSourceId, ["-loop", "1", "-t", totalDurationSeconds.toFixed(3)]);
@@ -508,9 +652,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
       const xExpr = `${overlay.position.x}*main_w-overlay_w/2`;
       const yExpr = `${overlay.position.y}*main_h-overlay_h/2`;
       const nextLabel = `vimg${i}`;
-      filterChains.push(
-        `${finalVideoLabel}[${scaledLabel}]overlay=x=${xExpr}:y=${yExpr}:enable='between(t,${overlay.start},${overlay.end})'[${nextLabel}]`,
-      );
+      filterChains.push(`${finalVideoLabel}[${scaledLabel}]overlay=x=${xExpr}:y=${yExpr}:${buildEnableExpr(overlay)}[${nextLabel}]`);
       finalVideoLabel = `[${nextLabel}]`;
       return;
     }
@@ -518,18 +660,32 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     const fileName = `overlay_${overlay.id}.txt`;
     overlayTextFiles.push({ fileName, content: overlay.content });
     const nextLabel = `vtext${i}`;
-    filterChains.push(`${finalVideoLabel}${buildDrawtextFilter(overlay, fileName)}[${nextLabel}]`);
+    filterChains.push(`${finalVideoLabel}${buildDrawtextFilter(overlay, fileName, overlaySizeScale)}[${nextLabel}]`);
     finalVideoLabel = `[${nextLabel}]`;
   });
 
-  const clipAudioConcatLabel = chainSequential(clipAudioLabels, sequencingClips, "audio", "axf", buildAudioGapFiller);
+  const clipAudioConcatLabel =
+    clipAudioLabels.length > 0
+      ? padLaneToTimeline(
+          chainSequential(clipAudioLabels, sequencingClips, "audio", "axf", buildAudioGapFiller),
+          videoSequenceDuration,
+          "audio",
+          "alane",
+          buildAudioGapFiller,
+        )
+      : emptyLane("alane", buildAudioGapFiller);
 
   let finalAudioLabel = clipAudioConcatLabel;
   if (musicTrackLabels.length > 0) {
-    // duration=first anchors output length to the video track; if an audio track runs longer,
-    // the tail is dropped (unlike the preview compositor, which keeps playing past the last video frame).
+    // Every lane is padded to the full timeline above, so nothing drops out of the mix early.
+    // amix scales each input by 1/N; the preview just plays every track at its own volume on top of
+    // the others (the browser sums them), so `volume=N` undoes that scaling — otherwise adding a
+    // music track made the clip audio (and the music) ~6 dB quieter in the export than in the
+    // preview. (Spelled this way rather than amix's `normalize=0` so older ffmpeg builds work too.)
     const mixInputLabels = [clipAudioConcatLabel, ...musicTrackLabels];
-    filterChains.push(`${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=first:dropout_transition=0[aout]`);
+    filterChains.push(
+      `${mixInputLabels.join("")}amix=inputs=${mixInputLabels.length}:duration=longest:dropout_transition=0,volume=${mixInputLabels.length}[aout]`,
+    );
     finalAudioLabel = "[aout]";
   }
 
@@ -564,6 +720,9 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     "192k",
     "-movflags",
     "+faststart",
+    // Belt and braces: every lane is already exactly the timeline's length; this pins the file to it.
+    "-t",
+    totalDurationSeconds.toFixed(3),
     "-progress",
     "pipe:1",
     "-nostats",

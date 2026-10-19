@@ -10,3 +10,5 @@ build/
 *.sqlite
 *.sqlite-journal
 .vite/
+test-results/
+playwright-report/

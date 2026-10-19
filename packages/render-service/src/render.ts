@@ -6,6 +6,7 @@ import { buildFfmpegPlan, type OverlayTextFile, type RenderPlan } from "@reel-st
 import { FFMPEG_PATH } from "./ffmpegBinary.js";
 import { createProgressParser } from "./ffmpegProgress.js";
 import { completeJob, createJob, failJob, updateJobProgress, type Job } from "./jobs.js";
+import { probeSourcesForAudio } from "./probeMedia.js";
 
 const STDERR_TAIL_LIMIT = 4000;
 
@@ -54,14 +55,22 @@ function spawnFfmpeg(job: Job, plan: RenderPlan, workDir: string): void {
   });
 }
 
-export function startRenderJob(
+// Throws (before any job exists) when the project can't be turned into a render plan, so the
+// caller can answer the request with a 400 and the message.
+export async function startRenderJob(
   jobId: string,
   project: ProjectModel,
   sourcePaths: Record<string, string>,
   workDir: string,
   output?: { width: number; height: number },
-): Job {
-  const plan = buildFfmpegPlan({ project, sourcePaths, output });
+): Promise<Job> {
+  // Images never carry audio (the plan already knows that from the source kind) — only probe the
+  // files that might, e.g. to catch a screen recording with no audio track before ffmpeg chokes on it.
+  const imageSourceIds = new Set(project.sources.filter((s) => s.kind === "image").map((s) => s.id));
+  const probePaths = Object.fromEntries(Object.entries(sourcePaths).filter(([id]) => !imageSourceIds.has(id)));
+  const sourceHasAudio = await probeSourcesForAudio(probePaths);
+
+  const plan = buildFfmpegPlan({ project, sourcePaths, output, sourceHasAudio });
   const job = createJob(jobId, workDir, plan.totalDurationSeconds);
 
   writeOverlayTextFiles(workDir, plan.overlayTextFiles)

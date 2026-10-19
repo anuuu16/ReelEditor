@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
 import type { ProjectModel } from "@reel-studio/shared-types";
 import { createInitialProject, AUDIO_TRACK_ID } from "./initialProject.js";
-import type { EditorState } from "./reducer.js";
+import { normalizeProject, type EditorState } from "./reducer.js";
 import { createInitialHistoryState, historyReducer, type HistoryAction } from "./historyReducer.js";
 import { loadMediaBlob, loadProject } from "../persistence/db.js";
 
@@ -27,7 +27,7 @@ interface EditorProviderProps {
 export function EditorProvider({ children, initialProject }: EditorProviderProps) {
   const [history, dispatch] = useReducer(historyReducer, undefined, () =>
     createInitialHistoryState({
-      project: initialProject ?? createInitialProject(),
+      project: initialProject ? normalizeProject(initialProject) : createInitialProject(),
       playhead: 0,
       isPlaying: false,
       selectedClipId: null,

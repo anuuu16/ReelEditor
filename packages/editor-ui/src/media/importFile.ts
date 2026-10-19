@@ -24,6 +24,39 @@ function readImageMetadata(file: File, url: string): Promise<MediaSource> {
   });
 }
 
+const DURATION_PROBE_TIMEOUT_MS = 15_000;
+
+// Screen recordings made with MediaRecorder (Chrome's, OBS-style WebM, ...) are written without a
+// duration in their header, so the browser reports `duration === Infinity` until it has actually
+// seen the end of the file. A clip can't be laid out (or exported — Infinity doesn't survive JSON)
+// with that, so force the browser to find the end: seeking far past it makes it scan to the real
+// last timestamp, at which point `duration` becomes finite.
+function resolveFiniteDuration(el: HTMLMediaElement): Promise<number> {
+  if (Number.isFinite(el.duration)) return Promise.resolve(el.duration);
+  return new Promise((resolve) => {
+    const finish = () => {
+      if (!Number.isFinite(el.duration)) return;
+      cleanup();
+      resolve(el.duration);
+    };
+    const giveUp = () => {
+      cleanup();
+      resolve(Number.isFinite(el.duration) ? el.duration : Number.isFinite(el.currentTime) ? el.currentTime : 0);
+    };
+    const timer = setTimeout(giveUp, DURATION_PROBE_TIMEOUT_MS);
+    function cleanup() {
+      clearTimeout(timer);
+      el.removeEventListener("durationchange", finish);
+      el.removeEventListener("timeupdate", finish);
+      el.removeEventListener("seeked", finish);
+    }
+    el.addEventListener("durationchange", finish);
+    el.addEventListener("timeupdate", finish);
+    el.addEventListener("seeked", finish);
+    el.currentTime = Number.MAX_SAFE_INTEGER;
+  });
+}
+
 export function readMediaMetadata(file: File): Promise<MediaSource> {
   const url = URL.createObjectURL(file);
 
@@ -37,16 +70,22 @@ export function readMediaMetadata(file: File): Promise<MediaSource> {
     el.preload = "metadata";
     el.src = url;
     el.onloadedmetadata = () => {
-      resolve({
-        id: crypto.randomUUID(),
-        name: file.name,
-        filePath: "",
-        previewUrl: url,
-        durationSeconds: el.duration,
-        width: isVideo ? el.videoWidth : 0,
-        height: isVideo ? el.videoHeight : 0,
-        kind: isVideo ? "video" : "audio",
-        isPlaceholder: false,
+      resolveFiniteDuration(el).then((durationSeconds) => {
+        if (!(durationSeconds > 0)) {
+          reject(new Error(`Couldn't work out how long ${file.name} is`));
+          return;
+        }
+        resolve({
+          id: crypto.randomUUID(),
+          name: file.name,
+          filePath: "",
+          previewUrl: url,
+          durationSeconds,
+          width: isVideo ? el.videoWidth : 0,
+          height: isVideo ? el.videoHeight : 0,
+          kind: isVideo ? "video" : "audio",
+          isPlaceholder: false,
+        });
       });
     };
     el.onerror = () => reject(new Error(`Failed to read metadata for ${file.name}`));

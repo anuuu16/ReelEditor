@@ -120,6 +120,18 @@ export interface ProjectMetadata {
   thumbnailDataUrl: string | null;
 }
 
+/**
+ * What plays on the video track once it runs out but something else on the timeline (a longer
+ * piece of music, a title) is still going — the preview and the export both read this one field so
+ * they never disagree about it:
+ *  - "black": a black frame, same as empty space anywhere else on the timeline (the default — matches
+ *    every project saved before this setting existed).
+ *  - "freeze": hold the last video clip's final frame.
+ *  - "trim": cut the *whole reel* down to the video track's own length — audio and titles past that
+ *    point are dropped rather than outliving the picture.
+ */
+export type EndBehavior = "black" | "freeze" | "trim";
+
 export interface ProjectModel {
   id: string;
   canvas: Canvas;
@@ -128,4 +140,5 @@ export interface ProjectModel {
   overlays: Overlay[];
   sources: MediaSource[];
   metadata: ProjectMetadata;
+  endBehavior: EndBehavior;
 }

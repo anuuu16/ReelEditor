@@ -63,6 +63,23 @@ export function computePeakAmplitude(buffer: AudioBuffer, startSec = 0, endSec =
   return peak;
 }
 
+// Root-mean-square amplitude across the buffer (or a [startSec, endSec] slice), averaged over
+// channels — the "average loudness" counterpart to computePeakAmplitude's "loudest instant".
+// Same 0..1 scale as getChannelData. Used by the loudness meter and by the auto-ducking envelope
+// to judge how loud a voice clip actually is moment to moment.
+export function computeRmsAmplitude(buffer: AudioBuffer, startSec = 0, endSec = buffer.duration): number {
+  const start = Math.max(0, Math.floor(startSec * buffer.sampleRate));
+  const end = Math.min(buffer.length, Math.ceil(endSec * buffer.sampleRate));
+  if (end <= start) return 0;
+  let sumSquares = 0;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = start; i < end; i++) sumSquares += data[i] * data[i];
+  }
+  const count = (end - start) * buffer.numberOfChannels;
+  return count > 0 ? Math.sqrt(sumSquares / count) : 0;
+}
+
 // First/last sample times (seconds) whose level rises above `thresholdDb` (relative to full scale),
 // with a small pad so a hard onset isn't clipped. Returns the whole buffer's span when it never
 // crosses the threshold. Drives "trim leading/trailing silence".

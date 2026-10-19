@@ -1,97 +1,18 @@
-import { useCallback, useRef, useState } from "react";
+import { useSnapshotHistory, type SnapshotHistory } from "../state/useSnapshotHistory.js";
 import type { AudioTimeline } from "./timeline.js";
 
 const MAX_HISTORY = 60;
+/** Consecutive commits with the same coalesce key within this window merge into one undo entry. */
+export const COALESCE_WINDOW_MS = 1000;
 
-interface History {
+interface History extends Omit<SnapshotHistory<AudioTimeline>, "state"> {
   timeline: AudioTimeline;
-  /** Update state AND push one undo entry. */
-  commit: (next: AudioTimeline | ((prev: AudioTimeline) => AudioTimeline)) => void;
-  /** Push the current state onto the undo stack now — call once at the start of a drag gesture. */
-  checkpoint: () => void;
-  /** Update state without touching history — for the moves within a gesture that `checkpoint` opened. */
-  live: (next: AudioTimeline | ((prev: AudioTimeline) => AudioTimeline)) => void;
-  /** Replaces the whole timeline AND wipes undo/redo history — for restoring a persisted project
-   * on load, which isn't something a user should be able to "undo" back out of. */
-  load: (next: AudioTimeline) => void;
-  undo: () => void;
-  redo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
 }
 
 // In-memory undo/redo over whole-timeline snapshots. Clips are plain objects and AudioBuffers are
 // shared by reference, so a snapshot is cheap. A drag = one `checkpoint()` on pointer-down then
 // `live()` for every move, so the whole gesture collapses to a single undo step.
 export function useAudioTimelineHistory(initial: AudioTimeline): History {
-  const [timeline, setTimeline] = useState(initial);
-  const past = useRef<AudioTimeline[]>([]);
-  const future = useRef<AudioTimeline[]>([]);
-  const [, bump] = useState(0);
-  const rerender = () => bump((n) => n + 1);
-
-  const live = useCallback<History["live"]>((next) => {
-    setTimeline((prev) => (typeof next === "function" ? next(prev) : next));
-  }, []);
-
-  const checkpoint = useCallback(() => {
-    setTimeline((prev) => {
-      past.current = [...past.current, prev].slice(-MAX_HISTORY);
-      future.current = [];
-      rerender();
-      return prev;
-    });
-  }, []);
-
-  const commit = useCallback<History["commit"]>((next) => {
-    setTimeline((prev) => {
-      const resolved = typeof next === "function" ? next(prev) : next;
-      if (resolved === prev) return prev;
-      past.current = [...past.current, prev].slice(-MAX_HISTORY);
-      future.current = [];
-      rerender();
-      return resolved;
-    });
-  }, []);
-
-  const load = useCallback((next: AudioTimeline) => {
-    past.current = [];
-    future.current = [];
-    rerender();
-    setTimeline(next);
-  }, []);
-
-  const undo = useCallback(() => {
-    setTimeline((prev) => {
-      if (past.current.length === 0) return prev;
-      const previous = past.current[past.current.length - 1];
-      past.current = past.current.slice(0, -1);
-      future.current = [prev, ...future.current];
-      rerender();
-      return previous;
-    });
-  }, []);
-
-  const redo = useCallback(() => {
-    setTimeline((prev) => {
-      if (future.current.length === 0) return prev;
-      const next = future.current[0];
-      future.current = future.current.slice(1);
-      past.current = [...past.current, prev];
-      rerender();
-      return next;
-    });
-  }, []);
-
-  return {
-    timeline,
-    commit,
-    checkpoint,
-    live,
-    load,
-    undo,
-    redo,
-    canUndo: past.current.length > 0,
-    canRedo: future.current.length > 0,
-  };
+  const { state, ...rest } = useSnapshotHistory(initial, MAX_HISTORY);
+  return { timeline: state, ...rest };
 }
