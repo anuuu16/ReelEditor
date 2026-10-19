@@ -36,9 +36,12 @@ class FakeContext2D {
   }
 }
 
-HTMLCanvasElement.prototype.getContext = function getContext() {
-  return new FakeContext2D() as unknown as CanvasRenderingContext2D;
-} as unknown as typeof HTMLCanvasElement.prototype.getContext;
+// Guarded: a test file can opt into `@vitest-environment node`, where there's no DOM at all.
+if (typeof HTMLCanvasElement !== "undefined") {
+  HTMLCanvasElement.prototype.getContext = function getContext() {
+    return new FakeContext2D() as unknown as CanvasRenderingContext2D;
+  } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+}
 
 if (typeof URL.createObjectURL !== "function") {
   let n = 0;

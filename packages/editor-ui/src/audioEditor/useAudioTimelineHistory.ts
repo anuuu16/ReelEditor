@@ -13,6 +13,6 @@ interface History extends Omit<SnapshotHistory<AudioTimeline>, "state"> {
 // shared by reference, so a snapshot is cheap. A drag = one `checkpoint()` on pointer-down then
 // `live()` for every move, so the whole gesture collapses to a single undo step.
 export function useAudioTimelineHistory(initial: AudioTimeline): History {
-  const { state, ...rest } = useSnapshotHistory(initial, MAX_HISTORY);
+  const { state, ...rest } = useSnapshotHistory(initial, MAX_HISTORY, COALESCE_WINDOW_MS);
   return { timeline: state, ...rest };
 }
