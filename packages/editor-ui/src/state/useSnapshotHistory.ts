@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_MAX_HISTORY = 60;
 /** Edits that share a coalesce key and land within this window collapse into one undo step. */
-const COALESCE_WINDOW_MS = 1200;
+export const DEFAULT_COALESCE_WINDOW_MS = 1200;
 
 type Updater<T> = T | ((prev: T) => T);
 
@@ -46,7 +46,11 @@ function resolve<T>(next: Updater<T>, prev: T): T {
 // The stacks live INSIDE the React state and every transition is a pure function of the previous
 // history — never a side effect in an updater. That matters: React StrictMode double-invokes
 // updaters in development, and bookkeeping done as a side effect there pushes/pops twice.
-export function useSnapshotHistory<T>(initial: T, maxHistory = DEFAULT_MAX_HISTORY): SnapshotHistory<T> {
+export function useSnapshotHistory<T>(
+  initial: T,
+  maxHistory = DEFAULT_MAX_HISTORY,
+  coalesceWindowMs = DEFAULT_COALESCE_WINDOW_MS,
+): SnapshotHistory<T> {
   const [history, setHistory] = useState<HistoryState<T>>(() => ({ present: initial, past: [], future: [], last: null }));
   const pointerDown = useRef(false);
 
@@ -90,7 +94,7 @@ export function useSnapshotHistory<T>(initial: T, maxHistory = DEFAULT_MAX_HISTO
           coalesceKey !== undefined &&
           h.last !== null &&
           h.last.key === coalesceKey &&
-          (pointerDown.current || now - h.last.at < COALESCE_WINDOW_MS);
+          (pointerDown.current || now - h.last.at < coalesceWindowMs);
         return {
           present,
           past: coalesce ? h.past : [...h.past, h.present].slice(-maxHistory),
@@ -99,7 +103,7 @@ export function useSnapshotHistory<T>(initial: T, maxHistory = DEFAULT_MAX_HISTO
         };
       });
     },
-    [maxHistory],
+    [maxHistory, coalesceWindowMs],
   );
 
   const load = useCallback((next: T) => {

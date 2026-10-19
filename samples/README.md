@@ -20,3 +20,13 @@ Loudness values were measured with `ffmpeg -i <file> -af ebur128=peak=true -f nu
 A='if(lt(t,3),0.03,if(lt(t,7),0.12,if(lt(t,8.5),0,if(lt(t,13),0.42,0.42*(16-t)/3))))'
 ffmpeg -f lavfi -i "aevalsrc=exprs='($A)*(sin(2*PI*220*t)+0.5*sin(2*PI*330*t)+0.3*sin(2*PI*440*t)+0.2*sin(2*PI*880*t))|($A)*(sin(2*PI*220*t+0.4)+0.5*sin(2*PI*277*t)+0.3*sin(2*PI*554*t))':sample_rate=48000:duration=16" -c:a pcm_s16le music-dynamic-16s.wav
 ```
+
+Images for the image editor (generated with Pillow; no real photos). Each has a "TOP ↑" marker, so a wrong rotation is easy to see:
+
+| File | What it is |
+|---|---|
+| `photo-landscape-4000x3000.jpg` | a normal landscape picture: sky, sun, mountain, grid |
+| `photo-phone-exif-rotated.jpg` | like a phone photo: pixels stored as 4000×3000 landscape with **EXIF Orientation = 6**, so it should *display* as a 3000×4000 portrait with "TOP ↑" at the top-left |
+| `logo-transparent.png` | 1200×1200 logo with a transparent background |
+| `photo-huge-9000x6000.jpg` | a very large picture (54 megapixels) |
+| `photo-tiny-160x90.png` | a tiny picture (upscaling) |
