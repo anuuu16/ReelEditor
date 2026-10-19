@@ -23,7 +23,8 @@ refuses to finish unless all checks pass:
 - no `engines` pin
 - no media files except the 12 in `samples/`
 
-Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`.
+Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`, `packages/editor-ui/src/audioEditor/CHANGES.md`
+(a write-up by the Task 11 model).
 
 ## What's in `sandbox-base`
 `main` (which now includes the Task 10–12 work) + `engines` removed from the root `package.json`. `packageManager` is kept (turbo 2.10 can't find the workspace without it) and pinned to `pnpm@10.34.5`, the version the
@@ -38,7 +39,7 @@ trying to download the pinned one (on the Taiga mirror that download fails its s
 If the Taiga npm mirror lacks a version, downgrade it here and commit, as in reactive-resume.
 
 ## Samples
-`samples/` (on this branch only), all generated test signals; see `samples/README.md`:
+`samples/` (also on `main` now, since the tests read them), all generated test signals; see `samples/README.md`:
 - Task 10 (video export): `clip-landscape-4s.mp4`, `clip-portrait-3s-silent.mp4` (no audio track), `music-9s.m4a`
 - Task 11 (audio editor): `voice-like-20s.wav`, `music-loud-24s.m4a`, `quiet-tone-8s.wav`; `music-dynamic-16s.wav` (added by
   the Task 11 model, also on `main`)

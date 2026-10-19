@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the Taiga upload from a branch (default sandbox-base) and refuses to finish if anything that must not be uploaded is inside.
-# Leaves out this .sandbox/ folder and the docs (README, DESIGN), which the code and tests don't need.
+# Leaves out this .sandbox/ folder and the docs (README, DESIGN, the Task 11 model's CHANGES.md), which the code and tests don't need.
 # Usage (from the repo root): bash .sandbox/make-sandbox-zip.sh [branch]
 # Or, with any branch checked out: git -C <repo> show sandbox-base:.sandbox/make-sandbox-zip.sh | REPO=<repo> bash -s -- [branch]
 set -euo pipefail
@@ -18,6 +18,7 @@ DROP=(
 	.sandbox/
 	.claude/
 	README.md DESIGN.md
+	packages/editor-ui/src/audioEditor/CHANGES.md
 )
 
 dropped() { # path -> 0 if it is left out
