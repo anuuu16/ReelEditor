@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:01,800
+Hey, welcome back to the channel
+
+2
+00:00:03,000 --> 00:00:04,800
+Today we're making a 30-second reel
+
+3
+00:00:06,000 --> 00:00:07,800
+First, pick the clips you like best
+
+4
+00:00:09,000 --> 00:00:10,800
+Then trim them so every cut lands on the beat
+
+5
+00:00:12,000 --> 00:00:13,800
+Add a title and your logo
+
+6
+00:00:15,000 --> 00:00:16,800
+Captions help people watching with the sound off
+
+7
+00:00:18,000 --> 00:00:19,800
+See you in the next one!
