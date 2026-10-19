@@ -1,0 +1,33 @@
+﻿1
+00:00:00,000 --> 00:00:01,800
+<i>Hey</i>, welcome back to the <b>channel</b>
+
+3
+00:00:06,000 --> 00:00:07,800
+First, pick the clips you like best
+
+2
+00:00:03,000 --> 00:00:04,800
+Today we're making a 30-second reel 🎬
+
+00:00:09.000 --> 00:00:10.800
+Then trim them so every cut lands on the beat, and if a clip is too long for the moment you want, split it into two shorter parts instead of speeding it up
+
+5
+00:00:10,500 --> 00:00:13,800
+Add a title and your logo (this cue overlaps the one before)
+
+6
+00:00:15,000 --> 00:00:16,800
+
+
+7
+00:00:15,000 --> 00:00:16,800
+Captions help people
+watching with the sound off
+
+8
+00:00:18,000 --> 00:00:19,800
+See you in the next one! 👋
+
+

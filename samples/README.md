@@ -30,3 +30,19 @@ Images for the image editor (generated with Pillow; no real photos). Each has a 
 | `logo-transparent.png` | 1200×1200 logo with a transparent background |
 | `photo-huge-9000x6000.jpg` | a very large picture (54 megapixels) |
 | `photo-tiny-160x90.png` | a tiny picture (upscaling) |
+
+For the export queue (generated with ffmpeg, see the task notes for the command):
+
+| File | What it is |
+|---|---|
+| `clip-long-30s.mp4` | 1280×720, 30 fps, 30 s test pattern with a 330 Hz tone and a red bar that grows left → right over the 30 s, so a render takes long enough to queue, cancel or reload during it, and any cut-off is easy to see |
+
+For captions (the video is generated with ffmpeg; the caption files are plain text):
+
+| File | What it is |
+|---|---|
+| `talk-portrait-20s.mp4` | 720×1280, 20 s test pattern; its audio is `voice-like-20s.wav`: 7 "speech" bursts at 0, 3, 6, 9, 12, 15, 18 s, each 1.8 s long |
+| `captions-basic.srt` | 7 clean cues, one per burst (0–1.8 s, 3–4.8 s …) |
+| `captions.vtt` | the same 7 cues as WebVTT, with a header, a `NOTE`, cue ids, cue settings (`position`, `size`, `line`, `align`) and a two-line cue |
+| `captions-messy.srt` | real-world mess: UTF-8 **BOM**, **CRLF** line endings, cues **out of order**, a cue with **no index** and `.` instead of `,` in the time, an **overlap** (10.5 s starts before 10.8 s ends), an **empty** cue, `<i>`/`<b>` tags, one very **long line**, emoji, trailing blank lines. `ffmpeg -i captions-messy.srt -f srt -` reads it as 7 cues (sorted, the empty one dropped, tags kept) |
+| `captions-multilang.srt` | 4 cues: Hindi (needs text shaping), Arabic (right-to-left), Japanese (no spaces to break lines on), and accented Latin with curly quotes |
