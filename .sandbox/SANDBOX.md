@@ -21,7 +21,7 @@ refuses to finish unless all checks pass:
 - no agent files and no `.sandbox/`
 - no private-registry URLs and no API keys
 - no `engines` pin
-- no media files except the 12 in `samples/`
+- no media files except the 14 in `samples/` (plus the `.srt`/`.vtt` caption files)
 
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`, `packages/editor-ui/src/audioEditor/CHANGES.md`
 (a write-up by the Task 11 model).
@@ -45,6 +45,9 @@ If the Taiga npm mirror lacks a version, downgrade it here and commit, as in rea
   the Task 11 model, also on `main`)
 - Task 12 (image editor): `photo-landscape-4000x3000.jpg`, `photo-phone-exif-rotated.jpg` (EXIF 6), `logo-transparent.png`,
   `photo-huge-9000x6000.jpg`, `photo-tiny-160x90.png`
+- Task 13 (export queue): `clip-long-30s.mp4`
+- Task 14 (captions): `talk-portrait-20s.mp4`, `captions-basic.srt`, `captions.vtt`, `captions-messy.srt`,
+  `captions-multilang.srt`
 
 ## Start a task branch
 ```bash

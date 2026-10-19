@@ -60,7 +60,7 @@ check "API keys"                "$(unzip -p "$ZIP" | grep -acE 'sk-[A-Za-z0-9_-]
 check "no engines pin"          "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"engines"' || true)" 0
 check "packageManager kept (turbo needs it)" "$(unzip -p "$ZIP" "$NAME/package.json" | grep -c '"packageManager"' || true)" 1
 check "media files outside samples/" "$(grep -iE '\.(mp4|mov|mp3|wav|m4a|jpe?g|png|webp|heic)$' <<<"$list" | grep -vc "^$NAME/samples/" || true)" 0
-check "sample media (12 files)" "$(grep -ciE "^$NAME/samples/.*\.(mp4|m4a|wav|jpe?g|png)$" <<<"$list" || true)" 12
+check "sample media (14 files)" "$(grep -ciE "^$NAME/samples/.*\.(mp4|m4a|wav|jpe?g|png)$" <<<"$list" || true)" 14
 
 ls -lh "$ZIP" | awk '{print "Size:", $5, " ->", $9}'
 if [ "$fail" = 1 ]; then echo "NOT OK: fix the items above before uploading."; rm -f "$ZIP"; exit 1; fi
