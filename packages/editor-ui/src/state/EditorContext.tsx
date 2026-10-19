@@ -3,7 +3,8 @@ import type { ProjectModel } from "@reel-studio/shared-types";
 import { createInitialProject, AUDIO_TRACK_ID } from "./initialProject.js";
 import { normalizeProject, type EditorState } from "./reducer.js";
 import { createInitialHistoryState, historyReducer, type HistoryAction } from "./historyReducer.js";
-import { loadMediaBlob, loadProject } from "../persistence/db.js";
+import { loadProject } from "../persistence/db.js";
+import { hydrateSources } from "../persistence/localSnapshot.js";
 
 export type { EditorState };
 export type { HistoryAction as Action };
@@ -43,17 +44,7 @@ export function EditorProvider({ children, initialProject }: EditorProviderProps
     (async () => {
       const saved = await loadProject();
       if (!saved) return;
-      const hydratedSources = await Promise.all(
-        saved.sources.map(async (source) => {
-          const blob = await loadMediaBlob(source.id);
-          if (!blob) {
-            console.warn(`Missing stored media for "${source.name}" — re-import it to restore this clip.`);
-            return { ...source, previewUrl: "" };
-          }
-          return { ...source, previewUrl: URL.createObjectURL(blob) };
-        }),
-      );
-      dispatch({ type: "LOAD_PROJECT", project: { ...saved, sources: hydratedSources } });
+      dispatch({ type: "LOAD_PROJECT", project: await hydrateSources(saved) });
     })().catch((err) => console.error("Failed to load saved project", err));
     // Only ever run on mount — initialProject is a one-time seed, not something to react to changing.
     // eslint-disable-next-line react-hooks/exhaustive-deps

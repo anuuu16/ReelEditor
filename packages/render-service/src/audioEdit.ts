@@ -6,6 +6,7 @@ import path from "node:path";
 import type { Request, RequestHandler, Response } from "express";
 import multer from "multer";
 import { FFMPEG_PATH } from "./ffmpegBinary.js";
+import { commitUpload, onUploadAbandoned } from "./uploadCleanup.js";
 import { buildAudioEditFilterArgs, buildAudioEditInputArgs, type AudioEditSpec } from "@reel-studio/timeline-core";
 
 const TMP_ROOT = path.join(os.tmpdir(), "reel-studio-audio-edit");
@@ -34,7 +35,16 @@ const upload = multer({
   }),
 });
 
-export const audioEditUpload: RequestHandler = upload.single("file");
+// The work folder is created by the storage engine above, before the route sees the request — so a
+// body multer rejects, or a browser that goes away mid-upload, would otherwise leave it behind.
+const guardAudioEditUpload: RequestHandler = (req, res, next) => {
+  onUploadAbandoned(req, res, () => {
+    if (req.audioEditId) rm(path.join(TMP_ROOT, req.audioEditId), { recursive: true, force: true }).catch(() => {});
+  });
+  next();
+};
+
+export const audioEditUpload: RequestHandler[] = [guardAudioEditUpload, upload.single("file")];
 
 function parseSpec(raw: unknown): AudioEditSpec | null {
   if (typeof raw !== "string") return null;
@@ -75,6 +85,9 @@ export async function handleAudioEdit(req: Request, res: Response): Promise<void
     cleanup();
     return;
   }
+
+  // From here the handler's own cleanup() runs on every path (including the download finishing).
+  commitUpload(req);
 
   const formatId = (String(req.body.format) as FormatId) in FORMATS ? (String(req.body.format) as FormatId) : "mp3";
   const format = FORMATS[formatId];

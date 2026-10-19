@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 
@@ -182,3 +185,68 @@ export async function selectionCenter(page: Page): Promise<{ x: number; y: numbe
 }
 
 export const MIME: Record<Format, string> = { PNG: "image/png", JPEG: "image/jpeg", WebP: "image/webp" };
+
+// --- Video editor -------------------------------------------------------------------------------
+
+export const VIDEO_SAMPLES = {
+  long: path.resolve(import.meta.dirname, "../../../samples/clip-long-30s.mp4"),
+};
+
+/**
+ * Chromium as Playwright ships it has no H.264 decoder, so the editor can't read samples/*.mp4 in
+ * these tests. This is the same 30 s clip as VP8/Vorbis WebM, made once per machine with ffmpeg
+ * (which the render service needs anyway) — the render service itself takes either.
+ */
+export function webmSample(): string {
+  const file = path.join(os.tmpdir(), "reel-studio-e2e", "clip-long-30s.webm");
+  if (!existsSync(file)) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    const result = spawnSync(
+      "ffmpeg",
+      ["-y", "-nostdin", "-loglevel", "error", "-i", VIDEO_SAMPLES.long, "-c:v", "libvpx", "-b:v", "800k", "-c:a", "libvorbis", file],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    if (result.status !== 0) throw new Error(`Couldn't make the WebM sample: ${result.stderr}`);
+  }
+  return file;
+}
+
+/** A brand-new video project in a clean database, opened from the Dashboard. Returns its id. */
+export async function openFreshVideoEditor(page: Page): Promise<string> {
+  await page.goto("/");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const request = indexedDB.deleteDatabase("reel-studio");
+        request.onsuccess = request.onerror = request.onblocked = () => resolve();
+      }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "+ New project" }).click();
+  await page.waitForURL(/\/editor\/[0-9a-f-]{36}$/);
+  return page.url().split("/").pop()!;
+}
+
+/** Imports a file into the media library and appends it to the video track. */
+export async function importAndAddClip(page: Page, file: string): Promise<void> {
+  await page.locator(".media-library input[type=file]").first().setInputFiles(file);
+  await page.getByTitle("Add to timeline").first().click();
+  await page.locator(".clip-block").first().waitFor();
+}
+
+/** What the /projects API currently has saved for a project, or null if it was never saved. */
+export async function savedProject(renderUrl: string, projectId: string): Promise<{ clips: unknown[]; metadata: { name: string } } | null> {
+  const response = await fetch(`${renderUrl}/projects/${projectId}`);
+  return response.ok ? ((await response.json()) as { clips: unknown[]; metadata: { name: string } }) : null;
+}
+
+/**
+ * Empties the render service's export queue (cancelling anything still running and deleting every
+ * file), so a spec starts from nothing — the Dashboard's Exports page shows every export there is,
+ * and one slot means a leftover render would hold up the next spec's queue.
+ */
+export async function clearAllExports(renderUrl: string): Promise<void> {
+  const jobs = (await (await fetch(`${renderUrl}/render`)).json()) as Array<{ id: string }>;
+  await Promise.all(jobs.map((job) => fetch(`${renderUrl}/render/${job.id}`, { method: "DELETE" })));
+  await expect.poll(async () => ((await (await fetch(`${renderUrl}/render`)).json()) as unknown[]).length).toBe(0);
+}

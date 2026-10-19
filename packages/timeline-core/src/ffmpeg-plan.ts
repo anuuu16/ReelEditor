@@ -4,13 +4,17 @@ import { getOverlapSeconds, getSequenceDuration, type LaidOutClip } from "./sequ
 import { FADE_DURATION_SECONDS, slideStartOffsetRatio } from "./overlay-animation.js";
 import { buildFfmpegColorFilter } from "./filter-presets.js";
 import { buildPanZoomFilter } from "./fit-rect.js";
+import { buildEncoderArgs, DEFAULT_OUTPUT_FORMAT, getOutputFormat, GIF_FRAME_RATE, type OutputFormatId } from "./export-formats.js";
 import { getPrimaryVideoTrack, getTimelineDuration, getTracksByKind, layoutTrackClips } from "./track-utils.js";
 
 export interface RenderPlanInput {
   project: ProjectModel;
   sourcePaths: Record<string, string>;
-  /** Overrides the project canvas size for the final render (e.g. a 4K/2K/720p export quality choice). */
-  output?: { width: number; height: number };
+  /**
+   * Overrides the project canvas size for the final render (e.g. a 4K/2K/720p export quality
+   * choice) and picks the container/codec (`format`, default mp4 — see export-formats.ts).
+   */
+  output?: { width: number; height: number; format?: OutputFormatId };
   /**
    * Whether each source's actual file has at least one audio stream, as probed by the render
    * service. A video with no audio track at all (screen recordings, GIF-style clips, stock B-roll)
@@ -30,6 +34,7 @@ export interface OverlayTextFile {
 export interface RenderPlan {
   args: string[];
   outputFileName: string;
+  format: OutputFormatId;
   totalDurationSeconds: number;
   overlayTextFiles: OverlayTextFile[];
 }
@@ -689,7 +694,22 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
     finalAudioLabel = "[aout]";
   }
 
-  const outputFileName = "output.mp4";
+  const formatId = input.output?.format ?? DEFAULT_OUTPUT_FORMAT;
+  const format = getOutputFormat(formatId);
+  const outputFileName = `output.${format.extension}`;
+
+  if (formatId === "gif") {
+    // GIF is palette-based: a palette computed from the whole output (one colour table, tracking
+    // what changes between frames) dithered back over it looks far better than the encoder's
+    // default per-frame 256-colour quantisation — and the frame rate drops to GIF_FRAME_RATE so
+    // the file stays a fraction of the size a full-rate GIF would be.
+    filterChains.push(
+      `${finalVideoLabel}fps=${GIF_FRAME_RATE},split[gifsrc][gifpal];[gifpal]palettegen=stats_mode=diff[pal];` +
+        `[gifsrc][pal]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[gifout]`,
+    );
+    finalVideoLabel = "[gifout]";
+  }
+
   // Caps the filter graph's own thread pool the same way PER_INPUT_THREAD_ARGS caps decoders: a
   // graph with hundreds of nodes (one scale/xfade chain per clip) otherwise gets a pool sized to
   // the core count for the graph *plus* per-decoder threads for every input, multiplying the same
@@ -699,27 +719,18 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   for (const input of inputs) {
     args.push(...input.extraArgs, "-i", input.path);
   }
+  // A format with no sound (GIF) must not map the audio lane at all — ffmpeg would refuse to mux
+  // it. The audio graph is still built above (every filter output has to be connected to
+  // something), so it is sunk into `anullsink` and simply discarded.
+  if (!format.hasAudio) {
+    filterChains.push(`${finalAudioLabel}anullsink`);
+  }
+  args.push("-filter_complex", filterChains.join(";"), "-map", finalVideoLabel);
+  if (format.hasAudio) {
+    args.push("-map", finalAudioLabel);
+  }
   args.push(
-    "-filter_complex",
-    filterChains.join(";"),
-    "-map",
-    finalVideoLabel,
-    "-map",
-    finalAudioLabel,
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "20",
-    "-pix_fmt",
-    "yuv420p",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "192k",
-    "-movflags",
-    "+faststart",
+    ...buildEncoderArgs(formatId),
     // Belt and braces: every lane is already exactly the timeline's length; this pins the file to it.
     "-t",
     totalDurationSeconds.toFixed(3),
@@ -732,6 +743,7 @@ export function buildFfmpegPlan(input: RenderPlanInput): RenderPlan {
   return {
     args,
     outputFileName,
+    format: formatId,
     overlayTextFiles,
     totalDurationSeconds,
   };

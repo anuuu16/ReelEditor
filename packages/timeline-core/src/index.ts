@@ -10,3 +10,5 @@ export * from "./snapping.js";
 export * from "./export-presets.js";
 export * from "./quality-presets.js";
 export * from "./aspect-presets.js";
+export * from "./export-formats.js";
+export * from "./media-fingerprint.js";
