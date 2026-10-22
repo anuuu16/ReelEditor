@@ -46,3 +46,18 @@ For captions (the video is generated with ffmpeg; the caption files are plain te
 | `captions.vtt` | the same 7 cues as WebVTT, with a header, a `NOTE`, cue ids, cue settings (`position`, `size`, `line`, `align`) and a two-line cue |
 | `captions-messy.srt` | real-world mess: UTF-8 **BOM**, **CRLF** line endings, cues **out of order**, a cue with **no index** and `.` instead of `,` in the time, an **overlap** (10.5 s starts before 10.8 s ends), an **empty** cue, `<i>`/`<b>` tags, one very **long line**, emoji, trailing blank lines. `ffmpeg -i captions-messy.srt -f srt -` reads it as 7 cues (sorted, the empty one dropped, tags kept) |
 | `captions-multilang.srt` | 4 cues: Hindi (needs text shaping), Arabic (right-to-left), Japanese (no spaces to break lines on), and accented Latin with curly quotes |
+
+For keyframe motion (generated with Pillow):
+
+| File | What it is |
+|---|---|
+| `grid-target-4000x3000.png` | 4000×3000 grid, 8 columns × 6 rows, cells labelled A1…F8, a red ring and cross at the exact centre and a black arrow at the top centre, so zoom, pan and rotation can be read off any frame |
+
+For beat detection (generated with ffmpeg; no real songs, so the beat times are known):
+
+| File | What it is |
+|---|---|
+| `beat-120bpm-16s.wav` | a kick every 0.5 s from 0 s (120 BPM), every 4th louder, a quiet hi-hat between |
+| `beat-95bpm-intro-20s.m4a` | 1.5 s of quiet hum, then 95 BPM (a beat every 0.632 s) |
+| `beat-tempo-change-24s.m4a` | 100 BPM (every 0.6 s) for 12 s, then 128 BPM (every 0.469 s) |
+| `ambient-no-beat-12s.m4a` | a soft chord that slowly swells and fades: no beat at all |
