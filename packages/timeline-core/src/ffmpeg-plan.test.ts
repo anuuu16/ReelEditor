@@ -221,3 +221,41 @@ function argAfter(args: string[], flag: string): string | undefined {
 function filterGraph(args: string[]): string {
   return args[args.indexOf("-filter_complex") + 1];
 }
+
+describe("buildFfmpegPlan — output formats", () => {
+  it("defaults to mp4, exactly as before", () => {
+    const plan = buildFfmpegPlan({ project: makeProject(), sourcePaths });
+    expect(plan.format).toBe("mp4");
+    expect(plan.outputFileName).toBe("output.mp4");
+    expect(plan.args.join(" ")).toContain("-c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart");
+  });
+
+  it("writes webm with VP9 + Opus and the audio lane mapped", () => {
+    const plan = buildFfmpegPlan({ project: makeProject(), sourcePaths, output: { width: 540, height: 960, format: "webm" } });
+    expect(plan.outputFileName).toBe("output.webm");
+    expect(plan.args[plan.args.length - 1]).toBe("output.webm");
+    expect(plan.args.join(" ")).toContain("-c:v libvpx-vp9");
+    expect(plan.args.join(" ")).toContain("-c:a libopus");
+    expect(plan.args.filter((a) => a === "-map")).toHaveLength(2);
+    expect(filterGraph(plan.args)).toContain("scale=540:960");
+  });
+
+  it("writes mov with the same encoder settings as mp4", () => {
+    const mov = buildFfmpegPlan({ project: makeProject(), sourcePaths, output: { width: 1080, height: 1920, format: "mov" } });
+    const mp4 = buildFfmpegPlan({ project: makeProject(), sourcePaths, output: { width: 1080, height: 1920, format: "mp4" } });
+    expect(mov.outputFileName).toBe("output.mov");
+    expect(mov.args.slice(0, -1)).toEqual(mp4.args.slice(0, -1));
+  });
+
+  it("writes gif through a generated palette at 15 fps, with no audio stream mapped", () => {
+    const plan = buildFfmpegPlan({ project: makeProject(), sourcePaths, output: { width: 270, height: 480, format: "gif" } });
+    expect(plan.outputFileName).toBe("output.gif");
+    const graph = filterGraph(plan.args);
+    expect(graph).toContain("fps=15,split[gifsrc][gifpal];[gifpal]palettegen=stats_mode=diff[pal];[gifsrc][pal]paletteuse=");
+    expect(graph).toMatch(/anullsink$/);
+    expect(plan.args.filter((a) => a === "-map")).toHaveLength(1);
+    expect(argAfter(plan.args, "-map")).toBe("[gifout]");
+    expect(plan.args.join(" ")).not.toContain("libx264");
+    expect(plan.args.join(" ")).not.toContain("-c:a");
+  });
+});

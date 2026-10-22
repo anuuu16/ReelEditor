@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorState } from "../state/EditorContext.js";
-import { saveProject } from "../persistence/db.js";
+import { saveLocalSnapshot } from "../persistence/localSnapshot.js";
 import { saveProjectToServer } from "../persistence/projectServer.js";
 
 type Status = "saved" | "saving" | "pending" | "error";
@@ -74,7 +74,7 @@ export function SaveStatus() {
     if (pendingSinceRef.current === null) pendingSinceRef.current = Date.now();
 
     const localHandle = setTimeout(() => {
-      saveProject(state.project).catch((err) => console.error("Local autosave failed", err));
+      saveLocalSnapshot(state.project).catch((err) => console.error("Local autosave failed", err));
     }, LOCAL_AUTOSAVE_DELAY_MS);
 
     // maxWait: schedule against how long a change has been waiting, not just since the last edit —
@@ -99,7 +99,7 @@ export function SaveStatus() {
   useEffect(() => {
     function flush() {
       if (statusRef.current === "saved") return;
-      saveProject(stateRef.current.project).catch(() => {});
+      saveLocalSnapshot(stateRef.current.project).catch(() => {});
       runServerSave();
     }
     function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -121,7 +121,7 @@ export function SaveStatus() {
   }, []);
 
   async function handleSaveNow() {
-    await saveProject(stateRef.current.project).catch((err) => console.error("Local save failed", err));
+    await saveLocalSnapshot(stateRef.current.project).catch((err) => console.error("Local save failed", err));
     // Goes through the same in-flight guard as autosave: if one is already running, this just
     // flags it to run again immediately after, rather than firing a second overlapping request.
     runServerSave();

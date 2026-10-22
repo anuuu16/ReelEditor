@@ -1173,6 +1173,270 @@ body {
   cursor: pointer;
 }
 
+/* --- Export panel: the output rows and the live queue ----------------------------------- */
+
+.export-button-active {
+  background: #3ac06e;
+}
+
+.export-panel-wide {
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.export-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.export-target {
+  background: #202128;
+  border: 1px solid #2a2b31;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.export-target .hint,
+.export-target .export-warning {
+  margin: 6px 0 0;
+}
+
+.export-target-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.export-target-row select {
+  flex: 1;
+  min-width: 0;
+  background: #15161b;
+  color: #e6e6e9;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
+.export-target-row select:first-child {
+  flex: 1.6;
+}
+
+.export-panel button.export-target-remove {
+  background: transparent;
+  color: #b7b8c2;
+  padding: 2px 6px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.export-panel button.export-target-remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.export-target-name {
+  word-break: break-all;
+}
+
+.export-panel button.export-add-target {
+  align-self: flex-start;
+  background: transparent;
+  color: #8fa4ff;
+  border: 1px dashed #3a3b44;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.export-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.export-actions .hint {
+  margin: 0;
+}
+
+.export-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.export-queue {
+  margin-top: 16px;
+  border-top: 1px solid #2a2b31;
+  padding-top: 12px;
+}
+
+.export-queue-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.export-queue-header h3 {
+  font-size: 13px;
+  margin: 0;
+  flex: 1;
+}
+
+.export-queue-header .export-warning {
+  margin: 0;
+}
+
+.export-panel button.export-link-button {
+  background: transparent;
+  color: #b7b8c2;
+  padding: 2px 6px;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.export-jobs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.export-job {
+  background: #202128;
+  border: 1px solid #2a2b31;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.export-job-done {
+  border-color: #2e5c41;
+}
+
+.export-job-error {
+  border-color: #5c2e2e;
+}
+
+.export-job-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.export-job-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-job-status {
+  font-size: 12px;
+  color: #b7b8c2;
+  white-space: nowrap;
+}
+
+.export-job .export-progress-track {
+  margin-bottom: 6px;
+}
+
+.export-job .export-error {
+  margin: 0 0 6px;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.export-job-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-job-actions .export-download {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.export-job-actions button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.export-job-move {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.export-job-move button {
+  background: #23242b;
+  color: #e6e6e9;
+  border: 1px solid #2a2b31;
+}
+
+.export-job-move button:disabled {
+  opacity: 0.35;
+}
+
+.export-job-project {
+  color: #9294a1;
+}
+
+.export-job-details {
+  margin: 0 0 6px;
+}
+
+/* The Dashboard's Exports view: the same rows, with room to breathe. */
+.exports-section .export-jobs {
+  max-width: 900px;
+}
+
+.exports-section .dashboard-section-header button {
+  background: #23242b;
+  color: #e6e6e9;
+  border: 1px solid #2a2b31;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.exports-section .dashboard-section-header button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.exports-section .export-job {
+  padding: 10px 14px;
+}
+
+.exports-section .export-job-actions button,
+.exports-section .export-job-actions .export-download {
+  background: #5b7cff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.exports-section .export-job-actions button.export-link-button {
+  background: transparent;
+  color: #b7b8c2;
+  text-decoration: underline;
+}
+
+.exports-section .export-job-actions .export-download {
+  background: #3ac06e;
+}
+
 .slideshow-button {
   display: block;
   width: 100%;

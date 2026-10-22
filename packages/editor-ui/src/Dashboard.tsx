@@ -8,10 +8,12 @@ import type { StudioProjectSummary } from "./promptStudio/types.js";
 import { ImageProjectsView } from "./dashboard/ImageProjectsView.js";
 import { StorageView } from "./dashboard/StorageView.js";
 import { BatchExportView } from "./dashboard/BatchExportView.js";
+import { ExportsView } from "./dashboard/ExportsView.js";
 
 const VIEWS = [
   { id: "videos", label: "Video projects", icon: "▶" },
   { id: "images", label: "Image projects", icon: "▣" },
+  { id: "exports", label: "Exports", icon: "⇩" },
   { id: "batch", label: "Batch export", icon: "⧉" },
   { id: "studio", label: "Prompt Studio", icon: "✦" },
   { id: "gallery", label: "Gallery", icon: "◫" },
@@ -68,6 +70,7 @@ export function Dashboard() {
         <div className="dashboard-body">
           {view === "videos" && <VideoProjectsView />}
           {view === "images" && <ImageProjectsView />}
+          {view === "exports" && <ExportsView />}
           {view === "batch" && <BatchExportView />}
           {view === "studio" && <StudioView />}
           {view === "gallery" && <GalleryView />}
