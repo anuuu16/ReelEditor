@@ -21,13 +21,13 @@ refuses to finish unless all checks pass:
 - no agent files and no `.sandbox/`
 - no private-registry URLs and no API keys
 - no `engines` pin
-- no media files except the 14 in `samples/` (plus the `.srt`/`.vtt` caption files)
+- no media files except the 19 in `samples/` (plus the `.srt`/`.vtt` caption files)
 
 Left out of the zip (still on the branch): `.sandbox/`, `README.md`, `DESIGN.md`, `packages/editor-ui/src/audioEditor/CHANGES.md`
 (a write-up by the Task 11 model).
 
 ## What's in `sandbox-base`
-`main` (which now includes the Task 10–12 work) + `engines` removed from the root `package.json`. `packageManager` is kept (turbo 2.10 can't find the workspace without it) and pinned to `pnpm@10.34.5`, the version the
+`main` (which now includes the Task 10–13 work) + `engines` removed from the root `package.json`. `packageManager` is kept (turbo 2.10 can't find the workspace without it) and pinned to `pnpm@10.34.5`, the version the
 Taiga sandbox has. `.npmrc` also sets `manage-package-manager-versions=false`, so a different pnpm runs as itself instead of
 trying to download the pinned one (on the Taiga mirror that download fails its signature check: "Refusing to run pnpm…").
 
@@ -48,6 +48,9 @@ If the Taiga npm mirror lacks a version, downgrade it here and commit, as in rea
 - Task 13 (export queue): `clip-long-30s.mp4`
 - Task 14 (captions): `talk-portrait-20s.mp4`, `captions-basic.srt`, `captions.vtt`, `captions-messy.srt`,
   `captions-multilang.srt`
+- EditorTask1 (keyframe motion): `grid-target-4000x3000.png`
+- EditorTask2 (beat detection): `beat-120bpm-16s.wav`, `beat-95bpm-intro-20s.m4a`, `beat-tempo-change-24s.m4a`,
+  `ambient-no-beat-12s.m4a`
 
 ## Start a task branch
 ```bash
